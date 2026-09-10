@@ -1,0 +1,16 @@
+# Binary reference material (Fancy Force copyrighted data) — never commit
+binary/
+*.xapk
+*.ipa
+
+# re-agent runtime artifacts
+reports/
+re-agent-progress.json
+re-agent-progress.json.lock
+.cache/
+
+# Build output
+build/
+out/
+*.exe
+*.o
