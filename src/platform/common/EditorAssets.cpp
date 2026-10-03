@@ -3,6 +3,7 @@
 #include <set>
 
 #include "cocos2d.h"
+#include "platform/common/BinaryPlist.h"
 #include "platform/common/IOSBundle.h"
 
 USING_NS_CC;
@@ -43,7 +44,8 @@ bool loadAtlas(const std::string& base) {
         log("EditorAssets: missing %s", plist.c_str());
         return false;
     }
-    SpriteFrameCache::getInstance()->addSpriteFramesWithFile(plist);
+    // The iOS atlases are binary plists, and levelEditorObjects1's texture is a CgBI PNG.
+    if (!openwheels::addSpriteFramesWithPlist(plist)) return false;
     loaded.insert(base);
     return true;
 }
