@@ -12,6 +12,9 @@
 #include <string>
 
 #define OW_GAMETEXT(key, addr) (::GameText::get(#key))
+// Same for text hard-coded in the iOS build (level editor port): addr is the iOS Mach-O address
+// of the C string or of the ObjC @"..." constant (__cfstring) that references it.
+#define OW_IOSTEXT(key, addr) (::GameText::get(#key))
 
 namespace GameText {
 
