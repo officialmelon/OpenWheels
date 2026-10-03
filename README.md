@@ -1,40 +1,71 @@
 # OpenWheels
 
-An open-source, mobile-first reimplementation of the Happy Wheels mobile engine
-(cocos2d-x + Box2D), reconstructed from the official Android/iOS binaries with
-[re-agent](https://github.com/Dryxio/reagent) (Ghidra + LLM reversal).
+An open-source, source-level reconstruction of the **Happy Wheels mobile** game engine
+(Android 1.1.3: cocos2d-x 3.17.2 + Box2D), rebuilt as readable C++ that compiles against the
+same engine version and runs natively on Windows.
 
-Goal: 1:1 behavior parity with the original mobile game so new levels and
-characters can be built on a clean, licensed-clean codebase we own.
+The goal is behavioural 1:1 parity with the original: same physics steps, same level loading,
+same item, character and vehicle behaviour, same menus. Parity is *measured*, not assumed:
+the original game runs in an arm64 emulator (the "oracle") and the reconstruction's Box2D world
+is diffed against it body by body, frame by frame (see `docs/RECONSTRUCTION.md` §5).
+
+**No game assets are included.** OpenWheels needs your own legally obtained copy of the
+Android game; it loads the art, sounds and levels from it at runtime, and generates the few
+data tables it needs (sound list, long UI text) from your copy at build time.
+
+## Building (Windows)
+
+Requirements: Visual Studio 2022 (MSVC v143, Win32), Python 3 with `unicorn` and `capstone`
+(`pip install unicorn capstone`).
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\fetch_engine.ps1   # cocos2d-x 3.17.2 + deps
+powershell -ExecutionPolicy Bypass -File tools\build.ps1           # -> build\bin\OpenWheels\RelWithDebInfo\
+```
+
+Put your game files where the build and the game can find them:
+
+* the extracted Android assets folder (contains `shared/`, `sounds/`, `large/`, ...) — pass
+  `--assets <dir>` or place it at `binary/HappyWheels_Android/HW_Android/assets` in the repo;
+* `libMyGame.so` (arm64) at `binary/HappyWheels_Android/config.arm64_v8a/lib/arm64-v8a/`
+  or set the CMake cache variable `OW_GAME_LIB`.
+
+## Playing
+
+Mouse = touch. Keyboard: Up/W forward, Down/S back, Right/D lean forward, Left/A lean back,
+Space special (jump/jet/brake; grab when ejected), Z eject, Esc/P pause, R reset after death.
+Options: `--width/--height` (window size picks the original's art tier), `--console`.
 
 ## Layout
 
-- `binary/` — reference material only (extracted Android XAPK + iOS IPA).
-  **Never redistribute.** Not part of any OpenWheels release.
-- `src/` — recreated engine sources (re-agent output, human-reviewed)
-- `tests/` — test oracles / differential harnesses
-- `reports/re-agent/` — reversal runs, evidence, logs
-- `re-agent.yaml` — reversal workflow config (provider: codex / gpt-5.6-luna)
-- `ghidra-bridge.yaml` — Ghidra backend config for the analyzed binaries
-
-## Reversal workflow
-
-```bash
-# 1. Analyze a binary in Ghidra (once per binary)
-analyzeHeadless <home>\ghidra-projects OpenWheelsReagent -import binary/.../libMyGame.so -overwrite
-
-# 2. Doctor + reverse a function
-re-agent doctor
-re-agent reverse --address <ADDR>
-
-# 3. Batch work
-re-agent plan
-re-agent reverse --class CharacterB2D --max-functions 5
+```
+src/game/<subsystem>/   one .h/.cpp per original class, original names and signatures
+  app audio services session render level items triggers
+  characters vehicles gameplay menus debug
+src/platform/win32/     PC entry point, keyboard bridge, --dump-world verification runner
+src/platform/compat/    bionic-compatible rand() (same random sequences as Android)
+src/platform/stubs/     no-op stand-ins for mobile SDKs (ads, analytics, store review)
+src/platform/debug/     Box2D world dumper (oracle-compatible JSON)
+tools/re/               reverse-engineering + verification tooling (emulator oracle, parity)
+docs/                   reconstruction rules, module notes, roadmap
 ```
 
-## Legal note
+## Verification
 
-The Happy Wheels binaries, art, sounds, and level data are © Fancy Force.
-OpenWheels recreates engine behavior for interoperability; it does not
-redistribute game assets. Original assets are loaded from a user-provided,
-legally-obtained copy of the game at runtime (same model as OpenRCT2 / NX1recomp).
+```powershell
+python tools\re\oracle.py play --frames 120 --script "0:01" --dump-at 120 --out reports\o.json
+build\bin\OpenWheels\RelWithDebInfo\OpenWheels.exe --dump-world reports\ours.json --frames 120 --script 0:01
+python tools\re\worlddiff.py reports\o_f120.json reports\ours.json
+python tools\re\compare_play.py          # every level, original vs reconstruction
+```
+
+## Roadmap
+
+See `docs/ROADMAP.md`: translations, custom levels, and the iOS-only level editor.
+
+## Legal
+
+Happy Wheels, its art, sounds, text and levels are © Fancy Force. This repository contains
+no game assets or game data; it is an independent reimplementation intended for
+interoperability with a legally obtained copy of the game. `binary/` (reference copies of the
+original) is never committed.
