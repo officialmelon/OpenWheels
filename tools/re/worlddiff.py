@@ -5,11 +5,12 @@ fixtures in body list order, joints in world list order.
 
   python tools/re/worlddiff.py reports/oracle_x.json build/ours_x.json [--tol 1e-4] [--max 40]
 
-Exit status 0 when identical within tolerance.
+Exit status 0 when identical within tolerance. --tol 0 compares bit-exactly as float32.
 """
 import argparse
 import json
 import math
+import struct
 import sys
 
 
@@ -19,6 +20,8 @@ def close(a, b, tol):
     if isinstance(a, (int, float)) and isinstance(b, (int, float)):
         if isinstance(a, float) and math.isnan(a) and isinstance(b, float) and math.isnan(b):
             return True
+        if tol == 0:  # exact: both sides are float32 values (ours printed with 9 digits)
+            return struct.unpack("<f", struct.pack("<f", a)) == struct.unpack("<f", struct.pack("<f", b))
         return abs(a - b) <= tol * max(1.0, abs(a), abs(b))
     return a == b
 

@@ -1,6 +1,7 @@
 #include "platform/debug/WorldDump.h"
 
 #include <cstdio>
+#include <cstring>
 #include <map>
 #include <sstream>
 
@@ -147,8 +148,30 @@ bool dumpWorldJson(b2World* world, const std::string& path, int frames) {
             o << ", \"speed\": "; num(o, p->GetMotorSpeed());
             o << ", \"limit\": " << (p->IsLimitEnabled() ? 1 : 0);
             o << ", \"motor\": " << (p->IsMotorEnabled() ? 1 : 0);
+        } else if (j->GetType() == e_distanceJoint || j->GetType() == e_gearJoint) {
+            // The oracle emits 24 raw 4-byte words following the arm64 b2Joint base (offset 128),
+            // as floats rounded to 6 decimals. Rebuild the same words from our layout: distance
+            // joints hold only 4-byte scalars after the base (identical layout); gear joints start
+            // with 2 joint pointers, 2 enums and 2 body pointers (10 words on arm64; emitted as 0,
+            // as pointer/int bits read as floats round to 0 there) followed by floats.
+            const char* derived = reinterpret_cast<const char*>(j) + sizeof(b2Joint);
+            float words[24] = {};
+            if (j->GetType() == e_distanceJoint) {
+                std::memcpy(words, derived, sizeof words);
+                words[10] = words[11] = 0.0f;  // m_indexA/m_indexB (ints)
+            } else {
+                const char* floats = derived + 4 * sizeof(void*) + 2 * sizeof(int);
+                std::memcpy(words + 10, floats, 14 * sizeof(float));
+            }
+            o << ", \"raw\": [";
+            for (int i = 0; i < 24; ++i) {
+                if (i) o << ", ";
+                char buf[64];
+                std::snprintf(buf, sizeof buf, "%.6f", static_cast<double>(words[i]));
+                o << buf;
+            }
+            o << "]";
         }
-        // Other joint types: the oracle emits raw private fields; compare type/bodies only.
         o << "}";
     }
     o << "]}";

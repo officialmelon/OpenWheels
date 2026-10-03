@@ -4,7 +4,8 @@ For every level: run `oracle.py play` and `OpenWheels.exe --dump-world` with the
 control-byte script for N frames, then diff the Box2D worlds (tools/re/worlddiff.py).
 
   python tools/re/compare_play.py [--frames 180] [--script "0:01,90:05,150:10"] [--only REGEX] [--jobs 5]
-Results: reports/compare/<level>.{oracle,ours}.json and reports/compare/summary.txt
+Results: reports/compare/<level>.{oracle,ours}_f<N>.json and reports/compare/summary_f<N>.txt
+(the oracle cache is keyed by frame count only: delete it when changing --script for the same N)
 """
 import argparse
 import os
@@ -37,7 +38,7 @@ def run_oracle(df, frames, script):
 
 
 def run_ours(df, frames, script):
-    out = os.path.join(OUT, safe(df) + ".ours.json")
+    out = os.path.join(OUT, safe(df) + f".ours_f{frames}.json")
     if os.path.exists(out):
         os.remove(out)
     subprocess.run([EXE, "--dump-world", out, "--level", "levels/" + df, "--frames", str(frames),
@@ -51,7 +52,11 @@ def main():
     ap.add_argument("--script", default="0:01,90:05,150:10")
     ap.add_argument("--only", default=None)
     ap.add_argument("--jobs", type=int, default=5)
+    ap.add_argument("--exe", default=None, help="OpenWheels.exe to test (default: build/bin/...)")
     a = ap.parse_args()
+    global EXE
+    if a.exe:
+        EXE = os.path.abspath(a.exe)
     os.makedirs(OUT, exist_ok=True)
     files = [f for f in level_files() if not a.only or re.search(a.only, f)]
     with ThreadPoolExecutor(a.jobs) as ex:
@@ -68,7 +73,7 @@ def main():
             status = "SAME" if d and d[-1].startswith("worlddiff: IDENTICAL") else "DIFF"
             lines.append(f"{status:8s} {df}  {d[-1] if d else ''}" + ("" if status == "SAME" else "  | " + " / ".join(d[:2])))
         print(lines[-1], flush=True)
-    with open(os.path.join(OUT, "summary.txt"), "w") as f:
+    with open(os.path.join(OUT, f"summary_f{a.frames}.txt"), "w") as f:
         f.write("\n".join(lines) + "\n")
     same = sum(1 for l in lines if l.startswith("SAME"))
     print(f"compare_play: {same}/{len(lines)} levels identical after {a.frames} frames")

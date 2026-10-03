@@ -114,6 +114,14 @@ file(GLOB_RECURSE GAME_SOURCES CONFIGURE_DEPENDS
 foreach(foreign_os android ios mac linux winrt tizen emscripten)
     list(FILTER GAME_SOURCES EXCLUDE REGEX "/src/platform/${foreign_os}/")
 endforeach()
+# OW_WITH_EDITOR=OFF leaves out src/editor/ (only a few LevelSession hooks reach it); used by
+# private verification build trees, e.g. tools/build.ps1 -BuildDir build_parity.
+option(OW_WITH_EDITOR "Build the level editor sources under src/editor/" ON)
+if(NOT OW_WITH_EDITOR)
+    list(FILTER GAME_SOURCES EXCLUDE REGEX "/src/editor/")
+    # the menus' editor hooks reference a few LevelSession members: verification-only stubs
+    list(APPEND GAME_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/tools/parity/EditorlessStubs.cpp)
+endif()
 
 
 add_executable(${APP_NAME} ${GAME_SOURCES})
