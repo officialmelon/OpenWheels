@@ -15,6 +15,7 @@ const char* const kCameraZoom = "qol_camera_zoom";
 const char* const kShowFps = "qol_show_fps";
 const char* const kUnlockAll = "qol_unlock_all_levels";
 const char* const kFullscreen = "qol_fullscreen";
+const char* const kChildGore = "qol_child_gore";
 const char* const kBloodName = "qol:blood";
 
 std::function<void(bool)>& fullscreenHandler() {
@@ -23,6 +24,15 @@ std::function<void(bool)>& fullscreenHandler() {
 }
 
 UserDefault* store() { return UserDefault::getInstance(); }
+
+std::string& assetTier() {
+    static std::string tier = "small";
+    return tier;
+}
+
+std::string childGoreSheet() {
+    return "generated/" + assetTier() + "/characters/irresponsible_dad_kid_gore_sprites.plist";
+}
 
 }  // namespace
 
@@ -59,6 +69,22 @@ void setShowFps(bool on) {
 
 bool unlockAllLevels() { return store()->getBoolForKey(kUnlockAll, false); }
 void setUnlockAllLevels(bool on) { store()->setBoolForKey(kUnlockAll, on); }
+
+bool childGore() { return childGoreAvailable() && store()->getBoolForKey(kChildGore, true); }
+void setChildGore(bool on) { store()->setBoolForKey(kChildGore, on); }
+
+bool childGoreAvailable() { return FileUtils::getInstance()->isFileExist(childGoreSheet()); }
+
+bool loadChildGoreSprites() {
+    const std::string sheet = childGoreSheet();
+    SpriteFrameCache* cache = SpriteFrameCache::getInstance();
+    if (cache->isSpriteFramesWithFileLoaded(sheet)) return true;
+    if (!FileUtils::getInstance()->isFileExist(sheet)) return false;
+    cache->addSpriteFramesWithFile(sheet);
+    return cache->getSpriteFrameByName("irresponsible_dad_kid_head_2.png") != nullptr;
+}
+
+void setAssetTier(const std::string& tier) { assetTier() = tier; }
 
 bool fullscreenSupported() { return (bool)fullscreenHandler(); }
 bool fullscreen() { return fullscreenSupported() && store()->getBoolForKey(kFullscreen, false); }

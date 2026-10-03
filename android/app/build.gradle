@@ -11,6 +11,9 @@
 //                                                            (tools/re/extract_*.py, as on Win32)
 //         assets/ios/                                        optional: the iOS app's level-editor
 //                                                            art and Localizable.strings
+//         assets/generated/<tier>/characters/                optional (QOL): the kid's gore sheet,
+//                                                            rebuilt from the browser-game SWF
+//                                                            (tools/assets/extract_kid_gore.py)
 plugins {
     id 'com.android.application'
 }
@@ -32,6 +35,8 @@ def gameAssets  = owFile(owProp('OW_GAME_ASSETS'))
 def gameRes     = owFile(owProp('OW_GAME_RES'))
 def gameLib     = owFile(owProp('OW_GAME_LIB'))
 def iosApp      = owFile(owProp('OW_IOS_APP'))
+def flashSwf    = owFile(owProp('OW_FLASH_SWF') ?: 'binary/flash/swf/game_e_v1_87_g.dec.swf')
+def ffdecDir    = owFile(owProp('OW_FFDEC_DIR') ?: 'binary/flash/tools/ffdec')
 def isWindows   = System.getProperty('os.name').toLowerCase().contains('windows')
 def python      = owProp('OW_PYTHON') ?: (isWindows ? 'python' : 'python3')
 
@@ -46,6 +51,7 @@ def stageRoot    = layout.buildDirectory.dir("ow").get().asFile
 def stagedAssets = new File(stageRoot, 'assets')   // game files (+ ios/)
 def stagedData   = new File(stageRoot, 'data')     // soundlist.tsv, gametext.tsv
 def stagedRes    = new File(stageRoot, 'res')      // launcher icon from the player's copy
+def stagedGen    = new File(stageRoot, 'kidgore')  // generated/<tier>/characters/ (QOL)
 def iconRes      = gameRes.isDirectory() ? stagedRes : file('res-icon-fallback')
 
 if (!new File(engineDir, 'cocos/cocos2d.h').exists()) {
@@ -103,7 +109,7 @@ android {
             java.srcDirs = [new File(repoRoot, 'src/platform/android/java'), new File(cocosJava, 'src')]
             aidl.srcDirs = [new File(cocosJava, 'src')]
             res.srcDirs = ['res', iconRes]
-            assets.srcDirs = [stagedAssets, stagedData]
+            assets.srcDirs = [stagedAssets, stagedData, stagedGen]
         }
     }
 
@@ -209,6 +215,23 @@ def genGameText = tasks.register('owGenerateGameText', Exec) {
                 '--so', gameLib.path, '--out', gameText.path
 }
 
+// QOL (PC addition): gore sprites for Irresponsible Dad's kid, which the mobile port shipped
+// without, rebuilt from the player's own browser-game SWF with JPEXS FFDec + Java (as on Win32).
+// Skipped quietly (the kid stays gore-free) when the SWF, FFDec, Java or numpy/Pillow are missing.
+def kidGoreScript = new File(repoRoot, 'tools/assets/extract_kid_gore.py')
+def genKidGore = tasks.register('owGenerateKidGore', Exec) {
+    description = "Builds the kid's gore sheet from the browser-game SWF (tools/assets/extract_kid_gore.py)."
+    inputs.file(kidGoreScript)
+    inputs.file(new File(repoRoot, 'tools/assets/FlashPartRender.java'))
+    inputs.files(flashSwf)
+    outputs.dir(stagedGen)
+    doFirst { stagedGen.mkdirs() }
+    commandLine python, kidGoreScript.path, '--optional',
+                '--swf', flashSwf.path, '--ffdec', ffdecDir.path, '--assets', gameAssets.path,
+                '--out', new File(stagedGen, 'generated').path,
+                '--work', new File(stageRoot, 'kidgore-work').path
+}
+
 def stageIcon = tasks.register('owStageIcon', Sync) {
     description = "Copies the original launcher icon from the player's copy into build/ow/res."
     from(gameRes) {
@@ -218,6 +241,6 @@ def stageIcon = tasks.register('owStageIcon', Sync) {
 }
 
 tasks.named('preBuild') {
-    dependsOn stageGameAssets, genSoundList, genGameText
+    dependsOn stageGameAssets, genSoundList, genGameText, genKidGore
     if (iconRes == stagedRes) dependsOn stageIcon
 }

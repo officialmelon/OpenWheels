@@ -194,6 +194,25 @@ if(TRUE)
     endif()
 endif()
 
+# QOL (PC addition): gore sprites for Irresponsible Dad's kid, which the mobile port shipped
+# without. Rebuilt from the player's own browser-game SWF with JPEXS FFDec + Java
+# (tools/assets/extract_kid_gore.py) into <exe dir>/generated/<tier>/characters/. Skipped quietly
+# (the kid stays gore-free) when the SWF, FFDec, Java or Python's numpy/Pillow are missing; the
+# script keeps a stamp so unchanged inputs cost nothing on later builds.
+set(OW_FLASH_SWF "${CMAKE_CURRENT_SOURCE_DIR}/binary/flash/swf/game_e_v1_87_g.dec.swf"
+    CACHE FILEPATH "Decrypted Happy Wheels browser-game SWF (v1.87) from your own copy")
+set(OW_FFDEC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/binary/flash/tools/ffdec"
+    CACHE PATH "JPEXS FFDec folder (lib/ffdec_lib.jar)")
+set(OW_ANDROID_ASSETS "${CMAKE_CURRENT_SOURCE_DIR}/binary/HappyWheels_Android/HW_Android/assets"
+    CACHE PATH "The Android game's assets/ folder from your own copy")
+if(Python3_FOUND)
+    add_custom_command(TARGET ${APP_NAME} POST_BUILD
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/assets/extract_kid_gore.py
+                --optional --swf "${OW_FLASH_SWF}" --ffdec "${OW_FFDEC_DIR}"
+                --assets "${OW_ANDROID_ASSETS}" --out "$<TARGET_FILE_DIR:${APP_NAME}>/generated"
+        COMMENT "Building the kid's gore sprites from ${OW_FLASH_SWF} (skipped if missing)")
+endif()
+
 # Copy the runtime DLLs of every imported engine dependency next to the exe
 # (glew32, libcurl, websockets, sqlite3, libmpg123, OpenAL32, libogg/vorbis,
 # zlib1, iconv, libcrypto/libssl ...), like the template's post-build step.

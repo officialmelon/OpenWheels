@@ -3,6 +3,7 @@
 #include "IAPController.h"
 #include "PrivacyPolicyScene.h"
 #include "Settings.h"
+#include "qol/QoL.h"  // QOL (PC addition)
 
 #include "sdkbox/PluginReview.h"
 
@@ -85,6 +86,7 @@ bool AppDelegate::applicationDidFinishLaunching()
         resolutionHeight = tinyResolutionSize.height;
     }
     fileUtils->addSearchPath(resolutionDirectory);
+    qol::setAssetTier(resolutionDirectory);  // QOL (PC addition): generated/<tier>/ sheets
     director->setContentScaleFactor(resolutionHeight / designResolutionSize.height);
 
     Settings::getInstance()->getIAPController()->init();

@@ -16,7 +16,7 @@ public:
     void backBtnPressed() override;
 
 private:
-    enum Row { RowBlood = 100, RowParticles, RowCamera, RowFps, RowFullscreen, RowUnlockLevels, RowControls };
+    enum Row { RowBlood = 100, RowParticles, RowCamera, RowFps, RowFullscreen, RowUnlockLevels, RowControls, RowChildGore };
     std::string labelFor(int row) const;
     void rowPressed(cocos2d::Ref* sender);
     OptionsMenuItem* makeRow(int row);

@@ -60,6 +60,9 @@ std::string QoLMenu::labelFor(int row) const
     case RowFullscreen: return std::string("fullscreen: ") + onOff(qol::fullscreen());
     case RowUnlockLevels: return std::string("unlock all levels: ") + onOff(qol::unlockAllLevels());
     case RowControls: return "keyboard controls";
+    case RowChildGore:
+        // The sheet is built from the player's browser-game SWF; without it the row says so.
+        return std::string("child gore: ") + (qol::childGoreAvailable() ? onOff(qol::childGore()) : "no art");
     default: return std::string();
     }
 }
@@ -75,7 +78,7 @@ void QoLMenu::addContent()
     const Size visibleSize = Director::getInstance()->getVisibleSize();
 
     Menu* visuals = Menu::create(makeRow(RowBlood), makeRow(RowParticles), makeRow(RowCamera), makeRow(RowFps), nullptr);
-    Menu* game = Menu::create(makeRow(RowUnlockLevels), nullptr);
+    Menu* game = Menu::create(makeRow(RowUnlockLevels), makeRow(RowChildGore), nullptr);
     if (qol::fullscreenSupported())
     {
         game->addChild(makeRow(RowFullscreen));
@@ -141,6 +144,19 @@ void QoLMenu::rowPressed(Ref* sender)
         break;
     case RowUnlockLevels:
         qol::setUnlockAllLevels(!qol::unlockAllLevels());
+        break;
+    case RowChildGore:
+        if (!qol::childGoreAvailable())
+        {
+            HWWindow::createAlertWindow(
+                "Child gore",
+                "The kid's gore art is rebuilt from the browser game: put the decrypted game SWF at\n"
+                "binary/flash/swf/ (with FFDec and Java) and rebuild - see\n"
+                "tools/assets/extract_kid_gore.py.",
+                "Ok", "", true, false, false);
+            return;
+        }
+        qol::setChildGore(!qol::childGore());
         break;
     case RowControls:
         HWWindow::createAlertWindow(

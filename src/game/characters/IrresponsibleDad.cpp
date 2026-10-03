@@ -1,7 +1,9 @@
 #include "IrresponsibleDad.h"
 
 #include "RoadBike.h"
+#include "Session.h"
 #include "Settings.h"
+#include "qol/QoL.h"  // QOL (PC addition)
 
 USING_NS_CC;
 
@@ -23,6 +25,13 @@ bool IrresponsibleDad::init(Vec2 position, std::string name, std::string vehicle
         if (showGore)
         {
             kidGore = !Settings::getInstance()->getSelectedCharacterData()["suppress_gore"].asBool();
+            // QOL (PC addition): "child gore" - the kid's gore frames rebuilt from the browser
+            // game (tools/assets/extract_kid_gore.py). Gameplay only: character select uses its
+            // own character_select_ sheet, which has no gore frames.
+            if (!kidGore && qol::childGore() && getSession()->getMode() == SessionModeGameplay)
+            {
+                kidGore = qol::loadChildGoreSprites();
+            }
         }
         _kid->init(position, "irresponsible_dad_kid", "kid1", vehicleName, -2, kidGore, kidGore);
         _kid->autorelease();
