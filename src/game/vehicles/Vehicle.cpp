@@ -5,6 +5,7 @@
 #include "Settings.h"
 #include "Sound.h"
 #include "SoundController.h"
+#include "platform/compat/Box2DFloat.h"
 
 USING_NS_CC;
 
@@ -166,7 +167,7 @@ void Vehicle::setJoint(b2RevoluteJoint* joint, float angle, float gain, float ma
         joint->EnableMotor(true);
     }
     float target = joint->GetUpperLimit() + angle;
-    float diff = joint->GetJointAngle() - target;
+    float diff = owb2::jointAngle(joint) - target;
     float distance = (diff < 0.0f) ? -diff : diff;
     float speed = b2Min(distance * distance * gain, maxSpeed);
     joint->SetMotorSpeed((diff < 0.0f) ? speed : -speed);
@@ -402,7 +403,7 @@ void Vehicle::forwardButtonPressed()
         {
             joint->EnableMotor(true);
         }
-        float speed = joint->GetJointSpeed();
+        float speed = owb2::jointSpeed(joint);
         float newSpeed = 0.0f;
         if (speed <= 0.0f)
         {
@@ -424,7 +425,7 @@ void Vehicle::backButtonPressed()
         {
             joint->EnableMotor(true);
         }
-        float speed = joint->GetJointSpeed();
+        float speed = owb2::jointSpeed(joint);
         float newSpeed = 0.0f;
         if (speed >= 0.0f)
         {

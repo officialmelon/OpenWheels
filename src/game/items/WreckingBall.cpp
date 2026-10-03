@@ -6,6 +6,7 @@
 #include "LevelDataElement.h"
 #include "LevelItemsDrawNode.h"
 #include "Session.h"
+#include "platform/compat/Box2DFloat.h"
 
 USING_NS_CC;
 
@@ -189,7 +190,7 @@ void WreckingBall::actions()
 {
     // Swing: the motor pushes the ball one way until it passes a turning angle, then coasts; on
     // the way back it re-engages with the opposite speed.
-    float angle = _joint->GetJointAngle();
+    float angle = owb2::jointAngle(_joint);
     if (angle > 0.3f) {
         if (_joint->IsMotorEnabled()) {
             _joint->EnableMotor(false);

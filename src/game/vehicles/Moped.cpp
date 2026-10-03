@@ -8,6 +8,7 @@
 #include "LevelB2D.h"
 #include "Session.h"
 #include "Sound.h"
+#include "platform/compat/Box2DFloat.h"
 
 USING_NS_CC;
 
@@ -205,7 +206,7 @@ void Moped::createDictionaries()
 void Moped::frameAction()
 {
     // Engine pitch follows the back wheel speed (1 .. 1.65).
-    _targetPitch = fminf(fabsf(_backWheelJoint->GetJointSpeed()) / 60.0f, 1.0f) * 0.65f + 1.0f;
+    _targetPitch = fminf(fabsf(owb2::jointSpeed(_backWheelJoint)) / 60.0f, 1.0f) * 0.65f + 1.0f;
     if (_engineSound) {
         float pitch = (_targetPitch - _engineSound->getDefaultPitch()) * 0.5f +
                       _engineSound->getDefaultPitch();

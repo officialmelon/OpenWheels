@@ -8,6 +8,7 @@
 #include "Patch.h"
 #include "Session.h"
 #include "Settings.h"
+#include "platform/compat/Box2DFloat.h"
 
 USING_NS_CC;
 
@@ -743,7 +744,7 @@ void RoadBike::forwardButtonPressed()
         _backWheelJoint->EnableMotor(true);
         _frontWheelJoint->EnableMotor(true);
     }
-    float speed = _backWheelJoint->GetJointSpeed();
+    float speed = owb2::jointSpeed(_backWheelJoint);
     float motorSpeed = speed > 0.0f ? 0.0f : speed - (speed <= -_maxSpeed ? 0.0f : _accelStep);
     _backWheelJoint->SetMotorSpeed(motorSpeed);
     _frontWheelJoint->SetMotorSpeed(motorSpeed);
@@ -762,7 +763,7 @@ void RoadBike::backButtonPressed()
         _backWheelJoint->EnableMotor(true);
         _frontWheelJoint->EnableMotor(true);
     }
-    float speed = _backWheelJoint->GetJointSpeed();
+    float speed = owb2::jointSpeed(_backWheelJoint);
     float motorSpeed = speed < 0.0f ? 0.0f : speed - (speed >= _maxSpeed ? 0.0f : -_accelStep);
     _backWheelJoint->SetMotorSpeed(motorSpeed);
     _frontWheelJoint->SetMotorSpeed(motorSpeed);

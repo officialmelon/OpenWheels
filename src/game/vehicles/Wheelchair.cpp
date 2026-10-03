@@ -12,6 +12,7 @@
 #include "Settings.h"
 #include "Sound.h"
 #include "SoundController.h"
+#include "platform/compat/Box2DFloat.h"
 
 USING_NS_CC;
 
@@ -252,7 +253,7 @@ void Wheelchair::forwardButtonPressed()
     {
         _backWheelJoint->EnableMotor(true);
     }
-    float speed = _backWheelJoint->GetJointSpeed();
+    float speed = owb2::jointSpeed(_backWheelJoint);
     float newSpeed = 0.0f;
     if (speed <= 0.0f)
     {
@@ -269,7 +270,7 @@ void Wheelchair::backButtonPressed()
     {
         _backWheelJoint->EnableMotor(true);
     }
-    float speed = _backWheelJoint->GetJointSpeed();
+    float speed = owb2::jointSpeed(_backWheelJoint);
     float newSpeed = 0.0f;
     if (speed >= 0.0f)
     {

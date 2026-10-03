@@ -25,6 +25,7 @@
 #include "SpinalCord.h"
 #include "StageCamera.h"
 #include "Vehicle.h"
+#include "platform/compat/Box2DFloat.h"
 
 USING_NS_CC;
 
@@ -953,7 +954,7 @@ void CharacterB2D::shoulderBreak1(float force, bool blood)
     }
     if (_elbowJoint1) {
         float angle = (_lowerArm1Body->GetAngle() - _upperArm1Body->GetAngle()) -
-                      _elbowJoint1->GetJointAngle();
+                      owb2::jointAngle(_elbowJoint1);
         _elbowJoint1->SetLimits(0.0f - angle, 2.7925267f - angle);
     }
     postInjury(CharacterInjuryShoulder1Break);
@@ -1055,7 +1056,7 @@ void CharacterB2D::shoulderBreak2(float force, bool blood)
     }
     if (_elbowJoint2) {
         float angle = (_lowerArm2Body->GetAngle() - _upperArm2Body->GetAngle()) -
-                      _elbowJoint2->GetJointAngle();
+                      owb2::jointAngle(_elbowJoint2);
         _elbowJoint2->SetLimits(0.0f - angle, 2.7925267f - angle);
     }
     postInjury(CharacterInjuryShoulder2Break);
@@ -1294,7 +1295,7 @@ void CharacterB2D::hipBreak1(float force, bool blood)
     }
     if (_kneeJoint1) {
         float angle = (_lowerLeg1Body->GetAngle() - _upperLeg1Body->GetAngle()) -
-                      _kneeJoint1->GetJointAngle();
+                      owb2::jointAngle(_kneeJoint1);
         _kneeJoint1->SetLimits(-2.6179938f - angle, 0.0f - angle);
     }
     postInjury(CharacterInjuryHip1Break);
@@ -1408,7 +1409,7 @@ void CharacterB2D::hipBreak2(float force, bool blood)
     }
     if (_kneeJoint2) {
         float angle = (_lowerLeg2Body->GetAngle() - _upperLeg2Body->GetAngle()) -
-                      _kneeJoint2->GetJointAngle();
+                      owb2::jointAngle(_kneeJoint2);
         _kneeJoint2->SetLimits(-2.6179938f - angle, 0.0f - angle);
     }
     postInjury(CharacterInjuryHip2Break);
@@ -2304,56 +2305,56 @@ void CharacterB2D::openHand2(bool open)
 void CharacterB2D::resetJointLimits()
 {
     if (_neckJoint) {
-        float angle = (_headBody->GetAngle() - _chestBody->GetAngle()) - _neckJoint->GetJointAngle();
+        float angle = (_headBody->GetAngle() - _chestBody->GetAngle()) - owb2::jointAngle(_neckJoint);
         _neckJoint->SetLimits(-0.34906584f - angle, 0.34906584f - angle);
     }
     if (_waistJoint) {
         float angle =
-            (_pelvisBody->GetAngle() - _chestBody->GetAngle()) - _waistJoint->GetJointAngle();
+            (_pelvisBody->GetAngle() - _chestBody->GetAngle()) - owb2::jointAngle(_waistJoint);
         _waistJoint->SetLimits(-0.08726646f - angle, 0.08726646f - angle);
     }
     if (_shoulderJoint1) {
         float angle = (_shoulderJoint1->GetBodyB()->GetAngle() -
                        _shoulderJoint1->GetBodyA()->GetAngle()) -
-                      _shoulderJoint1->GetJointAngle();
+                      owb2::jointAngle(_shoulderJoint1);
         _shoulderJoint1->SetLimits(-1.0471976f - angle, 3.1415925f - angle);
     }
     if (_shoulderJoint2) {
         float angle = (_shoulderJoint2->GetBodyB()->GetAngle() -
                        _shoulderJoint2->GetBodyA()->GetAngle()) -
-                      _shoulderJoint2->GetJointAngle();
+                      owb2::jointAngle(_shoulderJoint2);
         _shoulderJoint2->SetLimits(-1.0471976f - angle, 3.1415925f - angle);
     }
     if (_elbowJoint1) {
         float angle = (_lowerArm1Body->GetAngle() - _upperArm1Body->GetAngle()) -
-                      _elbowJoint1->GetJointAngle();
+                      owb2::jointAngle(_elbowJoint1);
         _elbowJoint1->SetLimits(0.0f - angle, 2.7925267f - angle);
     }
     if (_elbowJoint2) {
         float angle = (_lowerArm2Body->GetAngle() - _upperArm2Body->GetAngle()) -
-                      _elbowJoint2->GetJointAngle();
+                      owb2::jointAngle(_elbowJoint2);
         _elbowJoint2->SetLimits(0.0f - angle, 2.7925267f - angle);
     }
     if (_hipJoint1) {
         float angle =
             (_hipJoint1->GetBodyB()->GetAngle() - _hipJoint1->GetBodyA()->GetAngle()) -
-            _hipJoint1->GetJointAngle();
+            owb2::jointAngle(_hipJoint1);
         _hipJoint1->SetLimits(-0.17453292f - angle, 2.6179938f - angle);
     }
     if (_hipJoint2) {
         float angle =
             (_hipJoint2->GetBodyB()->GetAngle() - _hipJoint2->GetBodyA()->GetAngle()) -
-            _hipJoint2->GetJointAngle();
+            owb2::jointAngle(_hipJoint2);
         _hipJoint2->SetLimits(-0.17453292f - angle, 2.6179938f - angle);
     }
     if (_kneeJoint1) {
         float angle = (_lowerLeg1Body->GetAngle() - _upperLeg1Body->GetAngle()) -
-                      _kneeJoint1->GetJointAngle();
+                      owb2::jointAngle(_kneeJoint1);
         _kneeJoint1->SetLimits(-2.6179938f - angle, 0.0f - angle);
     }
     if (_kneeJoint2) {
         float angle = (_lowerLeg2Body->GetAngle() - _upperLeg2Body->GetAngle()) -
-                      _kneeJoint2->GetJointAngle();
+                      owb2::jointAngle(_kneeJoint2);
         _kneeJoint2->SetLimits(-2.6179938f - angle, 0.0f - angle);
     }
 }
@@ -2565,7 +2566,7 @@ void CharacterB2D::setJoint(b2RevoluteJoint* joint, float angle, float gain, flo
         joint->EnableMotor(true);
     }
     float target = joint->GetUpperLimit() + angle;
-    float difference = joint->GetJointAngle() - target;
+    float difference = owb2::jointAngle(joint) - target;
     float distance = difference < 0.0f ? -difference : difference;
     float speed = b2Min(distance * distance * gain, maxSpeed);
     joint->SetMotorSpeed(difference < 0.0f ? speed : -speed);
