@@ -139,9 +139,11 @@ bool BladeWeapon::init(LevelDataElement* element, b2Body* groupBody, b2Vec2 grou
         _solidShape = _weaponBody->CreateFixture(&fixtureDef);
         fixtureDef.filter.maskBits = 0xFFFF;
 
+        // The original discards the results of these two calls (no copy-back after either
+        // `bl`), so the handle box sits at the item position itself, not at handleCenter.
         transform = AffineTransformMakeIdentity();
-        transform = AffineTransformRotate(transform, rotation);
-        transform = AffineTransformTranslate(transform, handleCenter.x, handleCenter.y);
+        AffineTransformRotate(transform, rotation);
+        AffineTransformTranslate(transform, handleCenter.x, handleCenter.y);
         b2Vec2 handlePosition(position.x + transform.tx, position.y + transform.ty);
         shape.SetAsBox(handleRect.size.width * 0.5f, handleRect.size.height * 0.5f, handlePosition, rotation);
         fixtureDef.density = 1.0f;
