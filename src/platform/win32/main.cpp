@@ -48,6 +48,7 @@
 #include "platform/common/Localization.h"
 
 #ifdef OW_WITH_PC_LAYER  // enable once src/game links (PCInput.cpp, WorldDumpRunner.cpp)
+#include "platform/win32/CrashHandler.h"
 #include "platform/win32/PCInput.h"
 #include "platform/win32/WorldDumpRunner.h"
 #endif
@@ -214,6 +215,7 @@ int WINAPI _tWinMain(HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(lpCmdLine);
     UNREFERENCED_PARAMETER(nCmdShow);
 
+    openwheels::pc::installCrashHandler();
     const Options opt = parseOptions();
     setupLogging(opt.console);
 
