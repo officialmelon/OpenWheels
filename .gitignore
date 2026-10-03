@@ -26,3 +26,10 @@ compile_flags.txt
 # extra local build trees (tools/build.ps1 -BuildDir ...)
 build-*/
 build_*/
+
+# Android build (android/ Gradle project; tools/build_android.ps1)
+android/.gradle/
+android/.kotlin/
+android/local.properties
+android/app/.cxx/
+*.apk

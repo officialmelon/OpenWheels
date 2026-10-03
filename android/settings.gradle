@@ -1,0 +1,19 @@
+// OpenWheels Android build (Gradle 9.1 + Android Gradle Plugin 8.13, JDK 17+).
+// Build from the command line with tools/build_android.ps1 (or `gradlew assembleDebug` here).
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'OpenWheels'
+include ':app'

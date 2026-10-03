@@ -799,6 +799,11 @@ bool SearchField::init(const Size& size, const std::string& placeholder) {
                 if (onChange) onChange();
             }
             focus();
+            // ANDROID (port): a plain IMEDelegate does not open the soft keyboard (only TextFieldTTF
+            // does): ask for it when the field is tapped - also when it is still focused but the
+            // keyboard was dismissed. Programmatic focus() (opening the browser) does not pop it up.
+            // No-op on PC.
+            if (GLView* view = Director::getInstance()->getOpenGLView()) view->setIMEKeyboardState(true);
             return true;
         }
         return false;
@@ -832,6 +837,7 @@ void SearchField::didAttachWithIME() {
 }
 
 void SearchField::didDetachWithIME() {
+    if (GLView* view = Director::getInstance()->getOpenGLView()) view->setIMEKeyboardState(false);
     _focused = false;
     _caret->stopAllActions();
     _caret->setVisible(false);
@@ -840,6 +846,11 @@ void SearchField::didDetachWithIME() {
 
 void SearchField::insertText(const char* text, size_t len) {
     std::string in(text, len);
+    // ANDROID (port): the soft keyboard's Done/Enter key arrives as "\n" (PC: KEY_ENTER, handled by
+    // the owner). The search already runs as you type, so it just closes the keyboard.
+    if (in.find('\n') != std::string::npos) {
+        if (GLView* view = Director::getInstance()->getOpenGLView()) view->setIMEKeyboardState(false);
+    }
     in.erase(std::remove_if(in.begin(), in.end(), [](char c) { return c == '\n' || c == '\r' || c == '\t'; }),
              in.end());
     if (in.empty()) return;

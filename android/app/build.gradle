@@ -1,0 +1,223 @@
+// OpenWheels Android app.
+//
+// Java: our AppActivity (src/platform/android/java) + cocos2d-x 3.17.2's org.cocos2dx.lib sources
+//       and jars, compiled straight from the engine tree (thirdparty/cocos2d-x, not copied).
+// C++:  android/app/CMakeLists.txt -> libOpenWheels.so.
+// Data: the game files are NOT in the repository. They are staged at build time from the
+//       player's own copy of the original game (gradle.properties: OW_GAME_ASSETS, OW_GAME_LIB,
+//       OW_GAME_RES, OW_IOS_APP) into build/ow/, and packed into the APK's assets/:
+//         assets/{shared,sounds,large,medium,small,tiny}/   the Android game's own asset tree
+//         assets/soundlist.tsv, assets/gametext.tsv          generated from libMyGame.so
+//                                                            (tools/re/extract_*.py, as on Win32)
+//         assets/ios/                                        optional: the iOS app's level-editor
+//                                                            art and Localizable.strings
+plugins {
+    id 'com.android.application'
+}
+
+base {
+    archivesName = 'OpenWheels'   // OpenWheels-debug.apk
+}
+
+def repoRoot = rootProject.projectDir.parentFile
+def owFile = { String p ->
+    def f = new File(p)
+    return f.isAbsolute() ? f : new File(repoRoot, p)
+}
+def owProp = { String name -> project.findProperty(name)?.toString() }
+
+def engineDir   = new File(repoRoot, 'thirdparty/cocos2d-x')
+def cocosJava   = new File(engineDir, 'cocos/platform/android/java')
+def gameAssets  = owFile(owProp('OW_GAME_ASSETS'))
+def gameRes     = owFile(owProp('OW_GAME_RES'))
+def gameLib     = owFile(owProp('OW_GAME_LIB'))
+def iosApp      = owFile(owProp('OW_IOS_APP'))
+def isWindows   = System.getProperty('os.name').toLowerCase().contains('windows')
+def python      = owProp('OW_PYTHON') ?: (isWindows ? 'python' : 'python3')
+
+// Optional: put all build output (Gradle + the NDK's .cxx tree, several GB with 3 ABIs) on
+// another drive, e.g. -POW_BUILD_ROOT=D:/ow-android-build.
+def buildRoot = owProp('OW_BUILD_ROOT')
+if (buildRoot) {
+    layout.buildDirectory = new File(buildRoot, 'app')
+}
+
+def stageRoot    = layout.buildDirectory.dir("ow").get().asFile
+def stagedAssets = new File(stageRoot, 'assets')   // game files (+ ios/)
+def stagedData   = new File(stageRoot, 'data')     // soundlist.tsv, gametext.tsv
+def stagedRes    = new File(stageRoot, 'res')      // launcher icon from the player's copy
+def iconRes      = gameRes.isDirectory() ? stagedRes : file('res-icon-fallback')
+
+if (!new File(engineDir, 'cocos/cocos2d.h').exists()) {
+    throw new GradleException("cocos2d-x 3.17.2 not found in ${engineDir}: run tools/fetch_engine.ps1 first.")
+}
+
+android {
+    namespace = 'org.openwheels.game'
+    compileSdk = 35
+    ndkVersion = '27.3.13750724'
+
+    defaultConfig {
+        applicationId = 'org.openwheels.game'
+        // NDK r27's floor; the original 1.1.3 needed API 23.
+        minSdk = 21
+        targetSdk = 35
+        versionCode = 1
+        versionName = '1.1.3-openwheels'
+
+        ndk {
+            abiFilters.addAll(owProp('OW_ABIS').split(':').collect { it.trim() }.findAll { it })
+        }
+
+        externalNativeBuild {
+            cmake {
+                targets 'OpenWheels'
+                // Optimized native code even in debug APKs (a -O0 physics game is unplayable);
+                // COCOS2D_DEBUG stays 0 as in the original. Debug symbols are kept.
+                arguments '-DANDROID_STL=c++_static',
+                          '-DANDROID_ARM_NEON=TRUE',
+                          '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
+                cppFlags '-frtti', '-fexceptions', '-fsigned-char'
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file('CMakeLists.txt')
+            version = '3.22.1'
+            if (buildRoot) {
+                buildStagingDirectory = new File(buildRoot, 'cxx')
+            }
+        }
+    }
+
+    buildFeatures {
+        aidl = true          // cocos2d-x's com.enhance.gameservice.IGameTuningService
+        buildConfig = false
+    }
+
+    sourceSets {
+        main {
+            manifest.srcFile('AndroidManifest.xml')
+            java.srcDirs = [new File(repoRoot, 'src/platform/android/java'), new File(cocosJava, 'src')]
+            aidl.srcDirs = [new File(cocosJava, 'src')]
+            res.srcDirs = ['res', iconRes]
+            assets.srcDirs = [stagedAssets, stagedData]
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+
+    androidResources {
+        // cocos2d-x's AudioEngine opens sounds in assets/ through file descriptors, which only
+        // works for stored (uncompressed) entries - the original APK did the same.
+        noCompress += ['mp3', 'ogg', 'wav', 'png']
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
+    }
+
+    buildTypes {
+        debug {
+            jniDebuggable = true
+        }
+        release {
+            minifyEnabled = false
+            // No release keystore is configured: sign with the debug key so the APK installs.
+            signingConfig = signingConfigs.debug
+        }
+    }
+
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
+    }
+}
+
+dependencies {
+    // async-http / httpclient (Cocos2dxDownloader), the OBB zip reader, and the OPPO game-tuning
+    // SDK stub (CCEnhanceAPI): the engine's Java sources reference them.
+    implementation fileTree(dir: new File(cocosJava, 'libs'), include: ['*.jar'])
+}
+
+// ---------------------------------------------------------------------------------------------
+// Staging of the player's own game files
+// ---------------------------------------------------------------------------------------------
+def gameAssetDirs = ['shared', 'sounds', 'large', 'medium', 'small', 'tiny']
+
+def stageGameAssets = tasks.register('owStageGameAssets', Sync) {
+    description = 'Copies the original game assets (and optional iOS editor files) into build/ow/assets.'
+    doFirst {
+        if (!new File(gameAssets, 'shared/levels').isDirectory()) {
+            throw new GradleException(
+                "OpenWheels needs the game files from your own copy of Happy Wheels (Android 1.1.3).\n" +
+                "Expected the APK's assets/ folder (with shared/, sounds/, large/ ...) at\n    ${gameAssets}\n" +
+                "Set -POW_GAME_ASSETS=<dir> (or OW_GAME_ASSETS in android/gradle.properties).")
+        }
+    }
+    from(gameAssets) {
+        gameAssetDirs.each { include "${it}/**" }
+    }
+    if (iosApp.isDirectory()) {
+        // Level-editor art, UIKit images, fonts and Localizable.strings from the iOS bundle
+        // (platform/common/IOSBundle; main.cpp points it at assets/ios/). Only top-level data files.
+        from(iosApp) {
+            into 'ios'
+            include '*.png', '*.plist', '*.strings', '*.fnt', '*.otf', '*.ttf', '*.json'
+            exclude 'AppIcon*', 'Default*', 'Info.plist', 'GADTestDevices.plist', 'HappyWheels-file-*'
+        }
+    }
+    into stagedAssets
+}
+
+def soundList = new File(stagedData, 'soundlist.tsv')
+def gameText  = new File(stagedData, 'gametext.tsv')
+
+def checkGameLib = {
+    if (!gameLib.isFile()) {
+        throw new GradleException(
+            "soundlist.tsv / gametext.tsv are generated from your own copy of the original\n" +
+            "libMyGame.so (Android 1.1.3 arm64), expected at\n    ${gameLib}\n" +
+            "Set -POW_GAME_LIB=<file> (or OW_GAME_LIB in android/gradle.properties).")
+    }
+}
+
+def genSoundList = tasks.register('owGenerateSoundList', Exec) {
+    description = 'Generates soundlist.tsv from libMyGame.so (tools/re/extract_soundlist.py).'
+    inputs.file(new File(repoRoot, 'tools/re/extract_soundlist.py'))
+    inputs.file(gameLib).optional()
+    outputs.file(soundList)
+    doFirst { checkGameLib(); stagedData.mkdirs() }
+    commandLine python, new File(repoRoot, 'tools/re/extract_soundlist.py').path,
+                '--so', gameLib.path, '--out', soundList.path
+}
+
+def genGameText = tasks.register('owGenerateGameText', Exec) {
+    description = 'Generates gametext.tsv from libMyGame.so (tools/re/extract_gametext.py).'
+    inputs.file(new File(repoRoot, 'tools/re/extract_gametext.py'))
+    inputs.file(gameLib).optional()
+    outputs.file(gameText)
+    doFirst { checkGameLib(); stagedData.mkdirs() }
+    commandLine python, new File(repoRoot, 'tools/re/extract_gametext.py').path,
+                '--so', gameLib.path, '--out', gameText.path
+}
+
+def stageIcon = tasks.register('owStageIcon', Sync) {
+    description = "Copies the original launcher icon from the player's copy into build/ow/res."
+    from(gameRes) {
+        include 'mipmap-*dpi/ic_launcher.png'
+    }
+    into stagedRes
+}
+
+tasks.named('preBuild') {
+    dependsOn stageGameAssets, genSoundList, genGameText
+    if (iconRes == stagedRes) dependsOn stageIcon
+}
