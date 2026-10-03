@@ -1,5 +1,9 @@
 #include "SpinalCord.h"
 
+#include <cmath>
+
+#include "platform/compat/Box2DFloat.h"
+
 USING_NS_CC;
 
 // @00630f10
@@ -74,7 +78,8 @@ void SpinalCord::create(std::string tag)
 
     std::vector<b2Body*> vertebrae;
 
-    b2Vec2 chestPoint = _chestBody->GetWorldPoint(_chestAnchor);
+    // GetWorldPoint with the original's fused rounding (fmul + fmla, see Box2DFloat.h).
+    b2Vec2 chestPoint = owb2::worldPoint(_chestBody, _chestAnchor);
     float headRadius = _headBody->GetFixtureList()->GetShape()->m_radius;
     b2Vec2 headPoint = _headBody->GetWorldPoint(b2Vec2(0.0f, -headRadius));
 
@@ -82,8 +87,9 @@ void SpinalCord::create(std::string tag)
     for (int i = 1; i <= _totalVertebrae; i++)
     {
         bodyDef.fixedRotation = true;
-        bodyDef.position.x = headPoint.x + ((chestPoint.x - headPoint.x) / segments) * (float)i;
-        bodyDef.position.y = headPoint.y + ((chestPoint.y - headPoint.y) / segments) * (float)i;
+        // one fused multiply-add (fmla) per component in the original
+        bodyDef.position.x = std::fma((chestPoint.x - headPoint.x) / segments, (float)i, headPoint.x);
+        bodyDef.position.y = std::fma((chestPoint.y - headPoint.y) / segments, (float)i, headPoint.y);
         b2Body* vertebra = world->CreateBody(&bodyDef);
         vertebra->CreateFixture(&fixtureDef);
         vertebra->ResetMassData();

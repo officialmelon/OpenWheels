@@ -92,8 +92,9 @@ void IntestineChain::create(std::string tag)
     float count = (float)_totalIntestines;
     for (int n = 1; n < _totalIntestines; n++)
     {
-        bodyDef.position.x = pelvisPoint.x + ((chestPoint.x - pelvisPoint.x) / count) * (float)n;
-        bodyDef.position.y = pelvisPoint.y + ((chestPoint.y - pelvisPoint.y) / count) * (float)n;
+        // one fused multiply-add (fmla) per component in the original
+        bodyDef.position.x = std::fma((chestPoint.x - pelvisPoint.x) / count, (float)n, pelvisPoint.x);
+        bodyDef.position.y = std::fma((chestPoint.y - pelvisPoint.y) / count, (float)n, pelvisPoint.y);
         bodyDef.fixedRotation = true;
         b2Body* segment = world->CreateBody(&bodyDef);
         segment->CreateFixture(&fixtureDef);

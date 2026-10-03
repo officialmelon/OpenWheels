@@ -1,6 +1,7 @@
 #include "LevelB2D.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <sstream>
@@ -1763,10 +1764,12 @@ void LevelB2D::convertTerrainVerts(TerrainVert* verts, int count)
 // @005d6af0
 float LevelB2D::calculateBezier(float t, float value0, float value1, float value2, float value3)
 {
-    // Cubic bezier in Horner form.
-    return value0 + t * ((3.0f * value1 - 3.0f * value0) +
-                         t * ((3.0f * value2 - 6.0f * value1 + 3.0f * value0) +
-                              t * (value3 - 3.0f * value2 + 3.0f * value1 - value0)));
+    // Cubic bezier in Horner form. The original (clang, -ffp-contract=on) fuses 8 of these
+    // multiply-adds (fmadd); spelled out with std::fma so every compiler rounds the same way.
+    float c1 = std::fma(3.0f, value1, -3.0f * value0);                         // 3v1 - 3v0
+    float c2 = std::fma(3.0f, value0, std::fma(3.0f, value2, -6.0f * value1));  // 3v2 - 6v1 + 3v0
+    float c3 = std::fma(3.0f, value1, std::fma(-3.0f, value2, value3)) - value0;  // v3 - 3v2 + 3v1 - v0
+    return std::fma(std::fma(std::fma(c3, t, c2), t, c1), t, value0);
 }
 
 // @005d6b2c

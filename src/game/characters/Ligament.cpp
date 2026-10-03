@@ -1,5 +1,7 @@
 #include "Ligament.h"
 
+#include <cmath>
+
 USING_NS_CC;
 
 // @005e5788
@@ -63,13 +65,16 @@ void Ligament::create(float length)
 
     b2World* world = _upperBody->GetWorld();
     std::vector<b2Body*> bodies;
+    // The original's y step is (lowerPoint.y - lowerPoint.y) / 3 = 0 (asm @005e59e4 moves
+    // lowerPoint.y into the subtrahend before the fsub): both ligament bodies sit at upperPoint.y.
+    // Positions are one fused multiply-add (fmla) per component.
     float stepX = (lowerPoint.x - upperPoint.x) / 3.0f;
-    float stepY = (lowerPoint.y - upperPoint.y) / 3.0f;
+    float stepY = (lowerPoint.y - lowerPoint.y) / 3.0f;
     for (unsigned int i = 1; i < 3; i++)
     {
         bodyDef.type = b2_dynamicBody;
-        bodyDef.position.x = upperPoint.x + stepX * (float)i;
-        bodyDef.position.y = upperPoint.y + stepY * (float)i;
+        bodyDef.position.x = std::fma(stepX, (float)i, upperPoint.x);
+        bodyDef.position.y = std::fma(stepY, (float)i, upperPoint.y);
         bodyDef.fixedRotation = true;
         b2Body* body = world->CreateBody(&bodyDef);
         body->CreateFixture(&fixtureDef);
