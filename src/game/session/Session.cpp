@@ -1,5 +1,7 @@
 #include "Session.h"
 
+#include "qol/QoL.h"  // QOL (PC addition)
+
 #include "B2DebugDrawLayer.h"
 #include "CharacterB2D.h"
 #include "ContactListener.h"
@@ -193,6 +195,15 @@ bool Session::init(float version, SoundController* soundController, SessionMode 
     _camera = StageCamera::create(this, nullptr, ptmRatio);
     _camera->retain();
     _camera->setLimits(Size(stageWidth * ptmRatio, ptmRatio * stageHeight));
+    // QOL (PC addition): camera zoom-out for gameplay. The stage node is scaled about its origin and
+    // the camera's position limits take the scaled stage size; the camera already works in world
+    // (screen) space through convertToWorldSpace.
+    const float zoom = qol::cameraZoom();
+    if (mode == SessionModeGameplay && zoom < 1.0f)
+    {
+        setScale(zoom);
+        _camera->setLimits(Size(stageWidth * ptmRatio * zoom, ptmRatio * stageHeight * zoom));
+    }
     return true;
 }
 
@@ -589,7 +600,8 @@ bool Session::canAddEmitter(int particleCount)
         const int foreground = _particlesForeground->getMaxParticles();
         total = midground + background + foreground;
     }
-    return total + particleCount < 2000;
+    // QOL (PC addition): the budget is qol::maxParticles() (original and default: 2000).
+    return total + particleCount < qol::maxParticles();
 }
 
 // @006100f8

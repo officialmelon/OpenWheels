@@ -1,5 +1,9 @@
 #include "Emitter.h"
 
+#include <algorithm>
+
+#include "qol/QoL.h"  // QOL (PC addition)
+
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -223,6 +227,46 @@ void Emitter::updateParticleQuads()
         {
             newPos.set(*x + pos.x, *y + pos.y);
             updatePosWithParticle(quadStart, newPos, *s, *r);
+        }
+    }
+
+    // QOL (PC addition): "streaks" blood - each round blood dot is stretched along its velocity
+    // (startPos holds it, pixels per second) into a capsule, like the browser game's line blood.
+    // QOL (PC addition): liquid/realistic blood is drawn offscreen and merged into blobs
+    // (qol::BloodCompositor); larger drops there let a stream of them flow together.
+    const qol::BloodStyle bloodStyle = qol::bloodStyle();
+    if ((bloodStyle == qol::BloodStyle::Liquid || bloodStyle == qol::BloodStyle::Realistic) && qol::isBlood(this))
+    {
+        const float inflate = 2.4f;
+        V3F_C4B_T2F_Quad* quad = startQuad;
+        for (int i = 0; i < _particleCount; ++i, ++quad)
+        {
+            const Vec2 c(_particleData.posx[i] + pos.x, _particleData.posy[i] + pos.y);
+            const float h = 0.5f * _particleData.size[i] * inflate;
+            quad->bl.vertices.set(c.x - h, c.y - h, _positionZ);
+            quad->br.vertices.set(c.x + h, c.y - h, _positionZ);
+            quad->tl.vertices.set(c.x - h, c.y + h, _positionZ);
+            quad->tr.vertices.set(c.x + h, c.y + h, _positionZ);
+        }
+    }
+    else if (bloodStyle == qol::BloodStyle::Streaks && qol::isBlood(this))
+    {
+        V3F_C4B_T2F_Quad* quad = startQuad;
+        for (int i = 0; i < _particleCount; ++i, ++quad)
+        {
+            const Vec2 c(_particleData.posx[i] + pos.x, _particleData.posy[i] + pos.y);
+            Vec2 v(_particleData.startPosX[i], _particleData.startPosY[i]);
+            const float size = _particleData.size[i];
+            const float speed = v.length();
+            const Vec2 dir = speed > 1e-3f ? v / speed : Vec2(1.0f, 0.0f);
+            const Vec2 side(-dir.y, dir.x);
+            const float halfLength = 0.5f * std::min(size * 7.0f, size + speed * 0.035f);
+            const float halfWidth = 0.5f * size * 0.6f;
+            const Vec2 a = c - dir * halfLength, b = c + dir * halfLength;
+            quad->bl.vertices.set(a.x - side.x * halfWidth, a.y - side.y * halfWidth, _positionZ);
+            quad->br.vertices.set(b.x - side.x * halfWidth, b.y - side.y * halfWidth, _positionZ);
+            quad->tl.vertices.set(a.x + side.x * halfWidth, a.y + side.y * halfWidth, _positionZ);
+            quad->tr.vertices.set(b.x + side.x * halfWidth, b.y + side.y * halfWidth, _positionZ);
         }
     }
 

@@ -24,6 +24,7 @@
 //   --ios-app <dir>       optional iOS happywheels.app (level editor art + Localizable.strings)
 //   --open <file> | <file>  open a .happywheels / level .xml (user levels, like the iOS "Open in")
 //   --play-online <id>    download a browser Happy Wheels level by id and play it (src/online)
+//   --play-level <xml>    play a level XML file (mobile/editor format) as a user level
 //   --width <px> --height <px>   window ("device") size, default 1600x900
 //   --console             log to a console window
 //   --dump-world <out.json> [--level levels/<chapter>/<file>.xml] [--frames N] [--script f:hex,...]
@@ -50,6 +51,7 @@
 #include "platform/common/IOSBundle.h"
 #include "platform/common/Localization.h"
 #include "LevelSession.h"
+#include "qol/QoL.h"
 #include "MainMenu.h"
 #include "online/OnlinePlay.h"
 #include "online/FlashLevelConverter.h"
@@ -137,6 +139,7 @@ struct Options
     std::wstring assets;
     std::wstring iosApp;
     int playOnline = 0;      // --play-online <level id>
+    std::wstring playLevel;  // --play-level <level.xml>
     std::wstring convertIn, convertOut;  // --convert-flash <in> <out> (PC-only test hook)
     std::wstring openFile;   // .happywheels / level .xml to open (command line or drag-and-drop onto the exe)
     float width = 1600.0f;
@@ -163,6 +166,7 @@ Options parseOptions()
         else if (a == L"--ios-app") o.iosApp = next();
         else if (a == L"--open") o.openFile = next();
         else if (a == L"--play-online") o.playOnline = _wtoi(next().c_str());
+        else if (a == L"--play-level") o.playLevel = next();
         else if (a == L"--convert-flash") { o.convertIn = next(); o.convertOut = next(); }
         else if (a.size() > 4 && a[0] != L'-') o.openFile = a;   // file passed by Explorer / drag-and-drop
         else if (a == L"--width") { o.width = (float)_wtof(next().c_str()); explicitSize = true; }
@@ -250,6 +254,54 @@ int convertFlashLevel(const std::wstring& in, const std::wstring& out)
     return 0;
 }
 
+// QOL page "fullscreen" (and F11): exclusive fullscreen on the window's monitor, restoring the
+// windowed position and size afterwards. Applies the saved choice and the FPS counter at start-up.
+void installFullscreen(GLViewImpl* glview, bool interactive)
+{
+    static int windowed[4] = {0, 0, 0, 0};
+    qol::setFullscreenHandler([glview](bool on) {
+        GLFWwindow* window = glview->getWindow();
+        if (!window) return;
+        const bool isFullscreen = glfwGetWindowMonitor(window) != nullptr;
+        if (on == isFullscreen) return;
+        if (on)
+        {
+            glfwGetWindowPos(window, &windowed[0], &windowed[1]);
+            glfwGetWindowSize(window, &windowed[2], &windowed[3]);
+            GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+            int count = 0;
+            GLFWmonitor** monitors = glfwGetMonitors(&count);
+            const int cx = windowed[0] + windowed[2] / 2, cy = windowed[1] + windowed[3] / 2;
+            for (int i = 0; i < count; ++i)
+            {
+                int mx, my;
+                glfwGetMonitorPos(monitors[i], &mx, &my);
+                const GLFWvidmode* m = glfwGetVideoMode(monitors[i]);
+                if (cx >= mx && cx < mx + m->width && cy >= my && cy < my + m->height) monitor = monitors[i];
+            }
+            const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+            glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+        }
+        else
+        {
+            glfwSetWindowMonitor(window, nullptr, windowed[0], windowed[1], windowed[2], windowed[3], 0);
+        }
+    });
+    if (!interactive) return;
+    auto keys = EventListenerKeyboard::create();
+    keys->onKeyPressed = [](EventKeyboard::KeyCode key, Event*) {
+        if (key == EventKeyboard::KeyCode::KEY_F11) qol::setFullscreen(!qol::fullscreen());
+    };
+    Director::getInstance()->getEventDispatcher()->addEventListenerWithFixedPriority(keys, 2);
+    static int s_applyTarget = 0;
+    Director::getInstance()->getScheduler()->schedule(
+        [](float) {
+            qol::applyDisplaySettings();
+            if (qol::fullscreen()) qol::setFullscreen(true);
+        },
+        &s_applyTarget, 0.0f, 0, 0.5f, false, "ow_apply_display");
+}
+
 // Runs `action` once the main menu is the running scene (after the splash / consent screens),
 // so command-line level launches push their scene onto the menu like a player's tap would.
 void runOnMainMenu(std::function<void()> action)
@@ -334,6 +386,7 @@ int WINAPI _tWinMain(HINSTANCE hInstance,
     Application::getInstance()->initGLContextAttrs();
     auto glview = GLViewImpl::createWithRect("OpenWheels", Rect(0.0f, 0.0f, opt.width, opt.height));
     Director::getInstance()->setOpenGLView(glview);
+    installFullscreen(glview, opt.dumpWorld.empty());
 
 #ifdef OW_WITH_PC_LAYER  // enable once src/game links (PCInput.cpp, WorldDumpRunner.cpp)
     openwheels::pc::installKeyboardControls();
@@ -349,6 +402,20 @@ int WINAPI _tWinMain(HINSTANCE hInstance,
         // Like iOS "Open in": hand the file to the level store once the game is up and running.
         const std::string path = narrow(opt.openFile);
         runOnMainMenu([path]() { LevelSession::getInstance()->openHappyWheelsFile(path); });
+    }
+
+    if (!opt.playLevel.empty())
+    {
+        const std::string xml = FileUtils::getInstance()->getStringFromFile(narrow(opt.playLevel));
+        runOnMainMenu([xml]() {
+            LevelSession* session = LevelSession::getInstance();
+            session->clearLevelData();
+            session->setChapterIndex(5001);
+            session->setLevelDataXML(xml);
+            session->setForceCharacter(true);
+            session->setCharacterIndex(1);
+            session->playLevel(true);
+        });
     }
 
     if (opt.playOnline > 0)

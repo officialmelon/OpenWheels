@@ -1,5 +1,7 @@
 #include "Settings.h"
 
+#include "qol/QoL.h"  // QOL (PC addition)
+
 #include "AdController.h"
 #include "GameText.h"
 #include "Globals.h"
@@ -430,6 +432,10 @@ bool Settings::advanceLevelIndex()
 // @00612278
 bool Settings::isLevelUnlocked(int chapter, int level)
 {
+    if (qol::unlockAllLevels())  // QOL (PC addition): "unlock all levels"
+    {
+        return true;
+    }
     ValueMap levelData = getLevelData(chapter, level);
     if (levelData["locked"].asBool())
     {

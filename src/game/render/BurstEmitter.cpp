@@ -1,5 +1,7 @@
 #include "BurstEmitter.h"
 
+#include "qol/QoL.h"  // QOL (PC addition)
+
 #include <cstdlib>
 
 #include "Session.h"
@@ -62,6 +64,7 @@ BurstEmitter* BurstEmitter::createBloodBurst(float initialRange, float speedRang
         emitter->setTexture(sprite->getTexture());
         emitter->setStartColor(Color4F::RED);
         emitter->autorelease();
+        qol::markBlood(emitter);  // QOL (PC addition): blood styles
         return emitter;
     }
     delete emitter;
@@ -120,6 +123,7 @@ BurstEmitter* BurstEmitter::createBloodBurst(float initialRange, float speedRang
         emitter->setTexture(sprite->getTexture());
         emitter->setStartColor(Color4F::RED);
         emitter->autorelease();
+        qol::markBlood(emitter);  // QOL (PC addition): blood styles
         return emitter;
     }
     delete emitter;

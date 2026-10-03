@@ -1,5 +1,7 @@
 #include "FlowEmitter.h"
 
+#include "qol/QoL.h"  // QOL (PC addition)
+
 #include <cmath>
 #include <cstdlib>
 
@@ -67,6 +69,7 @@ FlowEmitter* FlowEmitter::createBloodFlow(float minSpeed, float maxSpeed, int co
     emitter->setTexture(sprite->getTexture());
     emitter->setStartColor(Color4F::RED);
     emitter->autorelease();
+    qol::markBlood(emitter);  // QOL (PC addition): blood styles
     return emitter;
 }
 

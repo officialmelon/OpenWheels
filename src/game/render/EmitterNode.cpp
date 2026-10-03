@@ -1,5 +1,8 @@
 #include "EmitterNode.h"
 
+#include "qol/BloodCompositor.h"  // QOL (PC addition)
+#include "qol/QoL.h"
+
 #include <algorithm>
 
 #include "Emitter.h"
@@ -79,4 +82,32 @@ int EmitterNode::getMaxParticles()
         total += _emitters[i]->getMaxParticles();
     }
     return total;
+}
+
+// QOL (PC addition): not in the original (EmitterNode uses Node::visit there).
+void EmitterNode::visit(Renderer* renderer, const Mat4& parentTransform, uint32_t parentFlags)
+{
+    if (!qol::BloodCompositor::active() || !isVisible())
+    {
+        Node::visit(renderer, parentTransform, parentFlags);
+        return;
+    }
+    std::vector<Node*> blood;
+    for (Node* child : getChildren())
+    {
+        if (child->isVisible() && qol::isBlood(child))
+        {
+            blood.push_back(child);
+            child->setVisible(false);
+        }
+    }
+    Node::visit(renderer, parentTransform, parentFlags);
+    for (Node* child : blood)
+    {
+        child->setVisible(true);
+    }
+    if (!blood.empty())
+    {
+        qol::BloodCompositor::draw(this, blood, renderer, parentTransform * getNodeToParentTransform(), parentFlags);
+    }
 }

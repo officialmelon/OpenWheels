@@ -25,6 +25,9 @@ public:
     void pauseEmitters();
     void resumeEmitters();
     int getMaxParticles();
+    // QOL (PC addition): liquid/realistic blood draws the blood emitters through
+    // qol::BloodCompositor; otherwise Node::visit unchanged.
+    void visit(cocos2d::Renderer* renderer, const cocos2d::Mat4& parentTransform, uint32_t parentFlags) override;
 
 protected:
     std::vector<Emitter*> _emitters;  // +0x2f8

@@ -1,5 +1,10 @@
 #include "OptionsMenu.h"
 
+#include "qol/QoLMenu.h"  // QOL (PC addition)
+
+// QOL (PC addition): menu tag of the "quality of life" row (not an Android OptionAction value).
+static const int kOptionActionQualityOfLife = 17;
+
 #include "AdController.h"
 #include "AdvancedOptionsMenu.h"
 #include "GameText.h"
@@ -68,7 +73,11 @@ void OptionsMenu::addContent()
     {
         removeAdsItem = createMenuItemLabel("remove ads", OptionActionRemoveAds);
     }
-    OptionsMenuItem* restorePurchasesItem = createMenuItemLabel("restore purchases", OptionActionRestorePurchases);
+    // QOL (PC addition): OpenWheels has no store, so the "restore purchases" row opens the
+    // Quality of Life page instead (blue, like "advanced options").
+    OptionsMenuItem* restorePurchasesItem =
+        OptionsMenuItem::create("quality of life", kOptionActionQualityOfLife,
+                                CC_CALLBACK_1(OptionsMenu::menuItemPressed, this), OptionsMenuItemAppearanceBlue);
     OptionsMenuItem* advancedOptionsItem =
         OptionsMenuItem::create("advanced options", OptionActionAdvancedOptions,
                                 CC_CALLBACK_1(OptionsMenu::menuItemPressed, this), OptionsMenuItemAppearanceBlue);
@@ -172,6 +181,21 @@ void OptionsMenu::menuItemPressed(Ref* sender)
         else
         {
             showCurrentTransactionAlreadyHappeningWindow();
+        }
+        break;
+    case kOptionActionQualityOfLife:  // QOL (PC addition)
+        if (!_popSceneOnExit)
+        {
+            Director::getInstance()->replaceScene(
+                TransitionFade::create(globals::ui::menuFadeTime, QoLMenu::createScene(), Color3B(0, 0, 0)));
+        }
+        else
+        {
+            QoLMenu* qolMenu = QoLMenu::create();
+            qolMenu->setPopSceneOnExit(true);
+            Scene* scene = Scene::create();
+            scene->addChild(qolMenu);
+            Director::getInstance()->pushScene(scene);
         }
         break;
     case OptionActionAdvancedOptions:
