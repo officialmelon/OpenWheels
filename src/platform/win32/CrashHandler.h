@@ -7,5 +7,11 @@ namespace pc {
 
 void installCrashHandler();
 
+// Hang watchdog: call installHangWatchdog() on the main thread, then heartbeat() once per frame.
+// If no heartbeat arrives for 10 s, the main thread's stack is written to openwheels_hang.txt
+// (the game keeps running).
+void installHangWatchdog();
+void heartbeat();
+
 }  // namespace pc
 }  // namespace openwheels

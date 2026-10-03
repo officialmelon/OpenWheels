@@ -32,15 +32,15 @@ void writeMinidump(EXCEPTION_POINTERS* info) {
     CloseHandle(f);
 }
 
-// Writes `header` and a symbolized stack walked from `context` to openwheels_crash.txt.
-void writeReport(const char* header, CONTEXT ctx) {
-    FILE* out = _wfopen(besideExe(L"openwheels_crash.txt").c_str(), L"w");
+// Writes `header` and a symbolized stack walked from `context` (of `thread`) to `file`.
+void writeReport(const char* header, CONTEXT ctx, HANDLE thread = GetCurrentThread(),
+                 const wchar_t* file = L"openwheels_crash.txt") {
+    FILE* out = _wfopen(besideExe(file).c_str(), L"w");
     if (!out) return;
     std::fprintf(out, "%s\n\n", header);
     std::fflush(out);
 
     HANDLE process = GetCurrentProcess();
-    HANDLE thread = GetCurrentThread();
     SymSetOptions(SYMOPT_LOAD_LINES | SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
     SymInitialize(process, nullptr, TRUE);
 
@@ -123,7 +123,43 @@ void onAbort(int) {
     TerminateProcess(GetCurrentProcess(), 3);
 }
 
+// ---- hang watchdog --------------------------------------------------------------------------------
+volatile LONG g_heartbeat = 0;
+HANDLE g_mainThread = nullptr;
+
+DWORD WINAPI watchdog(void*) {
+    LONG last = g_heartbeat;
+    int stalledSeconds = 0;
+    for (;;) {
+        Sleep(1000);
+        const LONG now = g_heartbeat;
+        if (now != last) {
+            last = now;
+            stalledSeconds = 0;
+            continue;
+        }
+        if (now == 0 || ++stalledSeconds != 10) continue;  // not started yet, or already reported
+        // The main loop made no progress for 10 s: record where the main thread is (once per stall).
+        if (SuspendThread(g_mainThread) == (DWORD)-1) continue;
+        CONTEXT ctx{};
+        ctx.ContextFlags = CONTEXT_FULL;
+        if (GetThreadContext(g_mainThread, &ctx))
+            writeReport("hang: the main loop made no progress for 10 seconds; main thread stack:", ctx,
+                        g_mainThread, L"openwheels_hang.txt");
+        ResumeThread(g_mainThread);
+    }
+}
+
 }  // namespace
+
+void heartbeat() { InterlockedIncrement(&g_heartbeat); }
+
+void installHangWatchdog() {
+    if (g_mainThread) return;
+    DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), &g_mainThread,
+                    THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION, FALSE, 0);
+    CloseHandle(CreateThread(nullptr, 64 * 1024, watchdog, nullptr, 0, nullptr));
+}
 
 void installCrashHandler() {
     // Room for the handler itself when the crash is a stack overflow.
