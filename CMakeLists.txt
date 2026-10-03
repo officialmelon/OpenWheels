@@ -122,8 +122,8 @@ target_link_libraries(${APP_NAME} cocos2d)
 # AppDelegate directory first (duplicates are dropped, first one wins).
 # The reconstruction keeps the original's flat includes (#include "LevelB2D.h"): every
 # src/game/<subsystem>/ directory is on the include path.
-file(GLOB OW_GAME_DIRS LIST_DIRECTORIES true ${CMAKE_CURRENT_SOURCE_DIR}/src/game/*)
-list(FILTER OW_GAME_DIRS INCLUDE REGEX "/src/game/[^/]+$")
+file(GLOB OW_GAME_DIRS LIST_DIRECTORIES true ${CMAKE_CURRENT_SOURCE_DIR}/src/game/* ${CMAKE_CURRENT_SOURCE_DIR}/src/editor/*)
+list(FILTER OW_GAME_DIRS INCLUDE REGEX "/src/(game|editor)/[^/]+$")
 target_include_directories(${APP_NAME}
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
     PRIVATE ${OW_GAME_DIRS}

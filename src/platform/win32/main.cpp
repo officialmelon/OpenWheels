@@ -21,6 +21,7 @@
 //
 // Command line:
 //   --assets <dir>        extracted game assets (folder containing shared/, sounds/, large/...)
+//   --ios-app <dir>       optional iOS happywheels.app (level editor art + Localizable.strings)
 //   --width <px> --height <px>   window ("device") size, default 1600x900
 //   --console             log to a console window
 //   --dump-world <out.json> [--level levels/<chapter>/<file>.xml] [--frames N] [--script f:hex,...]
@@ -42,6 +43,8 @@
 #include "platform/CCStdC.h"
 #include "cocos2d.h"
 #include "AppDelegate.h"
+#include "platform/common/IOSBundle.h"
+#include "platform/common/Localization.h"
 
 #ifdef OW_WITH_PC_LAYER  // enable once src/game links (PCInput.cpp, WorldDumpRunner.cpp)
 #include "platform/win32/PCInput.h"
@@ -105,9 +108,25 @@ std::wstring findAssets(const std::wstring& fromArgs)
     return std::wstring();
 }
 
+// Optional iOS app bundle (happywheels.app): level-editor art + Localizable.strings.
+std::wstring findIOSBundle(const std::wstring& fromArgs)
+{
+    if (!fromArgs.empty()) return withSlash(fromArgs);
+    std::wstring dir = withSlash(exeDirectory());
+    for (int up = 0; up < 8 && !dir.empty(); ++up)
+    {
+        const std::wstring candidate = dir + L"binary/HappyWheels_iOS/Payload/happywheels.app/";
+        if (GetFileAttributesW((candidate + L"Localizable.strings").c_str()) != INVALID_FILE_ATTRIBUTES)
+            return candidate;
+        dir = dir.substr(0, dir.find_last_of(L'/', dir.size() - 2) + 1);
+    }
+    return std::wstring();
+}
+
 struct Options
 {
     std::wstring assets;
+    std::wstring iosApp;
     float width = 1600.0f;
     float height = 900.0f;
     bool console = false;
@@ -128,6 +147,7 @@ Options parseOptions()
         const std::wstring a = argv[i];
         auto next = [&]() -> std::wstring { return (i + 1 < argc) ? std::wstring(argv[++i]) : std::wstring(); };
         if (a == L"--assets") o.assets = next();
+        else if (a == L"--ios-app") o.iosApp = next();
         else if (a == L"--width") { o.width = (float)_wtof(next().c_str()); explicitSize = true; }
         else if (a == L"--height") { o.height = (float)_wtof(next().c_str()); explicitSize = true; }
         else if (a == L"--console") o.console = true;
@@ -216,6 +236,13 @@ int WINAPI _tWinMain(HINSTANCE hInstance,
     fileUtils->setDefaultResourceRootPath(narrow(assets));
     fileUtils->addSearchPath(narrow(withSlash(exeDirectory())), false);
     cocos2d::log("OpenWheels: assets = %s", narrow(assets).c_str());
+    const std::wstring iosApp = findIOSBundle(opt.iosApp);
+    if (!iosApp.empty())
+    {
+        openwheels::setIOSBundlePath(narrow(iosApp));
+        cocos2d::log("OpenWheels: iOS bundle = %s (%d localized strings)", narrow(iosApp).c_str(),
+                     (int)Localization::size());
+    }
 
     // Android asks the app for its GL context attributes before the surface
     // exists; run() calls initGLContextAttrs() again, which is harmless.

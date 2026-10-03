@@ -16,7 +16,7 @@ FLAGS=(--target=aarch64-linux-android23 -std=c++14 -DANDROID -DUSE_FILE32API -DC
        -I"$E/external/Box2D/include" -I"$E/external/freetype2/include/android/freetype2"
        -I"$E/extensions" -I"$E/cocos/editor-support")
 GAME_DIRS=()
-for d in "$ROOT"/src/game/*/; do GAME_DIRS+=(-I"${d%/}"); done
+for d in "$ROOT"/src/game/*/ "$ROOT"/src/editor/*/; do GAME_DIRS+=(-I"${d%/}"); done
 FLAGS+=("${GAME_DIRS[@]}")
 status=0
 for f in "$@"; do
