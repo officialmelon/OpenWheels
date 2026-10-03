@@ -1,0 +1,216 @@
+#include "PerspectiveCharacters.h"
+
+#include "CharacterSprite.h"
+#include "Patch.h"
+
+#include <cmath>
+
+USING_NS_CC;
+
+// @006023d4
+void PerspectiveCharacters::onEnter()
+{
+    Node::onEnter();
+}
+
+// @006023d8
+PerspectiveCharacters::PerspectiveCharacters()
+    : _isMainMenu(false)
+    , _characterIDs()
+    , _visibleOrigin(0.0f, 0.0f)
+    , _index(0.0f)
+    , _targetZC(0.0f)
+    , _targetOffsetX(0.0f)
+    , _targetEyeX(0.0f)
+    , _targetSpaceZ(0.0f)
+    , _zc(0.0f)
+    , _offsetX(0.0f)
+    , _offsetXTarget(0.0f)
+    , _eyeX(0.0f)
+    , _initialZ(0.0f)
+    , _spaceZDefault(0.0f)
+    , _spaceZ(0.0f)
+    , _foremostSprite(nullptr)
+{
+}
+
+// @00602420 (D1), @00602460 (D0)
+PerspectiveCharacters::~PerspectiveCharacters()
+{
+}
+
+// @00602484
+PerspectiveCharacters* PerspectiveCharacters::create(std::vector<int> characterIds, int characterIndex,
+                                                     bool isMainMenu)
+{
+    PerspectiveCharacters* characters = new PerspectiveCharacters();
+    characters->initWithIDs(characterIds, characterIndex, isMainMenu);
+    characters->autorelease();
+    return characters;
+}
+
+// @0060262c
+bool PerspectiveCharacters::initWithIDs(std::vector<int> characterIds, int characterIndex, bool isMainMenu)
+{
+    _visibleOrigin = Director::getInstance()->getVisibleOrigin();
+    _isMainMenu = isMainMenu;
+    _characterIDs = characterIds;
+    _index = (float)characterIndex;
+
+    // Note: _initialZ and _spaceZ are still 0 here (they are set below), so every portrait starts
+    // at z = 0 until the first update().
+    unsigned int count = (unsigned int)_characterIDs.size();
+    for (unsigned int i = 0; i < count; i++)
+    {
+        int characterId = _characterIDs[i];
+        std::string fileName;
+        if (characterId == -1)
+        {
+            fileName = "menus/main/portraits/generic_25p.png";
+        }
+        else
+        {
+            fileName = "menus/main/portraits/char" + patch::to_string(characterId) + "_portrait_25p.png";
+        }
+
+        CharacterSprite* sprite = CharacterSprite::create(fileName);
+        sprite->setCharacterIndex(characterId);
+        sprite->setScaleFactor(4.0f);
+        sprite->setZ(_initialZ + (float)i * _spaceZ);
+        sprite->setTag(i);
+        sprite->setAnchorPoint(Vec2(0.0f, 0.0f));
+        addChild(sprite, count - i);
+    }
+
+    _zc = -1280.0f;
+    _offsetXTarget = 2430.0f;
+    _eyeX = -2600.0f;
+    _spaceZDefault = 2790.0f;
+    _spaceZ = 2790.0f;
+    _initialZ = _index * -2790.0f;
+
+    scheduleUpdate();
+    update(0.0f);
+    return true;
+}
+
+// @00602950
+void PerspectiveCharacters::setIsMainMenu(bool isMainMenu)
+{
+    _isMainMenu = isMainMenu;
+}
+
+// @00602958
+bool PerspectiveCharacters::isMainMenu()
+{
+    return _isMainMenu;
+}
+
+// @00602960
+float PerspectiveCharacters::getCharacterIndex()
+{
+    return _index;
+}
+
+// @00602968
+void PerspectiveCharacters::setCharacterIndex(float characterIndex)
+{
+    _index = characterIndex;
+}
+
+// @00602970
+CharacterSprite* PerspectiveCharacters::getForemostSprite()
+{
+    return _foremostSprite;
+}
+
+// @00602978
+void PerspectiveCharacters::setOffsetXTarget(float offsetXTarget)
+{
+    _offsetXTarget = offsetXTarget;
+}
+
+// @00602980
+void PerspectiveCharacters::setIndex(float index)
+{
+    _index = index;
+}
+
+// @00602988
+void PerspectiveCharacters::update(float dt)
+{
+    float targetZ = -_index * _spaceZDefault;
+    _offsetX = _offsetX + (_offsetXTarget - _offsetX) / 10.0f;
+    float z = _initialZ + (targetZ - _initialZ) / 5.0f;
+    _initialZ = z;
+
+    ssize_t count = getChildren().size();
+    for (unsigned int i = 0; i < count; i++)
+    {
+        CharacterSprite* sprite = static_cast<CharacterSprite*>(getChildByTag(i));
+        sprite->setZ(_initialZ + (float)i * _spaceZ);
+
+        float x = (_eyeX + sprite->getTextureRect().size.width * -0.08f * sprite->getScaleFactor()) /
+                  (1.0f - sprite->getZ() / _zc);
+        float perspective = 1.0f / (1.0f - sprite->getZ() / _zc);
+        sprite->setScale(sprite->getScaleFactor() * perspective);
+        // The y position is re-based on the visible origin every frame (as in the original).
+        sprite->setPosition(Vec2(x + _visibleOrigin.x + _offsetX, _visibleOrigin.y + sprite->getPosition().y));
+
+        if (_index == (float)sprite->getTag())
+        {
+            if (std::round(z) != std::round(targetZ) || sprite->getScaleFactor() <= 1.0f)
+            {
+                _foremostSprite = sprite;
+            }
+            else
+            {
+                // The row has settled on this portrait: swap the 25% portrait for the full one.
+                std::string fileName;
+                if (sprite->getCharacterIndex() == -1)
+                {
+                    fileName = "menus/main/portraits/generic.png";
+                }
+                else
+                {
+                    int characterId = sprite->getCharacterIndex();
+                    fileName = "menus/main/portraits/char" + patch::to_string(characterId) + "_portrait.png";
+                }
+
+                CharacterSprite* fullSprite = CharacterSprite::create(fileName);
+                fullSprite->setScaleFactor(1.0f);
+                fullSprite->setZ(sprite->getZ());
+                fullSprite->setTag(sprite->getTag());
+                fullSprite->setAnchorPoint(Vec2(0.0f, 0.0f));
+                fullSprite->setPosition(sprite->getPosition());
+                addChild(fullSprite, sprite->getLocalZOrder());
+                removeChild(sprite, true);
+                _foremostSprite = fullSprite;
+            }
+        }
+    }
+}
+
+// @00602df8
+void PerspectiveCharacters::setZC(float value)
+{
+    _zc = (value * 2.0f + -1.0f) * 2000.0f;
+}
+
+// @00602e18
+void PerspectiveCharacters::setOffsetX(float value)
+{
+    _offsetXTarget = value * 3000.0f;
+}
+
+// @00602e30
+void PerspectiveCharacters::setEyeX(float value)
+{
+    _eyeX = (value * 2.0f + -1.0f) * 5000.0f;
+}
+
+// @00602e54
+void PerspectiveCharacters::setSpaceZ(float value)
+{
+    _spaceZDefault = (value * 2.0f + -1.0f) * 2790.0f;
+}
