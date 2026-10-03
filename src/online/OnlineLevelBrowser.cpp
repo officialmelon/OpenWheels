@@ -769,11 +769,8 @@ void OnlineLevelBrowser::finishPlay(const std::string& xml) {
         w->showAlertMessage("Couldn't play this level", friendlyError(error), "OK", "", true);
         return;
     }
-    std::vector<std::string> notes = report.warnings;
-    if (report.hasUserVehicle &&
-        std::none_of(notes.begin(), notes.end(), [](const std::string& s) { return s.find("vehicle") != std::string::npos; }))
-        notes.push_back("This level's custom vehicle can't be driven here.");
-    if (!notes.empty()) ui::showToast("This level was adapted", notes, 0.4f);
+    // The converter's warnings (report.warnings) go to the log only: the level just starts.
+    for (const std::string& w : report.warnings) log("online: %s", w.c_str());
     _status->setString("Starting...");
 }
 
