@@ -36,6 +36,10 @@ Settings* Settings::getInstance()
 // @0061019c
 Settings::Settings()
 {
+    // port: the original never sets this; it relies on fresh (zeroed) bionic heap memory from
+    // operator new(400). The Win32 heap gives no such guarantee, and a garbage `true` opens an
+    // empty alert on the first pause.
+    _hasCachedAlertMessage = false;
     _selectedChapter = UserDefault::getInstance()->getIntegerForKey("selected_chapter");
     _currentSession = nullptr;
     _selectedLevel = -1;
