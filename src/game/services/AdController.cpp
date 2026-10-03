@@ -25,11 +25,12 @@ USING_NS_CC;
 //   * showAd() returns false for every AdType and starts nothing. Gameplay therefore clears its
 //     delegate and begins playing at once (Gameplay::oneFrameAfterOnEnterTransitionDidFinish);
 //     banner requests are simply not honoured.
-//   * A rewarded-video request is waited on by its caller (the Mascot's "revive" offer), so it is
-//     answered at once with the result the Java helper reports when it cannot load an ad
-//     (showRewardedVideo() without activity/connectivity -> jniRewardedVideoDidUpdateStatus(0/4) ->
-//     rewardedVideoDidFail(), i.e. RewardedVideoStatusFailed), delivered synchronously as the Java
-//     helper does in that case.
+//   * NO-ADS (port): OpenWheels has no ads on any platform. A rewarded-video request (the
+//     Mascot's "revive" offer) is answered at once as if the video had been watched
+//     (rewardedVideoDidUpdateStatus() -> RewardedVideoStatusRewarded), and the controller always
+//     reports ads as removed, so the menus hide "remove ads". An interstitial request returns false
+//     without a callback, so Gameplay starts at once (never the "Help us!? / turn on data" nag or
+//     the house ad, which only follow a failed interstitial).
 //   * The JNI calls are dropped; everything else (interval timer, "remove_ads" state, the
 //     "banner_shown"/"banner_removed" events) behaves as in the original.
 // ---------------------------------------------------------------------------------------------------
@@ -119,6 +120,7 @@ AdController::~AdController()
 bool AdController::init()
 {
     _adsRemoved = UserDefault::getInstance()->getBoolForKey("remove_ads");
+    _adsRemoved = true;  // NO-ADS (port): see the top of this file
     _interstitialInterval = globals::advertising::firstInterstitialIntervalSeconds;
     if (_forceInterstitial)
     {
@@ -158,9 +160,10 @@ bool AdController::showAd(AdType type)
     //                  _delegate->interstitialDidEnd(InterstitialStatusAdsRemoved);
     //   RewardedVideo: Tracker "show rewarded video"; JNI showRewardedVideo(); (result via JNI)
     //   and false otherwise.
+    // NO-ADS (port): the original's ads-removed answers (see the top of this file).
     if (type == AdTypeRewardedVideo)
     {
-        rewardedVideoDidFail();
+        rewardedVideoDidUpdateStatus();
     }
     return false;
 }
