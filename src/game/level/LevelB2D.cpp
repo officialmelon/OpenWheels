@@ -568,7 +568,8 @@ void LevelB2D::addInfo(LevelDataElement* info)
     int vehicle = 0;
     int characterId = 1;
     _version = version;
-    y = _stageHeight - y / _sourcePtmRatio;
+    // EDITOR (iOS port): iOS flips y only for registration (r="1") levels; editor levels (no r) are y-up metres.
+    y = _registration ? _stageHeight - y / _sourcePtmRatio : y / _sourcePtmRatio;
     x = x / _sourcePtmRatio;
     info->boolAttribute("f", &_forcedChar);
     info->boolAttribute("h", &hideVehicle);
@@ -617,7 +618,11 @@ void LevelB2D::convertLengthData(float* length)
 // @005cfedc
 void LevelB2D::convertYMeterPositionData(float* y)
 {
-    *y = _stageHeight - *y;
+    // EDITOR (iOS port): iOS flips y only for registration (r="1") levels; editor levels (no r) are y-up metres.
+    if (_registration)
+    {
+        *y = _stageHeight - *y;
+    }
 }
 
 // @005cfef0
@@ -877,7 +882,8 @@ ShapeItem* LevelB2D::addShape(LevelDataElement* shape, GroupItem* groupItem, Vec
     shape->floatAttribute("p3", &height);
     shape->floatAttribute("p4", &rotation);
     x = x / _sourcePtmRatio;
-    y = _stageHeight - y / _sourcePtmRatio;
+    // EDITOR (iOS port): iOS flips y only for registration (r="1") levels; editor levels (no r) are y-up metres.
+    y = _registration ? _stageHeight - y / _sourcePtmRatio : y / _sourcePtmRatio;
     width = width / _sourcePtmRatio;
     height = height / _sourcePtmRatio;
     shape->floatAttribute("p7", &density);
@@ -1657,7 +1663,11 @@ void LevelB2D::convertPositionAndRotationData(float* x, float* y, float* rotatio
 {
     *x = *x / _sourcePtmRatio;
     *y = *y / _sourcePtmRatio;
-    *y = _stageHeight - *y;
+    // EDITOR (iOS port): iOS flips y only for registration (r="1") levels; editor levels (no r) are y-up metres.
+    if (_registration)
+    {
+        *y = _stageHeight - *y;
+    }
 }
 
 // @005d5f14
@@ -2426,7 +2436,11 @@ void LevelB2D::convertPositionData(float* x, float* y)
 {
     *x = *x / _sourcePtmRatio;
     *y = *y / _sourcePtmRatio;
-    *y = _stageHeight - *y;
+    // EDITOR (iOS port): iOS flips y only for registration (r="1") levels; editor levels (no r) are y-up metres.
+    if (_registration)
+    {
+        *y = _stageHeight - *y;
+    }
 }
 
 // @005db4cc

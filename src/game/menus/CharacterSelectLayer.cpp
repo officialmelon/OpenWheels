@@ -1,4 +1,5 @@
 #include "CharacterSelectLayer.h"
+#include "LevelSession.h"  // EDITOR (iOS port): user levels (src/editor/persistence)
 
 #include "CharacterB2D.h"
 #include "Gameplay.h"
@@ -242,7 +243,9 @@ void CharacterSelectLayer::handleBackButtonReleased()
 {
     Settings::getInstance()->killSession();
     removeUnusedTexturesAndSpriteFrames();
-    Scene* scene = MainMenu::createScene(MenuModeLevelSelect, nullptr);
+    // EDITOR (iOS port): back from a user level's character select goes to the main menu.
+    Scene* scene = MainMenu::createScene(
+        LevelSession::getInstance()->isUserLevel() ? MenuModeMain : MenuModeLevelSelect, nullptr);
     Director::getInstance()->replaceScene(TransitionFade::create(globals::ui::menuFadeTime, scene, Color3B(0, 0, 0)));
 }
 

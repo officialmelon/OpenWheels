@@ -71,6 +71,13 @@ public:
     // Scene::create(); Gameplay::create(levelXml); replayData ? (_replayData = it, _isReplay = true);
     // if replaying and the controls exist: setMode(ControlsModeReplay); scene->addChild(layer).
     static cocos2d::Scene* createScene(std::string levelXml, ReplayData* replayData);  // @005b90e0
+    // EDITOR (iOS port): +[GameplayLayer testingScene] (@ios 100045408) - the level editor's
+    // test play: the layer is added at z 1 with _isTesting set; the controls run in
+    // ControlsModeTesting, pause returns to the editor (popScene), reset restarts the test.
+    static cocos2d::Scene* createTestingScene(std::string levelXml);
+    // EDITOR (iOS port): -[GameplayLayer setIsTesting:] / -isTesting (@ios 100048af0 / 100048adc).
+    void setIsTesting(bool isTesting);
+    bool isTesting();
 
     // ---- new primary-vtable entries (order = vtable order) ----
     // HWWindowDelegate: the "please turn on data" window was closed -> internalAdComplete().

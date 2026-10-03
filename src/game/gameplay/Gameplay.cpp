@@ -27,6 +27,7 @@
 #include "StageCamera.h"
 #include "Tracker.h"
 #include "VictoryMenu.h"
+#include "LevelSession.h"  // EDITOR (iOS port): user levels (src/editor/persistence)
 
 USING_NS_CC;
 
@@ -121,6 +122,28 @@ Scene* Gameplay::createScene(std::string levelXml, ReplayData* replayData)
     return scene;
 }
 
+// EDITOR (iOS port): +[GameplayLayer testingScene] @ios 100045408
+Scene* Gameplay::createTestingScene(std::string levelXml)
+{
+    Scene* scene = Scene::create();
+    Gameplay* layer = Gameplay::create(levelXml);
+    layer->setIsTesting(true);
+    scene->addChild(layer, 1);
+    return scene;
+}
+
+// EDITOR (iOS port): -[GameplayLayer setIsTesting:] @ios 100048af0
+void Gameplay::setIsTesting(bool isTesting)
+{
+    _isTesting = isTesting;
+}
+
+// EDITOR (iOS port): -[GameplayLayer isTesting] @ios 100048adc
+bool Gameplay::isTesting()
+{
+    return _isTesting;
+}
+
 // @005b91e4
 void Gameplay::setReplayData(ReplayData* replayData)
 {
@@ -164,6 +187,11 @@ void Gameplay::beginGameplayFollowingInterstitial()
 
     _controls = GameplayControls::createWithControlsType(
         (ControlsType)settings->getSelectedCharacterControlType());
+    // EDITOR (iOS port): -[GameplayLayer addControls] passes mode 1 when testing.
+    if (_isTesting)
+    {
+        _controls->setMode(ControlsModeTesting);
+    }
     _session->setControls(_controls);
     addChild(_controls, 4);
     Size winSize = Director::getInstance()->getWinSize();  // unused
@@ -377,6 +405,16 @@ void Gameplay::pauseGameplay()
     {
         return;
     }
+    // EDITOR (iOS port): -[GameplayLayer startPause] in test mode stops all sounds and pops back
+    // to the level editor scene instead of showing the pause menu.
+    if (_isTesting)
+    {
+        Settings::getInstance()->getSoundController()->stopAllSounds(false);
+        removeBanner(true);
+        die();
+        Director::getInstance()->popScene();
+        return;
+    }
     _paused = true;
     Settings* settings = Settings::getInstance();
     settings->getAdController()->showAd(AdTypeBanner);
@@ -466,7 +504,10 @@ void Gameplay::handleMenuAction(GameplayMenuAction action)
                                                             "", -1);
         removeBanner(true);
         die();
-        scene = MainMenu::createScene(MenuModeLevelSelect, nullptr);
+        // EDITOR (iOS port): leaving a user level (chapter 5000/5001) goes to the main menu.
+        scene = MainMenu::createScene(LevelSession::getInstance()->isUserLevel() ? MenuModeMain
+                                                                                : MenuModeLevelSelect,
+                                      nullptr);
         break;
 
     case GameplayMenuActionReset:
@@ -498,7 +539,8 @@ void Gameplay::handleMenuAction(GameplayMenuAction action)
     case GameplayMenuActionNextLevel:
         Settings::getInstance()->getTracker()->submitAction(s_trackerCategory,
                                                             "advance_level_pressed", "", -1);
-        if (Settings::getInstance()->advanceLevelIndex())
+        // EDITOR (iOS port): advanceLevelIndex returns NO for user levels (no campaign successor).
+        if (!LevelSession::getInstance()->isUserLevel() && Settings::getInstance()->advanceLevelIndex())
         {
             removeBanner(false);
             die();
@@ -540,6 +582,15 @@ void Gameplay::handleControlsLayerAction(ControlsLayerAction action)
         pauseGameplay();
         break;
     case ControlsLayerActionReset:
+        // EDITOR (iOS port): a test play restarts the editor's level (ResetWorkaroundScene would
+        // load the selected campaign level).
+        if (_isTesting)
+        {
+            removeBanner(false);
+            die();
+            Director::getInstance()->replaceScene(Gameplay::createTestingScene(_levelXml));
+            break;
+        }
         Settings::getInstance()->getTracker()->submitAction(s_trackerCategory,
                                                             "reset_level_pressed", "", -1);
         removeBanner(false);
@@ -621,7 +672,9 @@ void Gameplay::handleLevelComplete()
     }
     else
     {
-        placement = settings->addCompletionTime(time);
+        // EDITOR (iOS port): user levels have no LevelMO in the iOS Session, so no completion
+        // time is recorded (addCompletionTime: is sent to nil).
+        placement = LevelSession::getInstance()->isUserLevel() ? 0 : settings->addCompletionTime(time);
         int chapter = Settings::getInstance()->getSelectedChapter();
         int level = Settings::getInstance()->getSelectedLevel();
         std::string label = "level_" + patch::to_string(chapter) + "_" + patch::to_string(level);

@@ -22,6 +22,7 @@
 // Command line:
 //   --assets <dir>        extracted game assets (folder containing shared/, sounds/, large/...)
 //   --ios-app <dir>       optional iOS happywheels.app (level editor art + Localizable.strings)
+//   --open <file> | <file>  open a .happywheels / level .xml (user levels, like the iOS "Open in")
 //   --width <px> --height <px>   window ("device") size, default 1600x900
 //   --console             log to a console window
 //   --dump-world <out.json> [--level levels/<chapter>/<file>.xml] [--frames N] [--script f:hex,...]
@@ -46,6 +47,7 @@
 #include "AppDelegate.h"
 #include "platform/common/IOSBundle.h"
 #include "platform/common/Localization.h"
+#include "LevelSession.h"
 
 #ifdef OW_WITH_PC_LAYER  // enable once src/game links (PCInput.cpp, WorldDumpRunner.cpp)
 #include "platform/win32/CrashHandler.h"
@@ -129,6 +131,7 @@ struct Options
 {
     std::wstring assets;
     std::wstring iosApp;
+    std::wstring openFile;   // .happywheels / level .xml to open (command line or drag-and-drop onto the exe)
     float width = 1600.0f;
     float height = 900.0f;
     bool console = false;
@@ -151,6 +154,8 @@ Options parseOptions()
         auto next = [&]() -> std::wstring { return (i + 1 < argc) ? std::wstring(argv[++i]) : std::wstring(); };
         if (a == L"--assets") o.assets = next();
         else if (a == L"--ios-app") o.iosApp = next();
+        else if (a == L"--open") o.openFile = next();
+        else if (a.size() > 4 && a[0] != L'-') o.openFile = a;   // file passed by Explorer / drag-and-drop
         else if (a == L"--width") { o.width = (float)_wtof(next().c_str()); explicitSize = true; }
         else if (a == L"--height") { o.height = (float)_wtof(next().c_str()); explicitSize = true; }
         else if (a == L"--console") o.console = true;
@@ -263,6 +268,16 @@ int WINAPI _tWinMain(HINSTANCE hInstance,
                                              opt.dumpAt);
     }
 #endif
+
+    if (!opt.openFile.empty())
+    {
+        // Like iOS "Open in": hand the file to the level store once the game is up and running.
+        static int s_openTarget = 0;
+        const std::string path = narrow(opt.openFile);
+        Director::getInstance()->getScheduler()->schedule(
+            [path](float) { LevelSession::getInstance()->openHappyWheelsFile(path); },
+            &s_openTarget, 0.0f, 0, 1.0f, false, "ow_open_level_file");
+    }
 
     return Application::getInstance()->run();
 }

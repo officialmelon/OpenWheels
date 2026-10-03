@@ -4,6 +4,9 @@
 #include "Globals.h"
 #include "HWWindow.h"
 #include "OptionsMenuItem.h"
+// EDITOR (iOS port): "import levels" row (src/editor/persistence)
+#include "LevelSession.h"
+#include "platform/common/IOSBundle.h"
 #include "Session.h"
 #include "Settings.h"
 #include "Tracker.h"
@@ -21,6 +24,9 @@ static const std::string kTrackerCategory = "advanced options";                 
 static const std::string kOverrideSpecialPositionKey = "override_special_position"; // @00ac5ee0
 static const std::string kAdjustControlsForNotchKey = "adjust_controls_for_notch";  // @00ac5f00
 static const std::string kControlsUserScaleKey = "controls_user_scale";             // @00ac5f18
+
+// EDITOR (iOS port): menu tag of the "import levels" row (not an Android OptionAction value).
+static const int kOptionActionImportLevels = 16;
 
 // @0057a038
 Scene* AdvancedOptionsMenu::createScene()
@@ -87,6 +93,14 @@ void AdvancedOptionsMenu::addContent()
 
     _menu = Menu::create(_overrideSpecialPositionItem, _adjustForNotchItem, _userScaleItem, _goreItem,
                          _sendFeedbackItem, _resetLevelProgressItem, nullptr);
+    // EDITOR (iOS port): iOS AdvancedOptions "IMPORT LEVELS" (importLevelsBtnPressed) - imports the
+    // level files of the user-level drop folder. Only with the iOS bundle (editor UI art/text).
+    if (openwheels::hasIOSBundle())
+    {
+        _menu->addChild(OptionsMenuItem::create("import levels", (OptionAction)kOptionActionImportLevels,
+                                                CC_CALLBACK_1(AdvancedOptionsMenu::menuItemPressed, this),
+                                                OptionsMenuItemAppearanceDefault));
+    }
     _menu->alignItemsVerticallyWithPadding(_menuItemPadding);
     _menu->setPosition(Vec2(visibleSize.width * 0.5f, visibleSize.height * 0.5f + 37.5f));
 
@@ -180,6 +194,9 @@ void AdvancedOptionsMenu::menuItemPressed(Ref* sender)
         break;
     case OptionActionAdjustUserScale:
         adjustUserScale();
+        break;
+    case kOptionActionImportLevels:  // EDITOR (iOS port)
+        LevelSession::getInstance()->importLevelsFromFileSharingWithAlert();
         break;
     default:
         break;

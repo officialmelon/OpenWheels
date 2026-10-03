@@ -1,4 +1,5 @@
 #include "LevelSelectMenu.h"
+#include "LevelSession.h"  // EDITOR (iOS port): user levels (src/editor/persistence)
 
 #include "CharacterSelectLayer.h"
 #include "CharacterSprite.h"
@@ -707,6 +708,9 @@ void LevelSelectMenu::levelBtnPressed(int chapter, int level, LevelSelectBtn* bt
     else
     {
         UserDefault::getInstance()->setIntegerForKey("selectedChapter", (int)_index);
+        // EDITOR (iOS port): a campaign level replaces any selected user level.
+        LevelSession::getInstance()->clearLevelData();
+        LevelSession::getInstance()->setChapterIndex(chapter);
         settings->setSelectedLevel(chapter, level);
         std::string trackLabel = "level_" + patch::to_string(chapter) + "_" + patch::to_string(level);
         Settings::getInstance()->getTracker()->submitAction(s_trackerCategory, "level_selected", trackLabel, -1);

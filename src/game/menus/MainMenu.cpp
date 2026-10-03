@@ -14,6 +14,11 @@
 #include "Settings.h"
 #include "SoundController.h"
 #include "Tracker.h"
+// EDITOR (iOS port): level editor / user levels entry points (src/editor, iOS bundle art)
+#include "EditorLayer.h"
+#include "LevelSession.h"
+#include "UserLevelSelectUIView.h"
+#include "platform/common/EditorAssets.h"
 
 USING_NS_CC;
 
@@ -160,6 +165,14 @@ bool MainMenu::init(bool showLevelSelectMenu)
     _chapterMenu = nullptr;
     _perspectiveCharacters = nullptr;
 
+    // EDITOR (iOS port): back on the main menu no user level stays selected (iOS MainMenuLayer
+    // resets chapterIndex 5000/5001 to 0 in addPerspectiveCharacters).
+    if (LevelSession::getInstance()->isUserLevel())
+    {
+        LevelSession::getInstance()->setChapterIndex(0);
+    }
+    LevelSession::getInstance()->clearLevelData();
+
     SpriteFrameCache* cache = SpriteFrameCache::getInstance();
     std::string plist = "menus/main/menu_main.plist";
     if (!cache->isSpriteFramesWithFileLoaded(plist))
@@ -249,6 +262,42 @@ void MainMenu::addMenu(bool animated)
     optionsBtn->setPosition(optionsPos);
     infoBtn->setPosition(infoPos);
     _menuNode->addChild(_menu, 1);
+
+    // EDITOR (iOS port): iOS MainMenuLayer has an editor button (tag 4 -> [EditorLayer scene]);
+    // here a pink button (the iOS mainMenu_editorBtn colour) with the Android atlas'
+    // menu_main_icon_editor.png, tag 3 (MainMenu::editorBtnPressed), plus the user-level list
+    // (grey, play icon, tag 4). Only when the iOS editor art can be loaded.
+    if (EditorAssets::loadAtlas("editorui") && EditorAssets::loadAtlas("levelEditorObjects1"))
+    {
+        MenuItemSprite* editorBtn = btnWithIcon("menu_main_icon_editor.png", ColorPink, false, 3);
+        MenuItemSprite* userLevelsBtn = btnWithIcon("menu_main_icon_play.png", ColorGrey, false, 4);
+        // The play icon frame is laid out for the wide play button (its untrimmed size is that
+        // button's), so centre just its trimmed art on the square button.
+        if (SpriteFrame* playFrame = SpriteFrameCache::getInstance()->getSpriteFrameByName("menu_main_icon_play.png"))
+        {
+            for (Node* child : Vector<Node*>(userLevelsBtn->getChildren()))
+                if (child != userLevelsBtn->getNormalImage() && child != userLevelsBtn->getSelectedImage())
+                    userLevelsBtn->removeChild(child, true);
+            Sprite* icon = Sprite::createWithTexture(playFrame->getTexture(), playFrame->getRect(), playFrame->isRotated());
+            icon->setPosition(userLevelsBtn->getContentSize() / 2.0f);
+            userLevelsBtn->addChild(icon);
+        }
+        editorBtn->setAnchorPoint(Vec2(1.0f, 0.0f));
+        userLevelsBtn->setAnchorPoint(Vec2(1.0f, 0.0f));
+        Vec2 editorPos(infoPos.x - infoBtn->getContentSize().width - 70.0f, 70.0f);
+        Vec2 userLevelsPos(editorPos.x - editorBtn->getContentSize().width - 70.0f, 70.0f);
+        editorBtn->setPosition(editorPos);
+        userLevelsBtn->setPosition(userLevelsPos);
+        _menu->addChild(editorBtn);
+        _menu->addChild(userLevelsBtn);
+        if (animated)
+        {
+            editorBtn->setPosition(editorPos.x + visibleSize.width, editorPos.y);
+            userLevelsBtn->setPosition(userLevelsPos.x + visibleSize.width, userLevelsPos.y);
+            editorBtn->runAction(EaseExponentialOut::create(MoveTo::create(0.35f, editorPos)));
+            userLevelsBtn->runAction(EaseExponentialOut::create(MoveTo::create(0.35f, userLevelsPos)));
+        }
+    }
 
     if (animated)
     {
@@ -434,6 +483,9 @@ void MainMenu::btnPressed(Ref* sender)
     case 3:
         editorBtnPressed();
         break;
+    case 4:  // EDITOR (iOS port): user levels
+        Director::getInstance()->replaceScene(UserLevelSelectUIView::scene());
+        break;
     default:
         break;
     }
@@ -466,6 +518,8 @@ void MainMenu::optionsBtnPressed()
 void MainMenu::editorBtnPressed()
 {
     Settings::getInstance()->getTracker()->submitAction(s_trackerCategory, "editor_pressed", "", -1);
+    // EDITOR (iOS port): -[MainMenuLayer handleBtnPress:] tag 4 -> replaceScene:[EditorLayer scene].
+    Director::getInstance()->replaceScene(EditorLayer::createScene());
 }
 
 // @005ea240
