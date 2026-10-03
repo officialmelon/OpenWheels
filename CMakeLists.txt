@@ -26,6 +26,17 @@ set(APP_NAME OpenWheels)
 
 project(${APP_NAME} C CXX)
 
+# Debug info embedded in each object (/Z7) instead of one shared compile PDB per target (/Zi):
+# with the editor sources the shared vc143.pdb fails mid-build with C3130 ("failed to write
+# injected code block to PDB"). The linker still writes OpenWheels.pdb.
+if(MSVC)
+    foreach(lang C CXX)
+        foreach(cfg DEBUG RELWITHDEBINFO)
+            string(REGEX REPLACE "/Z[iI]" "/Z7" CMAKE_${lang}_FLAGS_${cfg} "${CMAKE_${lang}_FLAGS_${cfg}}")
+        endforeach()
+    endforeach()
+endif()
+
 set(COCOS2DX_ROOT_PATH ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/cocos2d-x)
 set(CMAKE_MODULE_PATH ${COCOS2DX_ROOT_PATH}/cmake/Modules/)
 
