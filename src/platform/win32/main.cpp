@@ -23,6 +23,7 @@
 //   --assets <dir>        extracted game assets (folder containing shared/, sounds/, large/...)
 //   --ios-app <dir>       optional iOS happywheels.app (level editor art + Localizable.strings)
 //   --open <file> | <file>  open a .happywheels / level .xml (user levels, like the iOS "Open in")
+//   --play-online <id>    download a browser Happy Wheels level by id and play it (src/online)
 //   --width <px> --height <px>   window ("device") size, default 1600x900
 //   --console             log to a console window
 //   --dump-world <out.json> [--level levels/<chapter>/<file>.xml] [--frames N] [--script f:hex,...]
@@ -39,6 +40,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cwchar>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -48,6 +50,9 @@
 #include "platform/common/IOSBundle.h"
 #include "platform/common/Localization.h"
 #include "LevelSession.h"
+#include "MainMenu.h"
+#include "online/OnlinePlay.h"
+#include "online/FlashLevelConverter.h"
 
 #ifdef OW_WITH_PC_LAYER  // enable once src/game links (PCInput.cpp, WorldDumpRunner.cpp)
 #include "platform/win32/CrashHandler.h"
@@ -131,6 +136,8 @@ struct Options
 {
     std::wstring assets;
     std::wstring iosApp;
+    int playOnline = 0;      // --play-online <level id>
+    std::wstring convertIn, convertOut;  // --convert-flash <in> <out> (PC-only test hook)
     std::wstring openFile;   // .happywheels / level .xml to open (command line or drag-and-drop onto the exe)
     float width = 1600.0f;
     float height = 900.0f;
@@ -155,6 +162,8 @@ Options parseOptions()
         if (a == L"--assets") o.assets = next();
         else if (a == L"--ios-app") o.iosApp = next();
         else if (a == L"--open") o.openFile = next();
+        else if (a == L"--play-online") o.playOnline = _wtoi(next().c_str());
+        else if (a == L"--convert-flash") { o.convertIn = next(); o.convertOut = next(); }
         else if (a.size() > 4 && a[0] != L'-') o.openFile = a;   // file passed by Explorer / drag-and-drop
         else if (a == L"--width") { o.width = (float)_wtof(next().c_str()); explicitSize = true; }
         else if (a == L"--height") { o.height = (float)_wtof(next().c_str()); explicitSize = true; }
@@ -210,6 +219,61 @@ void setupLogging(bool console)
 
 } // namespace
 
+// --convert-flash <in> <out>: see _tWinMain.
+int convertFlashLevel(const std::wstring& in, const std::wstring& out)
+{
+    std::string xml;
+    if (FILE* f = _wfopen(in.c_str(), L"rb"))
+    {
+        char buffer[65536];
+        size_t n;
+        while ((n = fread(buffer, 1, sizeof(buffer), f)) > 0) xml.append(buffer, n);
+        fclose(f);
+    }
+    online::ConversionReport report;
+    const std::string mobile = online::FlashLevelConverter::toMobile(xml, &report);
+    std::string text = report.ok ? "ok\n" : "error: " + report.error + "\n";
+    text += "character " + std::to_string(report.character) + (report.forceCharacter ? " forced" : "") +
+            "\ndropped " + std::to_string(report.droppedItems) + " substituted " +
+            std::to_string(report.substitutedItems) + (report.hasUserVehicle ? " vehicle" : "") + "\n";
+    for (const std::string& w : report.warnings) text += "warning: " + w + "\n";
+    if (FILE* f = _wfopen((out + L".report.txt").c_str(), L"wb"))
+    {
+        fwrite(text.data(), 1, text.size(), f);
+        fclose(f);
+    }
+    if (!report.ok) return 1;
+    FILE* f = _wfopen(out.c_str(), L"wb");
+    if (!f) return 2;
+    fwrite(mobile.data(), 1, mobile.size(), f);
+    fclose(f);
+    return 0;
+}
+
+// Runs `action` once the main menu is the running scene (after the splash / consent screens),
+// so command-line level launches push their scene onto the menu like a player's tap would.
+void runOnMainMenu(std::function<void()> action)
+{
+    static int s_target = 0;
+    static int s_key = 0;
+    const std::string key = "ow_on_main_menu_" + std::to_string(++s_key);
+    Director::getInstance()->getScheduler()->schedule(
+        [action, key](float) {
+            Scene* scene = Director::getInstance()->getRunningScene();
+            if (!scene) return;
+            for (Node* child : scene->getChildren())
+            {
+                if (dynamic_cast<MainMenu*>(child))
+                {
+                    Director::getInstance()->getScheduler()->unschedule(key, &s_target);
+                    action();
+                    return;
+                }
+            }
+        },
+        &s_target, 0.25f, CC_REPEAT_FOREVER, 0.5f, false, key);
+}
+
 int WINAPI _tWinMain(HINSTANCE hInstance,
                      HINSTANCE hPrevInstance,
                      LPTSTR    lpCmdLine,
@@ -221,8 +285,19 @@ int WINAPI _tWinMain(HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(nCmdShow);
 
     openwheels::pc::installCrashHandler();
+    openwheels::pc::installHangWatchdog();
+    {
+        static int s_heartbeatTarget = 0;
+        Director::getInstance()->getScheduler()->schedule([](float) { openwheels::pc::heartbeat(); },
+                                                          &s_heartbeatTarget, 0.0f, false, "ow_heartbeat");
+    }
     const Options opt = parseOptions();
     setupLogging(opt.console);
+
+    // PC-only test hook (not in the original): convert a browser level with
+    // online::FlashLevelConverter, write <out> and <out>.report.txt, exit (0 = converted).
+    if (!opt.convertIn.empty())
+        return convertFlashLevel(opt.convertIn, opt.convertOut);
 
     const std::wstring assets = findAssets(opt.assets);
     if (assets.empty())
@@ -272,11 +347,14 @@ int WINAPI _tWinMain(HINSTANCE hInstance,
     if (!opt.openFile.empty())
     {
         // Like iOS "Open in": hand the file to the level store once the game is up and running.
-        static int s_openTarget = 0;
         const std::string path = narrow(opt.openFile);
-        Director::getInstance()->getScheduler()->schedule(
-            [path](float) { LevelSession::getInstance()->openHappyWheelsFile(path); },
-            &s_openTarget, 0.0f, 0, 1.0f, false, "ow_open_level_file");
+        runOnMainMenu([path]() { LevelSession::getInstance()->openHappyWheelsFile(path); });
+    }
+
+    if (opt.playOnline > 0)
+    {
+        const int levelId = opt.playOnline;
+        runOnMainMenu([levelId]() { online::playOnlineLevelById(levelId); });
     }
 
     return Application::getInstance()->run();

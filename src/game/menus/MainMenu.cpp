@@ -19,6 +19,9 @@
 #include "LevelSession.h"
 #include "UserLevelSelectUIView.h"
 #include "platform/common/EditorAssets.h"
+// ONLINE (PC addition): online level browser (src/online)
+#include "online/OnlineLevelBrowser.h"
+#include "online/OnlineUi.h"
 
 USING_NS_CC;
 
@@ -55,6 +58,11 @@ MainMenu::~MainMenu()
 // @005e7794
 Scene* MainMenu::createScene(MenuMode mode, Node* unused)
 {
+    // ONLINE (PC addition): leaving a level started from the online browser goes back to it.
+    if (Scene* online = online::OnlineLevelBrowser::sceneForReturnFromLevel())
+    {
+        return online;
+    }
     Scene* scene = Scene::create();
     MainMenu* layer;
     switch (mode)
@@ -263,6 +271,9 @@ void MainMenu::addMenu(bool animated)
     infoBtn->setPosition(infoPos);
     _menuNode->addChild(_menu, 1);
 
+    // ONLINE (PC addition): left end of the row so far (the online button goes next to it).
+    float rowLeft = infoPos.x - infoBtn->getContentSize().width;
+
     // EDITOR (iOS port): iOS MainMenuLayer has an editor button (tag 4 -> [EditorLayer scene]);
     // here a pink button (the iOS mainMenu_editorBtn colour) with the Android atlas'
     // menu_main_icon_editor.png, tag 3 (MainMenu::editorBtnPressed), plus the user-level list
@@ -288,6 +299,7 @@ void MainMenu::addMenu(bool animated)
         Vec2 userLevelsPos(editorPos.x - editorBtn->getContentSize().width - 70.0f, 70.0f);
         editorBtn->setPosition(editorPos);
         userLevelsBtn->setPosition(userLevelsPos);
+        rowLeft = userLevelsPos.x - userLevelsBtn->getContentSize().width;  // ONLINE (PC addition)
         _menu->addChild(editorBtn);
         _menu->addChild(userLevelsBtn);
         if (animated)
@@ -296,6 +308,21 @@ void MainMenu::addMenu(bool animated)
             userLevelsBtn->setPosition(userLevelsPos.x + visibleSize.width, userLevelsPos.y);
             editorBtn->runAction(EaseExponentialOut::create(MoveTo::create(0.35f, editorPos)));
             userLevelsBtn->runAction(EaseExponentialOut::create(MoveTo::create(0.35f, userLevelsPos)));
+        }
+    }
+
+    // ONLINE (PC addition): online levels (blue, generated globe icon, tag 5), always shown.
+    {
+        MenuItemSprite* onlineBtn = btnWithIcon("menu_main_icon_options.png", ColorBlue, false, 5);
+        online::ui::setMenuButtonIcon(onlineBtn, "globe");
+        onlineBtn->setAnchorPoint(Vec2(1.0f, 0.0f));
+        Vec2 onlinePos(rowLeft - 70.0f, 70.0f);
+        onlineBtn->setPosition(onlinePos);
+        _menu->addChild(onlineBtn);
+        if (animated)
+        {
+            onlineBtn->setPosition(onlinePos.x + visibleSize.width, onlinePos.y);
+            onlineBtn->runAction(EaseExponentialOut::create(MoveTo::create(0.35f, onlinePos)));
         }
     }
 
@@ -485,6 +512,10 @@ void MainMenu::btnPressed(Ref* sender)
         break;
     case 4:  // EDITOR (iOS port): user levels
         Director::getInstance()->replaceScene(UserLevelSelectUIView::scene());
+        break;
+    case 5:  // ONLINE (PC addition): online level browser
+        Director::getInstance()->replaceScene(TransitionFade::create(
+            globals::ui::menuFadeTime, online::OnlineLevelBrowser::createScene(), Color3B(0, 0, 0)));
         break;
     default:
         break;
