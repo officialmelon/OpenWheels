@@ -3,7 +3,10 @@
 #include <windows.h>
 #include <dbghelp.h>
 
+#include <csignal>
 #include <cstdio>
+#include <cstdlib>
+#include <exception>
 #include <string>
 
 #pragma comment(lib, "dbghelp.lib")
@@ -29,23 +32,18 @@ void writeMinidump(EXCEPTION_POINTERS* info) {
     CloseHandle(f);
 }
 
-LONG WINAPI onCrash(EXCEPTION_POINTERS* info) {
+// Writes `header` and a symbolized stack walked from `context` to openwheels_crash.txt.
+void writeReport(const char* header, CONTEXT ctx) {
     FILE* out = _wfopen(besideExe(L"openwheels_crash.txt").c_str(), L"w");
-    if (!out) return EXCEPTION_CONTINUE_SEARCH;
-
-    const EXCEPTION_RECORD* rec = info->ExceptionRecord;
-    std::fprintf(out, "exception 0x%08lx at %p", rec->ExceptionCode, rec->ExceptionAddress);
-    if (rec->ExceptionCode == EXCEPTION_ACCESS_VIOLATION && rec->NumberParameters >= 2)
-        std::fprintf(out, " (%s 0x%p)", rec->ExceptionInformation[0] ? "write" : "read",
-                     reinterpret_cast<void*>(rec->ExceptionInformation[1]));
-    std::fprintf(out, "\n\n");
+    if (!out) return;
+    std::fprintf(out, "%s\n\n", header);
+    std::fflush(out);
 
     HANDLE process = GetCurrentProcess();
     HANDLE thread = GetCurrentThread();
     SymSetOptions(SYMOPT_LOAD_LINES | SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
     SymInitialize(process, nullptr, TRUE);
 
-    CONTEXT ctx = *info->ContextRecord;
     STACKFRAME64 frame{};
 #if defined(_M_IX86)
     const DWORD machine = IMAGE_FILE_MACHINE_I386;
@@ -79,11 +77,50 @@ LONG WINAPI onCrash(EXCEPTION_POINTERS* info) {
                      static_cast<unsigned long long>(symOff));
         if (haveLine) std::fprintf(out, "  %s:%lu", line.FileName, line.LineNumber);
         std::fprintf(out, "\n");
+        std::fflush(out);
     }
     std::fclose(out);
     SymCleanup(process);
+}
+
+LONG WINAPI onCrash(EXCEPTION_POINTERS* info) {
+    const EXCEPTION_RECORD* rec = info->ExceptionRecord;
+    char header[160];
+    int n = std::snprintf(header, sizeof header, "exception 0x%08lx at %p", rec->ExceptionCode, rec->ExceptionAddress);
+    if (rec->ExceptionCode == EXCEPTION_ACCESS_VIOLATION && rec->NumberParameters >= 2)
+        std::snprintf(header + n, sizeof header - n, " (%s 0x%p)", rec->ExceptionInformation[0] ? "write" : "read",
+                      reinterpret_cast<void*>(rec->ExceptionInformation[1]));
+    writeReport(header, *info->ContextRecord);
     writeMinidump(info);
     return EXCEPTION_CONTINUE_SEARCH;
+}
+
+// CRT failure paths that never reach the unhandled-exception filter (they fail fast).
+void reportHere(const char* header) {
+    CONTEXT ctx{};
+    ctx.ContextFlags = CONTEXT_FULL;
+    RtlCaptureContext(&ctx);
+    writeReport(header, ctx);
+}
+
+void onInvalidParameter(const wchar_t*, const wchar_t*, const wchar_t*, unsigned int, uintptr_t) {
+    reportHere("CRT invalid parameter");
+    TerminateProcess(GetCurrentProcess(), 3);
+}
+
+void onPureCall() {
+    reportHere("pure virtual function call");
+    TerminateProcess(GetCurrentProcess(), 3);
+}
+
+void onTerminate() {
+    reportHere("std::terminate (unhandled C++ exception?)");
+    TerminateProcess(GetCurrentProcess(), 3);
+}
+
+void onAbort(int) {
+    reportHere("abort()");
+    TerminateProcess(GetCurrentProcess(), 3);
 }
 
 }  // namespace
@@ -93,6 +130,10 @@ void installCrashHandler() {
     ULONG guarantee = 128 * 1024;
     SetThreadStackGuarantee(&guarantee);
     SetUnhandledExceptionFilter(onCrash);
+    _set_invalid_parameter_handler(onInvalidParameter);
+    _set_purecall_handler(onPureCall);
+    std::set_terminate(onTerminate);
+    std::signal(SIGABRT, onAbort);
 }
 
 }  // namespace pc
