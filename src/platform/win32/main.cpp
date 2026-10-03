@@ -27,6 +27,7 @@
 //   --dump-world <out.json> [--level levels/<chapter>/<file>.xml] [--frames N] [--script f:hex,...]
 //                         verification: play the level with scripted controls at exactly 1/60 s
 //                         per frame and write the Box2D world (tools/re/worlddiff.py vs the oracle)
+//   --dump-at a,b,c       with --dump-world: also write <out>_f<N>.json at those frames (oracle naming)
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -134,6 +135,7 @@ struct Options
     std::string level = "levels/01_business_guy/01_business_guy_tutorial_level.xml";
     int frames = 120;
     std::string script = "0:00";
+    std::string dumpAt;
 };
 
 Options parseOptions()
@@ -155,6 +157,7 @@ Options parseOptions()
         else if (a == L"--level") o.level = narrow(next());
         else if (a == L"--frames") o.frames = _wtoi(next().c_str());
         else if (a == L"--script") o.script = narrow(next());
+        else if (a == L"--dump-at") o.dumpAt = narrow(next());
     }
     LocalFree(argv);
     if (!explicitSize)
@@ -254,7 +257,8 @@ int WINAPI _tWinMain(HINSTANCE hInstance,
     openwheels::pc::installKeyboardControls();
     if (!opt.dumpWorld.empty())
     {
-        return openwheels::pc::runWorldDump(narrow(opt.dumpWorld), opt.level, opt.frames, opt.script);
+        return openwheels::pc::runWorldDump(narrow(opt.dumpWorld), opt.level, opt.frames, opt.script,
+                                             opt.dumpAt);
     }
 #endif
 

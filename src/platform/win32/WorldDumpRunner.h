@@ -9,9 +9,11 @@
 namespace openwheels {
 namespace pc {
 
-// script: "frame:hexstate,frame:hexstate,..." (control byte changes). Returns a process exit code.
+// script: "frame:hexstate,frame:hexstate,..." (control byte changes). dumpAt: "a,b,c" extra
+// frames to dump as <outPath minus .json>_f<N>.json (same naming as oracle.py play --dump-at).
+// Returns a process exit code.
 int runWorldDump(const std::string& outPath, const std::string& levelPath, int frames,
-                 const std::string& script);
+                 const std::string& script, const std::string& dumpAt = std::string());
 
 }  // namespace pc
 }  // namespace openwheels

@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <sstream>
+#include <string>
 #include <vector>
 
 #include "cocos2d.h"
@@ -20,7 +21,7 @@ namespace openwheels {
 namespace pc {
 
 int runWorldDump(const std::string& outPath, const std::string& levelPath, int frames,
-                 const std::string& script) {
+                 const std::string& script, const std::string& dumpAt) {
     // Same boot as the original (search paths, design resolution, content scale, first scene).
     auto app = Application::getInstance();
     if (!app->applicationDidFinishLaunching()) return 2;
@@ -54,8 +55,28 @@ int runWorldDump(const std::string& outPath, const std::string& levelPath, int f
 
     // Frame 0 enters the scene (drawScene: scheduler tick, then setNextScene); the oracle's
     // start_gameplay() corresponds to it. Then `frames` fixed-dt ticks, like oracle.tick().
+    std::vector<int> extra;
+    {
+        std::stringstream ds(dumpAt);
+        while (std::getline(ds, item, ','))
+            if (!item.empty()) extra.push_back(std::atoi(item.c_str()));
+    }
+    std::string base = outPath;
+    if (base.size() > 5 && base.compare(base.size() - 5, 5, ".json") == 0) base.resize(base.size() - 5);
+    auto dumpExtra = [&](int frame) {
+        for (int e : extra) {
+            if (e != frame) continue;
+            Session* s = Settings::getInstance()->getCurrentSession();
+            if (s && s->getWorld())
+                debug::dumpWorldJson(s->getWorld(), base + "_f" + std::to_string(frame) + ".json", frame);
+        }
+    };
     director->mainLoop(1.0f / 60.0f);
-    for (int f = 0; f < frames; ++f) director->mainLoop(1.0f / 60.0f);
+    dumpExtra(0);
+    for (int f = 0; f < frames; ++f) {
+        director->mainLoop(1.0f / 60.0f);
+        dumpExtra(f + 1);
+    }
 
     Session* session = Settings::getInstance()->getCurrentSession();
     if (!session || !session->getWorld()) {
