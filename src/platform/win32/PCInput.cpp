@@ -39,9 +39,9 @@ const std::map<EventKeyboard::KeyCode, Binding>& bindings() {
 // Virtual finger ids: far away from the mouse's id 0.
 intptr_t touchIdFor(EventKeyboard::KeyCode key) { return 1000 + static_cast<intptr_t>(key); }
 
-// Keys currently holding a virtual finger.
-std::map<EventKeyboard::KeyCode, bool>& activeKeys() {
-    static std::map<EventKeyboard::KeyCode, bool> m;
+// Keys currently holding a virtual finger, and where it went down (frame pixels).
+std::map<EventKeyboard::KeyCode, Vec2>& activeKeys() {
+    static std::map<EventKeyboard::KeyCode, Vec2> m;
     return m;
 }
 
@@ -89,14 +89,16 @@ void press(EventKeyboard::KeyCode key, const Binding& b) {
     worldToScreen(controls->convertToWorldSpace(centre), &x, &y);
     intptr_t id = touchIdFor(key);
     Director::getInstance()->getOpenGLView()->handleTouchesBegin(1, &id, &x, &y);
-    activeKeys()[key] = true;
+    activeKeys()[key] = Vec2(x, y);
 }
 
 void release(EventKeyboard::KeyCode key) {
-    if (!activeKeys().count(key)) return;
-    activeKeys().erase(key);
-    // The finger lifts where it went down; position does not matter to GameplayControls' end handling.
-    float x = 0, y = 0;
+    auto it = activeKeys().find(key);
+    if (it == activeKeys().end()) return;
+    // The finger lifts where it went down: tap-style buttons (pause, reset) only fire when the
+    // touch ends inside them.
+    float x = it->second.x, y = it->second.y;
+    activeKeys().erase(it);
     intptr_t id = touchIdFor(key);
     Director::getInstance()->getOpenGLView()->handleTouchesEnd(1, &id, &x, &y);
 }
