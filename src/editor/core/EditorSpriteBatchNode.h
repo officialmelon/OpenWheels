@@ -29,6 +29,9 @@
 // Observed: EditorUndoManager did-undo / did-redo (-> updateSelectionRect), "sel_rect_changed"
 // (EditParametersView, -> updateSelectionRect).
 
+#include <functional>
+
+#include "2d/CCNode.h"
 #include "2d/CCSpriteBatchNode.h"
 #include "base/CCVector.h"
 #include "renderer/CCCustomCommand.h"
@@ -55,7 +58,11 @@ enum EditorSpriteBatchNodeState
     EditorSBNStateMarquee = 5,
 };
 
-class EditorSpriteBatchNode : public cocos2d::SpriteBatchNode
+// EDITOR (browser features, PC addition): the node is a plain cocos2d::Node rather than a
+// CCSpriteBatchNode so refs can show art from other textures (the browser items' generated art,
+// text box fonts). Every iOS ref still draws from the editor atlas; cocos2d-x batches those draws
+// automatically, so nothing changes visually.
+class EditorSpriteBatchNode : public cocos2d::Node
 {
 public:
     static const int kTouchPriority;
@@ -141,6 +148,29 @@ public:
     void setDrawNode(cocos2d::DrawNode* drawNode);                         // @ios 1000c00c8
     EditorUndoManager* undoManager();                                      // @ios 1000c00d8
 
+    // ---- EDITOR (browser features, PC addition) -------------------------------------------
+    // Called first on every touch that begins on the stage (stage-space point); returning true
+    // takes the touch away from selection / dragging (link mode, polygon tool). The touch's
+    // moved / ended phases are then reported through touchInterceptorMoved / Ended.
+    std::function<bool(const cg::Point&, cocos2d::Touch*)> touchInterceptor;
+    std::function<void(const cg::Point&, cocos2d::Touch*)> touchInterceptorMoved;
+    std::function<void(const cg::Point&, cocos2d::Touch*)> touchInterceptorEnded;
+    // Selection with whole groups (a grouped member selects its group and all members).
+    static cocos2d::Vector<Special*> expandToUnits(const cocos2d::Vector<Special*>& refs);
+    // Adds / removes refs to / from the selection (undoable), as shift-click does.
+    void toggleSelection(Special* unit);
+    // Moves the selection by a stage-space offset with undo (arrow-key nudge).
+    void nudgeSelection(const cocos2d::Vec2& offset);
+    // Adds refs as one undo step without changing the selection (loader / tools).
+    void addRefsQuietly(const cocos2d::Vector<Special*>& refs);
+    // Removes refs (undoable), keeping the character.
+    void removeRefs(const cocos2d::Vector<Special*>& refs);
+    cocos2d::DrawNode* overlayNode();
+    // Hover highlight for link mode (drawn by the overlay), nullptr for none.
+    void setHighlightRef(Special* ref) { _highlightRef = ref; }
+    // Called after a drag of the selection ended (joints re-attach).
+    void selectionDidMove();
+
     // port: characterRef accessor (iOS reads refs[0]).
     CharacterRef* characterRef() { return _characterRef; }
     cg::Rect selectionRect() { return _selectionRect; }
@@ -184,4 +214,11 @@ protected:
     // port
     cocos2d::EventListenerTouchOneByOne* _touchListener = nullptr;
     cocos2d::CustomCommand _overlayCommand;
+    // EDITOR (browser features, PC addition)
+    cocos2d::DrawNode* _overlay = nullptr;
+    Special* _highlightRef = nullptr;
+    bool _intercepting = false;
+    bool _dragMoved = false;
+    double _lastTapTime = 0.0;
+    Special* _lastTapRef = nullptr;
 };

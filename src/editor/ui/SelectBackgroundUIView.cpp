@@ -50,6 +50,7 @@ bool SelectBackgroundUIView::initWithFrame(const Rect& frame, int initialBgValue
     case 4: row = 4; break;
     case -1: row = 5; break;
     case 4001: row = 2; break;
+    case 2: row = 6; break;  // EDITOR (browser features, PC addition): the browser city
     default: row = -1; break;
     }
     // iOS tests gColor twice (blue is never looked at): "not white" = r != 255 || g != 255.
@@ -57,6 +58,7 @@ bool SelectBackgroundUIView::initWithFrame(const Rect& frame, int initialBgValue
 
     _bgs = {Localization::get("NONE"),      Localization::get("GREEN HILLS"), Localization::get("CLOUDS"),
             Localization::get("HONEYCOMB"), Localization::get("BRICKS"),      Localization::get("SOLID COLOR")};
+    _bgs.push_back("City");  // EDITOR (browser features, PC addition): browser background 2
     _menuLabel->setString(uikit::capitalizedString(Localization::get("SELECT BACKGROUND")));
 
     const float k = uikit::pointsToDesign();
@@ -142,6 +144,7 @@ void SelectBackgroundUIView::pickerViewDidSelectRow(ui::ListView* /*pickerView*/
     case 2: bg = 4001; break;
     case 3: bg = 3; break;
     case 4: bg = 4; break;
+    case 6: bg = 2; break;  // EDITOR (browser features, PC addition): city
     case 5:
         if (_delegate) _delegate->editorUIView(this, Value(0), "bg", ValueMapNull);
         addColorSelectControls();

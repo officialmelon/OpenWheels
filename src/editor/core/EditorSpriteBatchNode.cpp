@@ -11,6 +11,10 @@
 #include "Special.h"
 #include "UIKitCompat.h"
 #include "WreckingBallRef.h"
+#include "FlashEditor.h"
+#include "GroupRef.h"
+#include "JointRef.h"
+#include "TriggerRef.h"
 
 USING_NS_CC;
 
@@ -73,7 +77,10 @@ EditorSpriteBatchNode::~EditorSpriteBatchNode()
 // @ios 1000bce60
 bool EditorSpriteBatchNode::initWithTexture(Texture2D* tex, ssize_t capacity)
 {
-    if (!SpriteBatchNode::initWithTexture(tex, capacity))
+    // EDITOR (browser features, PC addition): a plain Node (see the header).
+    (void)tex;
+    (void)capacity;
+    if (!Node::init())
     {
         return false;
     }
@@ -118,7 +125,7 @@ void EditorSpriteBatchNode::onEnter()
                                            [this](void* object, void*) { undoManagerDidRedo(object); });
     uikit::NotificationCenter::addObserver(this, kSelRectChanged, nullptr,
                                            [this](void*, void*) { updateSelectionRect(); });
-    SpriteBatchNode::onEnter();
+    Node::onEnter();
 }
 
 // @ios 1000bd13c
@@ -138,7 +145,7 @@ void EditorSpriteBatchNode::onExit()
         _eventDispatcher->removeEventListener(_touchListener);
         _touchListener = nullptr;
     }
-    SpriteBatchNode::onExit();
+    Node::onExit();
 }
 
 // ---- coordinate helpers (port) ----------------------------------------------------------------
@@ -190,6 +197,14 @@ bool EditorSpriteBatchNode::ccTouchBegan(Touch* touch, Event* event)
         return false;
     }
     cg::Point location = touchLocationInNode(touch);
+    _dragMoved = false;
+    // EDITOR (browser features, PC addition): tools (link mode, polygon tool) take the touch.
+    _intercepting = false;
+    if (touchInterceptor && touchInterceptor(location, touch))
+    {
+        _intercepting = true;
+        return true;
+    }
     EditorLayer* layer = editorLayerOf(this);
     Sprite* rotCirc = layer->rotCirc();
     Sprite* moveCirc = layer->moveCirc();
@@ -280,6 +295,70 @@ bool EditorSpriteBatchNode::ccTouchBegan(Touch* touch, Event* event)
         return a->getLocalZOrder() < b->getLocalZOrder();
     });
     Special* top = hits.back();
+    // EDITOR (browser features, PC addition): groups select as a unit (a second tap on a member
+    // of the selected group within 0.4 s selects that member alone); shift toggles; a tap on an
+    // already selected item drags the whole selection.
+    {
+        const double now = utils::gettime();
+        Special* unit = flashed::unitOf(top);
+        const bool doubleTap = _lastTapRef == top && now - _lastTapTime < 0.4;
+        _lastTapRef = top;
+        _lastTapTime = now;
+        if (flashed::shiftDown())
+        {
+            toggleSelection(unit);
+            state = EditorSBNStateIdle;
+            return true;
+        }
+        if (unit != top && doubleTap && _selectedRefs.contains(unit))
+        {
+            unit = top;  // edit one member of the group
+        }
+        else if (_selectedRefs.contains(unit) && (unit != top || _selectedRefs.size() > 1))
+        {
+            state = EditorSBNStateDrag;
+            draggingTouch = touch;
+            dragStartPos = location;
+            _undoManager->beginUndoGrouping();
+            for (Special* ref : _selectedRefs)
+            {
+                ref->setStartPos(cg::Point(ref->getPosition()));
+                Vec2 pos = ref->getPosition();
+                float x = pos.x;
+                float y = pos.y;
+                _undoManager->prepareWithInvocationTarget(ref, [x, y](Special* s) { s->setX(x, y); });
+            }
+            _undoManager->endUndoGrouping();
+            uikit::NotificationCenter::postNotification(kUndoStackUpdated, _undoManager);
+            return true;
+        }
+        if (unit != top)
+        {
+            Vector<Special*> previousSelection = _selectedRefs;
+            Vector<Special*> selection;
+            selection.pushBack(unit);
+            selection = expandToUnits(selection);
+            state = EditorSBNStateDrag;
+            draggingTouch = touch;
+            dragStartPos = location;
+            _undoManager->beginUndoGrouping();
+            _undoManager->prepareWithInvocationTarget(
+                this, [previousSelection](EditorSpriteBatchNode* sbn) { sbn->setSelectedRefs(previousSelection); });
+            for (Special* ref : selection)
+            {
+                ref->setStartPos(cg::Point(ref->getPosition()));
+                Vec2 pos = ref->getPosition();
+                float x = pos.x;
+                float y = pos.y;
+                _undoManager->prepareWithInvocationTarget(ref, [x, y](Special* s) { s->setX(x, y); });
+            }
+            _undoManager->endUndoGrouping();
+            uikit::NotificationCenter::postNotification(kUndoStackUpdated, _undoManager);
+            setSelectedRefs(selection);
+            return true;
+        }
+        top = unit;
+    }
     state = EditorSBNStateDrag;
     draggingTouch = touch;
     top->setStartPos(cg::Point(top->getPosition()));
@@ -305,6 +384,12 @@ bool EditorSpriteBatchNode::ccTouchBegan(Touch* touch, Event* event)
 // @ios 1000bd8cc
 void EditorSpriteBatchNode::ccTouchMoved(Touch* touch, Event* event)
 {
+    if (_intercepting)  // EDITOR (browser features, PC addition)
+    {
+        if (touchInterceptorMoved) touchInterceptorMoved(touchLocationInNode(touch), touch);
+        return;
+    }
+    _dragMoved = true;
     switch (state)
     {
     case EditorSBNStateDrag:
@@ -334,6 +419,16 @@ void EditorSpriteBatchNode::ccTouchCancelled(Touch* touch, Event* event)
 void EditorSpriteBatchNode::ccTouchEnded(Touch* touch, Event* event)
 {
     touchLocationInNode(touch);  // computed and unused on iOS
+    if (_intercepting)  // EDITOR (browser features, PC addition)
+    {
+        _intercepting = false;
+        if (touchInterceptorEnded) touchInterceptorEnded(touchLocationInNode(touch), touch);
+        return;
+    }
+    if (state == EditorSBNStateDrag && _dragMoved)
+    {
+        selectionDidMove();  // EDITOR (browser features, PC addition): joints re-attach
+    }
     if ((unsigned int)state - 1u < 2u || state == EditorSBNStateModify)
     {
         positionMoveRotCircs();
@@ -406,13 +501,20 @@ void EditorSpriteBatchNode::selectRefsInMarquee()
             }
         }
     }
-    if (!sameSet)
+    if (!sameSet || flashed::shiftDown())
     {
         Vector<Special*> previousSelection = _selectedRefs;
         _undoManager->prepareWithInvocationTarget(
             this, [previousSelection](EditorSpriteBatchNode* sbn) { sbn->setSelectedRefs(previousSelection); });
         uikit::NotificationCenter::postNotification(kUndoStackUpdated, _undoManager);
-        setSelectedRefs(highlightedRefs);
+        // EDITOR (browser features, PC addition): whole groups; shift adds to the selection.
+        Vector<Special*> selection = expandToUnits(highlightedRefs);
+        if (flashed::shiftDown())
+        {
+            for (Special* ref : previousSelection)
+                if (!selection.contains(ref)) selection.pushBack(ref);
+        }
+        setSelectedRefs(selection);
     }
     highlightedRefs.clear();
 }
@@ -979,6 +1081,31 @@ void EditorSpriteBatchNode::update(float dt)
         // respondsToSelector:@selector(updateDrawingWithNode:) - Special's default is a no-op.
         ref->updateDrawingWithNode(drawNode());
     }
+    // EDITOR (browser features, PC addition): groups follow their members; trigger numbers;
+    // the overlay (trigger regions, links, joints, group outlines) above every item.
+    for (Special* ref : refs)
+    {
+        if (GroupRef* g = dynamic_cast<GroupRef*>(ref)) g->recenter();
+        if (TriggerRef* t = dynamic_cast<TriggerRef*>(ref)) t->setNumber(flashed::triggerNumber(t));
+    }
+    if (!_selectedRefs.empty())
+    {
+        positionMoveRotCircs();  // the stage may have been zoomed / panned (wheel, right drag)
+    }
+    DrawNode* overlay = overlayNode();
+    overlay->clear();
+    for (Special* ref : refs)
+    {
+        ref->updateOverlayWithNode(overlay);
+    }
+    if (_highlightRef && flashed::onStage(_highlightRef))
+    {
+        cg::Rect r = _highlightRef->refBoundingBox();
+        const float pad = flashed::pxToStageLength(4.0f);
+        overlay->drawRect(Vec2((float)r.origin.x - pad, (float)r.origin.y - pad),
+                          Vec2((float)(r.origin.x + r.size.width) + pad, (float)(r.origin.y + r.size.height) + pad),
+                          Color4F(0.24f, 0.53f, 0.78f, 1.0f));
+    }
 }
 
 // @ios 1000bfa48
@@ -987,7 +1114,7 @@ void EditorSpriteBatchNode::draw(Renderer* renderer, const Mat4& transform, uint
     _overlayCommand.init(_globalZOrder, transform, flags);
     _overlayCommand.func = std::bind(&EditorSpriteBatchNode::onDrawOverlay, this, transform, flags);
     renderer->addCommand(&_overlayCommand);
-    SpriteBatchNode::draw(renderer, transform, flags);
+    Node::draw(renderer, transform, flags);
 }
 
 void EditorSpriteBatchNode::onDrawOverlay(const Mat4& transform, uint32_t flags)
@@ -1167,4 +1294,111 @@ void EditorSpriteBatchNode::setDrawNode(DrawNode* drawNode)
 EditorUndoManager* EditorSpriteBatchNode::undoManager()
 {
     return _undoManager;
+}
+
+// ---- EDITOR (browser features, PC addition) --------------------------------------------------------
+
+DrawNode* EditorSpriteBatchNode::overlayNode()
+{
+    if (!_overlay)
+    {
+        _overlay = DrawNode::create();
+        getParent()->addChild(_overlay, 101);
+    }
+    return _overlay;
+}
+
+Vector<Special*> EditorSpriteBatchNode::expandToUnits(const Vector<Special*>& refs)
+{
+    Vector<Special*> out;
+    for (Special* ref : refs)
+    {
+        Special* unit = flashed::unitOf(ref);
+        if (!out.contains(unit)) out.pushBack(unit);
+        if (GroupRef* g = dynamic_cast<GroupRef*>(unit))
+        {
+            for (Special* m : g->liveMembers())
+                if (!out.contains(m)) out.pushBack(m);
+        }
+    }
+    return out;
+}
+
+void EditorSpriteBatchNode::toggleSelection(Special* unit)
+{
+    Vector<Special*> previous = _selectedRefs;
+    Vector<Special*> one;
+    one.pushBack(unit);
+    Vector<Special*> unitRefs = expandToUnits(one);
+    Vector<Special*> selection = _selectedRefs;
+    if (selection.contains(unit))
+    {
+        for (Special* r : unitRefs) selection.eraseObject(r);
+    }
+    else
+    {
+        for (Special* r : unitRefs)
+            if (!selection.contains(r)) selection.pushBack(r);
+    }
+    _undoManager->prepareWithInvocationTarget(this, [previous](EditorSpriteBatchNode* sbn) { sbn->setSelectedRefs(previous); });
+    uikit::NotificationCenter::postNotification(kUndoStackUpdated, _undoManager);
+    setSelectedRefs(selection);
+}
+
+void EditorSpriteBatchNode::nudgeSelection(const Vec2& offset)
+{
+    if (_selectedRefs.empty() || !_enableEdit) return;
+    _undoManager->beginUndoGrouping();
+    for (Special* ref : _selectedRefs)
+    {
+        Vec2 pos = ref->getPosition();
+        float x = pos.x, y = pos.y;
+        _undoManager->prepareWithInvocationTarget(ref, [x, y](Special* s) { s->setX(x, y); });
+    }
+    _undoManager->endUndoGrouping();
+    uikit::NotificationCenter::postNotification(kUndoStackUpdated, _undoManager);
+    moveRefs(_selectedRefs, cg::Point(offset.x, offset.y));
+    updateSelectionRect();
+    positionMoveRotCircs();
+    selectionDidMove();
+}
+
+void EditorSpriteBatchNode::addRefsQuietly(const Vector<Special*>& refs)
+{
+    Vector<Special*> added = refs;
+    _undoManager->prepareWithInvocationTarget(this, [added](EditorSpriteBatchNode* sbn) { sbn->undoAddRefs(added); });
+    uikit::NotificationCenter::postNotification(kUndoStackUpdated, _undoManager);
+    for (Special* ref : added)
+    {
+        _refs.pushBack(ref);
+        addChild(ref);
+    }
+}
+
+void EditorSpriteBatchNode::removeRefs(const Vector<Special*>& refs)
+{
+    Vector<Special*> removed;
+    for (Special* ref : refs)
+    {
+        if (ref == _characterRef || !_refs.contains(ref)) continue;
+        removed.pushBack(ref);
+        removeChild(ref, false);
+        _refs.eraseObject(ref, true);
+    }
+    _undoManager->prepareWithInvocationTarget(this, [removed](EditorSpriteBatchNode* sbn) {
+        for (Special* ref : removed) sbn->addRef(ref);
+    });
+    uikit::NotificationCenter::postNotification(kUndoStackUpdated, _undoManager);
+    Vector<Special*> selection;
+    for (Special* ref : _selectedRefs)
+        if (!removed.contains(ref)) selection.pushBack(ref);
+    setSelectedRefs(selection);
+}
+
+void EditorSpriteBatchNode::selectionDidMove()
+{
+    for (Special* ref : _selectedRefs)
+    {
+        ref->didMove();
+    }
 }

@@ -1,0 +1,55 @@
+# EDITOR (browser features, PC addition): the browser level editor's own item art and tool icons
+# (com.totaljerkface.game.editor.*), shown by the OpenWheels editor (src/editor/flash/) on the
+# stage and in the add-items list. Same format as the other manifests.
+# Tool icons (ToolBar symbol, white glyphs): trigger, joint, text, polygon, art, special, shape.
+ic_trigger clip:690 1 zoom=4
+ic_joint clip:699 1 zoom=4
+ic_slide clip:699 1 zoom=4
+ic_text clip:705 1 zoom=4
+ic_polygon clip:708 1 zoom=4
+ic_art clip:711 1 zoom=4
+ic_special clip:702 1 zoom=4
+ic_shape clip:693 1 zoom=4
+# Item art of the editor refs (frame 1; type variants from the clip that holds the frames).
+ed_table com.totaljerkface.game.editor.specials.TableRef 1 zoom=2
+ed_meteor com.totaljerkface.game.editor.specials.MeteorRef 1 zoom=1
+ed_chair com.totaljerkface.game.editor.specials.ChairRef 1 zoom=2
+ed_tv com.totaljerkface.game.editor.specials.TVRef 1 zoom=2
+ed_boombox com.totaljerkface.game.editor.specials.BoomboxRef 1 zoom=2
+ed_toilet com.totaljerkface.game.editor.specials.ToiletRef 1 zoom=2
+ed_trashcan com.totaljerkface.game.editor.specials.TrashCanRef 1 zoom=2
+ed_rail com.totaljerkface.game.editor.specials.RailRef 1 zoom=2
+ed_cannon com.totaljerkface.game.editor.specials.CannonRef 1 zoom=1 hide=27
+ed_paddle com.totaljerkface.game.editor.specials.PaddleRef 1 zoom=1
+ed_sign_1 clip:1051 1 zoom=2
+ed_sign_2 clip:1051 2 zoom=2
+ed_sign_3 clip:1051 3 zoom=2
+ed_sign_4 clip:1051 4 zoom=2
+ed_sign_5 clip:1051 5 zoom=2
+ed_sign_6 clip:1051 6 zoom=2
+ed_sign_7 clip:1051 7 zoom=2
+ed_sign_8 clip:1051 8 zoom=2
+ed_sign_9 clip:1051 9 zoom=2
+ed_sign_10 clip:1051 10 zoom=2
+ed_sign_11 clip:1051 11 zoom=2
+ed_sign_12 clip:1051 12 zoom=2
+ed_sign_13 clip:1051 13 zoom=2
+ed_food_1 clip:595 1 zoom=2
+ed_food_2 clip:595 2 zoom=2
+ed_food_3 clip:595 3 zoom=2
+ed_npc_1 com.totaljerkface.game.editor.specials.npcsprites.NPCSprite1 1 zoom=1 hide=c1075,c1105
+ed_npc_2 com.totaljerkface.game.editor.specials.npcsprites.NPCSprite2 1 zoom=1 hide=c1075,c1105
+ed_npc_3 com.totaljerkface.game.editor.specials.npcsprites.NPCSprite3 1 zoom=1 hide=c1075,c1105
+ed_npc_4 com.totaljerkface.game.editor.specials.npcsprites.NPCSprite4 1 zoom=1 hide=c1075,c1105
+ed_npc_5 com.totaljerkface.game.editor.specials.npcsprites.NPCSprite5 1 zoom=1 hide=c1075,c1105
+ed_npc_6 com.totaljerkface.game.editor.specials.npcsprites.NPCSprite6 1 zoom=1 hide=c1075,c1105
+ed_npc_7 com.totaljerkface.game.editor.specials.npcsprites.NPCSprite7 1 zoom=1 hide=c1075,c1105
+ed_npc_8 com.totaljerkface.game.editor.specials.npcsprites.NPCSprite8 1 zoom=1 hide=c1075,c1105
+ed_npc_9 com.totaljerkface.game.editor.specials.npcsprites.NPCSprite9 1 zoom=1 hide=c1075,c1105
+ed_npc_10 com.totaljerkface.game.editor.specials.npcsprites.NPCSprite10 1 zoom=1 hide=c1075,c1105
+ed_npc_11 com.totaljerkface.game.editor.specials.npcsprites.NPCSprite11 1 zoom=1 hide=c1075,c1105
+ed_npc_12 com.totaljerkface.game.editor.specials.npcsprites.NPCSprite12 1 zoom=1 hide=c1075,c1105
+ed_npc_13 com.totaljerkface.game.editor.specials.npcsprites.NPCSprite13 1 zoom=1 hide=c1075,c1105
+ed_npc_14 com.totaljerkface.game.editor.specials.npcsprites.NPCSprite14 1 zoom=1 hide=c1075,c1105
+ed_npc_15 com.totaljerkface.game.editor.specials.npcsprites.NPCSprite15 1 zoom=1 hide=c1075,c1105
+ed_npc_16 com.totaljerkface.game.editor.specials.npcsprites.NPCSprite16 1 zoom=1 hide=c1075,c1105

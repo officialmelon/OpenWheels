@@ -33,6 +33,7 @@ public:
     void updateUI() override;                                                       // @ios 1000deb6c
     void setEnabled(bool enabled) override;                                         // @ios 1000debf8
     void removeFromSuperview() override;                                            // @ios 1000dec50
+    unsigned int segments() const { return _segments; }  // EDITOR (browser features, PC addition)
 
 protected:
     ColorInputObject();

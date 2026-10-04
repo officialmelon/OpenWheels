@@ -142,11 +142,17 @@ public class FlashPartRender {
         m.translate(ox * 20.0, oy * 20.0);
         m.scale(zoom);
         List<Integer> ignoreDepths = new ArrayList<>();
+        Set<Integer> hideChars = new HashSet<>();
         if (!ignore.equals("-")) {
             for (String s : ignore.split(",")) {
-                if (!s.isEmpty()) ignoreDepths.add(Integer.parseInt(s));
+                if (s.isEmpty()) continue;
+                // "c<id>": hide that character wherever it is placed inside the clip (nested too),
+                // e.g. the Flash editor's collision-shape overlays (EDITOR, PC addition).
+                if (s.charAt(0) == 'c') hideChars.add(Integer.parseInt(s.substring(1)));
+                else ignoreDepths.add(Integer.parseInt(s));
             }
         }
+        if (!hideChars.isEmpty()) hideCharacters(swf, sprite, hideChars);
         ExportRectangle vr = new ExportRectangle(view);
         tl.toImage(frame - 1, 0, new RenderContext(), img, img, false, m, new Matrix(), m, null, zoom, true,
                    vr, vr, m, true, Timeline.DRAW_MODE_ALL, 0, true, ignoreDepths, 1);
@@ -161,5 +167,25 @@ public class FlashPartRender {
         if (f.getParentFile() != null) f.getParentFile().mkdirs();
         ImageIO.write(dst, "png", f);
         System.out.println("R " + out + " " + ox + " " + oy);
+    }
+
+    // Drops every placement of `ids` from the timelines reachable from `root` (in memory only).
+    static void hideCharacters(SWF swf, DefineSpriteTag root, Set<Integer> ids) {
+        Set<Integer> seen = new HashSet<>();
+        ArrayDeque<DefineSpriteTag> queue = new ArrayDeque<>();
+        queue.add(root);
+        seen.add(root.getCharacterId());
+        while (!queue.isEmpty()) {
+            Timeline tl = queue.poll().getTimeline();
+            for (int f = 0; f < tl.getFrameCount(); f++) {
+                Frame frame = tl.getFrame(f);
+                frame.layers.entrySet().removeIf(e -> e.getValue() != null && ids.contains(e.getValue().characterId));
+                for (DepthState ds : frame.layers.values()) {
+                    if (ds == null || ds.characterId < 0) continue;
+                    CharacterTag ch = swf.getCharacter(ds.characterId);
+                    if (ch instanceof DefineSpriteTag && seen.add(ds.characterId)) queue.add((DefineSpriteTag) ch);
+                }
+            }
+        }
     }
 }

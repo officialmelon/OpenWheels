@@ -45,6 +45,9 @@ public:
     // Ref class name, e.g. "IBeamRef" (AddSpecialItemUIView builds "<key>_cellIcon.png").
     std::string keyForLevelItem(unsigned int levelItemID);                   // @ios 1000c13c8
     const std::map<int, std::string>& levelItems();                          // @ios 1000c13f8
+    // EDITOR (browser features, PC addition): generated art name for items without an iOS cell
+    // icon (generated/flash/<name>.png), "" for none.
+    std::string iconForLevelItem(unsigned int levelItemID);
     const std::vector<std::vector<int>>& sectionedLevelItemIDs();            // @ios 1000c1408
     const std::vector<std::string>& sectionNames();   // localized          // @ios 1000c1410
     float scrollViewYOffset();                                               // @ios 1000c1418
@@ -59,4 +62,5 @@ private:
     std::vector<std::string> _sectionNames;           // sectionNames     localized
     float _scrollViewYOffset;                         // scrollViewYOffset
     std::map<std::string, RefFactory> _factories;     // port: NSClassFromString
+    std::map<int, std::string> _icons;                // EDITOR (browser features, PC addition)
 };

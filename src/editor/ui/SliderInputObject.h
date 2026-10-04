@@ -31,6 +31,7 @@ public:
     void updateUI() override;                                                       // @ios 1000ca4c4
     void setEnabled(bool enabled) override;                                         // @ios 1000ca550
     void removeFromSuperview() override;                                            // @ios 1000ca5a8
+    unsigned int segments() const { return _segments; }  // EDITOR (browser features, PC addition)
 
 protected:
     SliderInputObject();

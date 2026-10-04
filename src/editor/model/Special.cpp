@@ -6,6 +6,7 @@
 #include <limits>
 
 #include "EditorSettings.h"
+#include "FlashEditor.h"  // EDITOR (browser features, PC addition): trigger-action keys
 #include "InputObject.h"
 #include "SwitchInputObject.h"
 #include "UIKitCompat.h"
@@ -229,6 +230,14 @@ void Special::removeObserver(const void* observer, const std::string& keyPath)
             return;
         }
     }
+}
+
+// EDITOR (browser features, PC addition)
+void Special::removeAllObservers(const void* observer)
+{
+    _observations.erase(std::remove_if(_observations.begin(), _observations.end(),
+                                       [observer](const Observation& o) { return o.observer == observer; }),
+                        _observations.end());
 }
 
 void Special::didChangeValueForKey(const std::string& key)
@@ -791,6 +800,11 @@ Value Special::valueForKey(const std::string& key)
     if (key == "canDragModify") return Value(canDragModify());
     if (key == "canRotate") return Value(canRotate());
     if (key == "locked") return Value(locked());
+    {
+        // EDITOR (browser features, PC addition): trigger actions of this ref as a target.
+        Value action;
+        if (flashed::valueForActionKey(this, key, &action)) return action;
+    }
     // iOS: NSUnknownKeyException. Port: log and return nil.
     log("Special::valueForKey: unknown key '%s' (levelItemID %d)", key.c_str(), _levelItemID);
     return Value::Null;
@@ -814,6 +828,8 @@ void Special::setValueForKey(const Value& value, const std::string& key)
     if (key == "canDragModify") { setCanDragModify(kvcBool(value)); return; }
     if (key == "canRotate") { setCanRotate(kvcBool(value)); return; }
     if (key == "locked") { setLocked(kvcBool(value)); return; }
+    // EDITOR (browser features, PC addition): trigger actions of this ref as a target.
+    if (flashed::setValueForActionKey(this, key, value)) return;
     // iOS: NSUnknownKeyException. Port: log and ignore.
     log("Special::setValueForKey: unknown key '%s' (levelItemID %d), ignored", key.c_str(),
         _levelItemID);

@@ -32,4 +32,7 @@ public:
     // port: KVC — innerCutout (+ RefShape's).
     virtual cocos2d::Value valueForKey(const std::string& key) override;
     virtual void setValueForKey(const cocos2d::Value& value, const std::string& key) override;
+
+protected:
+    float _innerCutout = 0.0f;  // EDITOR (browser features, PC addition)
 };

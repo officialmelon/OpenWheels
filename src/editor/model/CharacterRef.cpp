@@ -2,6 +2,7 @@
 
 #include "Settings.h"
 #include "SliderInputObject.h"
+#include "restored/Restored.h"  // EDITOR (browser features, PC addition)
 #include "SwitchInputObject.h"
 #include "platform/common/EditorAssets.h"
 #include "platform/common/AppleImage.h"
@@ -143,6 +144,25 @@ void CharacterRef::updateSprite()
         sprite->setScale(editorArtScale());  // port: show at the iOS point size
         _charNode->addChild(sprite);
     }
+    else
+    {
+        // EDITOR (browser features, PC addition): the restored browser characters (6, 7, 8, 10,
+        // 11) have no e_char art; show their character-select icon, sized like the others.
+        static const char* const kIcons[12] = {"", "", "", "", "", "", "mow_icon.png", "exp_icon.png",
+                                               "santa_icon.png", "", "mom_icon.png", "heli_icon.png"};
+        restored::loadIconFrames();
+        const char* icon = _defaultCharacter < 12 ? kIcons[_defaultCharacter] : "";
+        if (*icon && SpriteFrameCache::getInstance()->getSpriteFrameByName(icon))
+        {
+            sprite = Sprite::createWithSpriteFrameName(icon);
+            anchorX = 0.5;
+            anchorY = 0.0;
+            sprite->setAnchorPoint(Vec2(0.5f, 0.0f));
+            const float wanted = _ptmRatio * 2.6f;  // about a character's height
+            sprite->setScale(wanted / std::max(1.0f, sprite->getContentSize().height));
+            _charNode->addChild(sprite);
+        }
+    }
     _charNode->setPosition(getPosition());
     Node* parent = getParent();
     Node* stage = parent ? parent->getParent() : nullptr;
@@ -153,8 +173,13 @@ void CharacterRef::updateSprite()
 
     // textureRect in iOS points (nil sprite -> CGRectZero).
     const float scale = editorArtScale();
-    const float w = sprite ? sprite->getTextureRect().size.width * scale : 0.0f;
-    const float h = sprite ? sprite->getTextureRect().size.height * scale : 0.0f;
+    float w = sprite ? sprite->getTextureRect().size.width * scale : 0.0f;
+    float h = sprite ? sprite->getTextureRect().size.height * scale : 0.0f;
+    if (sprite && !texture)
+    {
+        w = sprite->getContentSize().width * sprite->getScaleX();  // EDITOR: the restored icon
+        h = sprite->getContentSize().height * sprite->getScaleY();
+    }
     setRefRect(cg::Rect(anchorX * (double)-w, anchorY * (double)-h, (double)w, (double)h));
 }
 

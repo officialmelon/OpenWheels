@@ -9,6 +9,7 @@
 // id too (Settings::setSelectedCharacterId). So the value goes to Settings::setSelectedCharacterId
 // unchanged.
 #include "LevelSession.h"
+#include "FlashLevelIO.h"  // EDITOR (browser features, PC addition)
 
 #include "CharacterSelectLayer.h"
 #include "EditorViewController.h"
@@ -251,7 +252,9 @@ bool LevelSession::isUserLevel() const
 void LevelSession::applyToSettings()
 {
     Settings* settings = Settings::getInstance();
-    settings->setSelectedLevelFilePath(levelDataXML());
+    // EDITOR (browser features, PC addition): user levels saved by the editor are browser level
+    // XML; the game plays them converted (FlashLevelConverter), like online levels.
+    settings->setSelectedLevelFilePath(flashed::playableLevelXml(levelDataXML()));
     settings->setForceCharacter(forceCharacter());
     // characterIndex is a character id (see the top of this file).
     settings->setSelectedCharacterId(_characterIndex);
@@ -260,7 +263,7 @@ void LevelSession::applyToSettings()
 void LevelSession::playLevel(bool forceCharacter)
 {
     applyToSettings();
-    Scene* scene = forceCharacter ? Gameplay::createScene(levelDataXML(), nullptr)
+    Scene* scene = forceCharacter ? Gameplay::createScene(Settings::getInstance()->getSelectedLevelFilePath(), nullptr)
                                   : CharacterSelectLayer::createScene(0, 0);
     Director::getInstance()->pushScene(scene);
 }
@@ -315,7 +318,7 @@ void LevelSession::playImportedLevel(const ValueMap& levelDict)
     float fileVersion = get("buildVersion").isNull() ? 0.0f : get("buildVersion").asFloat();
     float appVersion = static_cast<float>(std::atof(kBuildVersion));
     applyToSettings();
-    Scene* scene = force ? Gameplay::createScene(levelDataXML(), nullptr)
+    Scene* scene = force ? Gameplay::createScene(Settings::getInstance()->getSelectedLevelFilePath(), nullptr)
                          : CharacterSelectLayer::createScene(0, 0);
     if (appVersion < fileVersion)
     {

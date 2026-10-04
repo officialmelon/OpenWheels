@@ -84,6 +84,7 @@
 #include <vector>
 
 class InputObject;  // E4 (src/editor/ui/InputObject.h)
+class GroupRef;     // EDITOR (browser features, PC addition): src/editor/flash/GroupRef.h
 
 // Construction: concrete refs use CREATE_FUNC(T) -> `T::create()` = `[[[T alloc] init]
 // autorelease]` (their `bool init() override` is the iOS -init). The iOS instance method
@@ -225,6 +226,17 @@ public:
     bool locked();                                                                       // @ios 1000b5fc4
     void setLocked(bool locked);                                                         // @ios 1000b5fd4
 
+    // ---- EDITOR (browser features, PC addition): see src/editor/flash/ --------------------
+    // The browser-style group this ref belongs to (not retained; GroupRef keeps its members).
+    GroupRef* group() const { return _group; }
+    void setGroup(GroupRef* group) { _group = group; }
+    // Drops every KVO registration of `observer` (any key path).
+    void removeAllObservers(const void* observer);
+    // Overlay drawn above all items each frame (trigger regions, links, joint arms, groups).
+    virtual void updateOverlayWithNode(cocos2d::DrawNode* node) {}
+    // Called by EditorSpriteBatchNode after a drag / nudge of this ref ended.
+    virtual void didMove() {}
+
 protected:
     Special();
 
@@ -275,4 +287,5 @@ private:
     };
     std::vector<Observation> _observations;  // port: KVO registry
     std::vector<std::string> _kvoChanging;   // port: keys with an open KeyValueChange scope
+    GroupRef* _group = nullptr;        // EDITOR (browser features, PC addition)
 };

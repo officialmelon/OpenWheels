@@ -120,6 +120,12 @@ public:
     void setIsAngleValue(bool isAngleValue);                                          // @ios 1000c9d4c
 
     const std::string& property() const { return _property; }
+    // EDITOR (browser features, PC addition): what the row is, for the modern inspector.
+    const std::string& labelKey() const { return _labelKey; }
+    bool limitsEnabled() const { return _limitsEnabled; }
+    float minValue() const { return _minValue; }
+    float maxValue() const { return _maxValue; }
+    bool showDecimal() const { return _showDecimal; }
 
     // ui::EditBoxDelegate -> UITextFieldDelegate mapping:
     //   editBoxEditingDidBegin -> textFieldShouldBeginEditing + textFieldDidBeginEditing
@@ -147,4 +153,5 @@ protected:
     float _currentValue;                              // +0x34  iOS `currentValue`
     InputObjectDelegate* _delegate;                   // +0x38  id<InputObjectDelegate> (assign)
     bool _isAngleValue;                               // +0x40
+    std::string _labelKey;                            // EDITOR (browser features, PC addition)
 };

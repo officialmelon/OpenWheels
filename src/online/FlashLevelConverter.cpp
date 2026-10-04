@@ -401,6 +401,7 @@ private:
     double _version = 1.87;
     std::string _versionText = "1.87";
     bool _dotVerts = false;           // browser vertices: '.' separated (v < 1.84)
+    bool _editorLevel = false;        // EDITOR (browser features, PC addition): <info ow="1">
     bool _mobileUnderscore = true;    // mobile stringToVec separator for this version
     Node _info{"info"};
 
@@ -465,7 +466,11 @@ bool Converter::convertInfo(const XMLElement* info) {
     _info.setBool("f", forced);
     _info.setBool("h", flag(info, "h", false));
     int background = inum(info, "bg", 0);
-    if (background < 0 || background > 2) background = 0;
+    // EDITOR (browser features, PC addition): levels from the OpenWheels editor (ow="1") may use
+    // the mobile backgrounds (3 honeycomb, 4 bricks, 4001 clouds) the iOS editor offers.
+    _editorLevel = attr(info, "ow") != nullptr;
+    const bool mobileBackground = _editorLevel && (background == 3 || background == 4 || background == 4001);
+    if (!mobileBackground && (background < 0 || background > 2)) background = 0;
     // bg 2 (city) stays 2: BackgroundLayer draws the browser game's city backdrops for browser
     // levels (online/FlashCity.h), or the night horizon without the generated art (Android 1.1.3
     // ships no city gradient).
@@ -1088,6 +1093,19 @@ void Converter::convertSpecial(const XMLElement* e, int index) {
         count("ported:" + std::to_string(type));
     } else if (sanitizeSupportedSpecial(e, type, false, rec.node, &rec.jointable, &rec.jointBody, &addsGroupFixture)) {
         rec.fate = SpecialFate::Keep;
+        if (_editorLevel) {
+            // EDITOR (browser features, PC addition): the iOS editor's mobile-only parameters
+            // (fan / mine / soccer ball fixed & sleeping, mine slow motion...) stay.
+            for (const tinyxml2::XMLAttribute* a = e->FirstAttribute(); a; a = a->Next()) {
+                const char* name = a->Name();
+                if (name[0] == 'p' && name[1] >= '0' && name[1] <= '9' && !rec.node.get(name)) rec.node.set(name, a->Value());
+            }
+        }
+    } else if (_editorLevel && type == 5001) {
+        // EDITOR (browser features, PC addition): the iOS editor's slow-motion panel (a stub in
+        // the Android game) passes through.
+        rec.fate = SpecialFate::Keep;
+        rec.node = passThroughSpecial(e, type);
     } else if (type == 30) {
         rec.fate = SpecialFate::Chain;
         buildChain(e, rec);

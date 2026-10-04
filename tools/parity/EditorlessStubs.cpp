@@ -25,3 +25,12 @@ class EditorLayer { public: static cocos2d::Scene* createScene(); };
 class UserLevelSelectUIView { public: static cocos2d::Scene* scene(); };
 cocos2d::Scene* EditorLayer::createScene() { return nullptr; }
 cocos2d::Scene* UserLevelSelectUIView::scene() { return nullptr; }
+
+// NET (PC addition): src/net/ is left out with the editor.
+#include "net/NetLevels.h"
+void net::startLevelSharing() {}
+void net::stopLevelSharing() {}
+
+// EDITOR (browser features, PC addition): --edit has no editor to open here.
+#include "editor/flash/FlashEditorHooks.h"
+void flashed::openLevelInEditor(const std::string&, const std::string&) {}

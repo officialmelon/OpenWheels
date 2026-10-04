@@ -159,6 +159,13 @@ void SaveLevelViewController::viewWillAppear(bool animated)
             _saveOverBtn->removeFromParent();
         }
         setSaveOverBtn(nullptr);
+        // EDITOR (browser features, PC addition): a level opened from XML (online "EDIT",
+        // --edit) suggests its own name.
+        if (editorLayer_ && !editorLayer_->pendingLevelName().empty())
+        {
+            _nameTextView->setText(editorLayer_->pendingLevelName().substr(0, maxNameChars));
+            textViewDidChange(_nameTextView);
+        }
     }
     else
     {

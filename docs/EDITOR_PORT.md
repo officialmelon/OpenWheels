@@ -80,6 +80,7 @@ src/editor/ui/           EditorUIView, AddSpecialItemUIView, SelectBackgroundUIV
 src/editor/persistence/  LevelSession, LevelStore, LevelMO (file-backed), LoadLevelViewController,
                          SaveLevelViewController, SBSaveLevelViewController,
                          UserLevelSelectUIView, LevelListView, LevelTextView, ShareAction
+src/editor/flash/        browser-level features (PC addition, see below)
 src/platform/common/     Localization, EditorAssets, IOSBundle, BinaryPlist, AppleImage
 ```
 
@@ -88,6 +89,40 @@ nothing in iOS 1.2.7 reaches (`docs/editor/E4.md`).
 
 `cmake -DOW_WITH_EDITOR=OFF` builds without `src/editor/` (`tools/parity/EditorlessStubs.cpp`
 supplies the few symbols the menus reference); used for the parity build tree.
+
+## Browser-level features (PC addition)
+
+Not in any shipped build: the editor is extended with everything the browser (Flash) editor
+had, so levels from the online browser can be opened, remixed and saved. All of it lives in
+`src/editor/flash/`; changes elsewhere in `src/editor/` are marked
+`// EDITOR (browser features, PC addition)`. `src/game/` is untouched.
+
+* **Format.** The editor now saves the **browser format** (Flash `SaverLoader.createXML`: px,
+  y down, 20000x10000 stage, `<groups>`, `<joints>`, `<triggers>` with per-target action lists)
+  with `<info … e="1" ow="1">`. Play-test, user-level play and the user library run it through
+  `FlashLevelConverter` (as online levels are), so the game reads only one extra path. `ow="1"`
+  tells the converter to keep the mobile backgrounds (3, 4, 4001), mobile-only special params
+  and the iOS 5001 item. Old iOS-format levels still load (`FlashLevelIO::isBrowserLevelXml`
+  picks the reader) and are upgraded on their next save.
+* **Items.** `FlashCatalog` describes every browser special (props in XML order, ranges,
+  labels, defaults, art), drawn by `FlashSpecialRef` with art rendered from the SWF at build
+  time (`tools/assets/flash_items/editor.txt`): NPCs, text boxes, signs, food, furniture,
+  cannon, chain, paddle, token, buildings and the rest. Characters include the 5 restored
+  ones; backgrounds include City. Polygon and art shapes (`PolygonRefShape`, art bezier
+  handles kept as loaded).
+* **Logic.** `TriggerRef` (region, triggered by, repeat, delay, sound, start disabled, targets
+  each with an action list and parameters, drawn links), `JointRef` (pin / sliding: limits,
+  motor, collide, vehicle-controlled; bodies picked from what lies under the joint, drawn
+  arms), `GroupRef` (logical groups, members stay editable; group properties, make vehicle).
+* **UI.** `Inspector` (properties / trigger targets / actions, online-browser style, replaces
+  `EditParametersView`), `ItemPalette` (replaces `AddSpecialItemUIView`), link mode for
+  trigger targets, polygon/art tool.
+* **PC input.** Click / shift-click / marquee select, drag, Ctrl+C/V/D/Z/Y (Shift+Z), Ctrl+A,
+  Ctrl+G / Shift+G (group / ungroup), Delete, arrows (Shift: 10 px), mouse-wheel zoom,
+  right-drag pan, Esc; keyboard-editable fields. Touch works as before.
+* **Online.** The online browser's detail panel gets an EDIT button
+  (`online::setOpenInEditorHandler` → `flashed::openLevelInEditor`); `--edit <file.xml>`
+  opens a level from the command line.
 
 ## Verification
 

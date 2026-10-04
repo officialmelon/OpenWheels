@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "EditorSettings.h"
+#include "FlashEditor.h"  // EDITOR (browser features, PC addition): generated icons
 #include "platform/common/Localization.h"
 
 USING_NS_CC;
@@ -72,6 +73,22 @@ void AddSpecialItemUIView::addTableView()
         }
     }
     _tv->forceDoLayout();
+    // EDITOR (browser features, PC addition): mouse-wheel scrolling of the item list.
+    {
+        auto wheel = EventListenerMouse::create();
+        ui::ListView* tv = _tv;
+        wheel->onMouseScroll = [tv](EventMouse* e) {
+            const Vec2 p = tv->convertToNodeSpace(Vec2(e->getCursorX(), e->getCursorY()));
+            if (!Rect(Vec2::ZERO, tv->getContentSize()).containsPoint(p)) return;
+            const float innerH = tv->getInnerContainerSize().height;
+            const float viewH = tv->getContentSize().height;
+            float y = tv->getInnerContainerPosition().y + e->getScrollY() * 160.0f;
+            y = std::min(0.0f, std::max(viewH - innerH, y));
+            tv->setInnerContainerPosition(Vec2(0.0f, y));
+            e->stopPropagation();
+        };
+        _tv->getEventDispatcher()->addEventListenerWithSceneGraphPriority(wheel, _tv);
+    }
     // [tv setContentOffset:CGPointMake(0, settings.scrollViewYOffset)]
     const float innerH = _tv->getInnerContainerSize().height;
     const float viewH = _tv->getContentSize().height;
@@ -128,6 +145,20 @@ ui::Widget* AddSpecialItemUIView::tableViewCellForRow(ui::ListView* tableView, l
         const float points = std::max(px.width, px.height) / scale;
         const float fit = points > kIconBox ? kIconBox / points : 1.0f;
         icon->setScale(k / scale * fit);
+        icon->setPosition(Vec2((15.0f + kIconBox * 0.5f) * k, kRowHeight * 0.5f * k));
+        cell->addChild(icon);
+        textX = 15.0f + kIconBox + 15.0f;
+    }
+    else if (Sprite* icon = flashed::flashIconSprite(settings->iconForLevelItem(static_cast<unsigned int>(itemID))))
+    {
+        // EDITOR (browser features, PC addition): the browser items' art (or the Flash editor's
+        // tool icons, white glyphs tinted the editor's blue), fitted like the iOS cell icons.
+        const std::string iconName = settings->iconForLevelItem(static_cast<unsigned int>(itemID));
+        icon->setAnchorPoint(Vec2(0.5f, 0.5f));
+        if (iconName.compare(0, 3, "ic_") == 0) icon->setColor(Color3B(61, 136, 199));
+        const Size px = icon->getContentSize();
+        const float points = std::max(px.width, px.height);
+        icon->setScale(k * (kIconBox / std::max(1.0f, points)));
         icon->setPosition(Vec2((15.0f + kIconBox * 0.5f) * k, kRowHeight * 0.5f * k));
         cell->addChild(icon);
         textX = 15.0f + kIconBox + 15.0f;

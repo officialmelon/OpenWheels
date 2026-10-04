@@ -47,8 +47,10 @@
 // 600 shapes, 1000 art (sum of Special::shapeCount()/artCount() over all refs); labels
 // "<SHAPES LEFT>: n" / "<ART LEFT>: n" (Localization keys "SHAPES LEFT", "ART LEFT").
 
+#include <functional>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "2d/CCLayer.h"
 #include "base/CCValue.h"
@@ -57,6 +59,7 @@
 #include "EditorLevelXMLParser.h"
 #include "EditorUIView.h"
 #include "HWWindowDelegate.h"
+#include "FlashLevelIO.h"  // EDITOR (browser features, PC addition)
 
 namespace cocos2d {
 class Label;
@@ -97,10 +100,17 @@ enum EditorLayerButtonTag
     EditorLayerButtonTagExit = 12,      // no button is created with this tag in 1.2.7
 };
 
+namespace flashed {
+class Inspector;
+}
+class TriggerRef;
+class PolygonRefShape;
+
 class EditorLayer : public cocos2d::LayerColor,
                     public EditorLevelXMLParserDelegate,
                     public EditorUIViewLayerDelegate,
-                    public HWWindowDelegate
+                    public HWWindowDelegate,
+                    public flashed::LevelReaderDelegate
 {
 public:
     static const int kTouchPriority;          // 3, see "Touch order"
@@ -277,9 +287,56 @@ public:
     // "data" (level XML), "force_character" (bool), "playable_character" (int).
     static cocos2d::ValueMap& sessionLevelData();
 
+    // ---- EDITOR (browser features, PC addition) ----------------------------------------------
+    // The editor on a level given as XML (browser or iOS format) without a LevelMO, e.g. an
+    // online level opened for remixing or a file passed on the command line. Saving creates a
+    // new user level named `name`.
+    static cocos2d::Scene* createSceneWithXML(const std::string& xml, const std::string& name);
+    // The iOS editor's own writer (y-up metres, <info v="1.70" ... fm="m">), kept for reference;
+    // levelData() writes browser XML now (src/editor/flash/FlashLevelIO.h).
+    std::string iosLevelData();
+    // flashed::LevelReaderDelegate
+    void readerAddCharacter(float xMetres, float yMetres, int character, bool force, bool hideVehicle) override;
+    // Inspector (replaces EditParametersView), its functions, link mode, drawing tool, grouping.
+    void showInspector();
+    void closeInspector();
+    void inspectorFunction(const std::string& key);
+    void beginLinkMode(TriggerRef* trigger);
+    void endLinkMode();
+    void beginPolygonTool(bool art);
+    void finishPolygonTool(bool keep);
+    void groupSelection();
+    void ungroupSelection();
+    void duplicateSelection();
+    void selectAll();
+    const std::string& pendingLevelName() const { return _pendingName; }
+
 protected:
     EditorLayer();
     ~EditorLayer() override;
+
+    // EDITOR (browser features, PC addition)
+    void showToolBanner(const std::string& text, const std::string& doneText, std::function<void()> done,
+                        std::function<void()> cancel);
+    void hideToolBanner();
+    void installPCInput();
+    bool handleKey(cocos2d::EventKeyboard::KeyCode key);
+    flashed::Inspector* _inspector = nullptr;
+    cocos2d::Node* _palette = nullptr;
+    cocos2d::Node* _toolBanner = nullptr;
+    TriggerRef* _linkTrigger = nullptr;            // retained through _linkTriggerKeep
+    cocos2d::RefPtr<cocos2d::Ref> _linkTriggerKeep;
+    bool _polygonTool = false;
+    bool _polygonArt = false;
+    std::vector<cocos2d::Vec2> _polygonPoints;   // stage space
+    cocos2d::DrawNode* _toolDraw = nullptr;
+    bool _ctrl = false;
+    bool _rightDrag = false;
+    cocos2d::Vec2 _rightDragLast;
+    cocos2d::EventListener* _keyListener = nullptr;
+    cocos2d::EventListener* _mouseListener = nullptr;
+    std::string _pendingXML;
+    std::string _pendingName;
 
     void observe(const std::string& name, void* objectFilter, void (EditorLayer::*handler)(void*));
     void removeObserver(const std::string& name);

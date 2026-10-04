@@ -58,6 +58,7 @@ bool InputObject::initWithFrame(const Rect& frame, const std::string& label, con
     _editable = true;
     _currentValue = initialValue;
     _property = property;
+    _labelKey = label;  // EDITOR (browser features, PC addition)
     if (addDisplayValueTextField) this->addDisplayValueTextField();
     if (!label.empty())
     {

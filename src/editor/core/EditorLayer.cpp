@@ -32,6 +32,19 @@
 #include "platform/common/EditorAssets.h"
 #include "platform/common/IOSBundle.h"
 #include "platform/common/Localization.h"
+// EDITOR (browser features, PC addition)
+#include "FlashCatalog.h"
+#include "FlashEditor.h"
+#include "FlashLevelIO.h"
+#include "FlashSpecialRef.h"
+#include "GroupRef.h"
+#include "Inspector.h"
+#include "ItemPalette.h"
+#include "InspectorWidgets.h"
+#include "JointRef.h"
+#include "PolygonRefShape.h"
+#include "TriggerRef.h"
+#include "online/OnlineUi.h"
 
 USING_NS_CC;
 
@@ -171,6 +184,12 @@ Color3B color3B(unsigned int packed)
 
 // ---- creation -------------------------------------------------------------------------------------
 
+namespace {
+// EDITOR (browser features, PC addition): createSceneWithXML hands its level to initWithLevelMO.
+std::string s_nextXML;
+std::string s_nextName;
+}  // namespace
+
 // @ios 100005c2c
 Scene* EditorLayer::createScene()
 {
@@ -218,6 +237,10 @@ EditorLayer::EditorLayer()
 // @ios 100005a24 (dealloc)
 EditorLayer::~EditorLayer()
 {
+    if (flashed::stage() == sbn)
+    {
+        flashed::setStage(nullptr);  // EDITOR (browser features, PC addition)
+    }
     uikit::NotificationCenter::removeObserver(this);
     if (_touchListener)
     {
@@ -314,6 +337,9 @@ bool EditorLayer::initWithLevelMO(LevelMO* levelMO)
         openwheels::iosBundlePath() + "levelEditorObjects1" + EditorAssets::suffix() + ".png";
     sbn = EditorSpriteBatchNode::create(objectsTexture);
     stage->addChild(sbn, 100);
+    flashed::setStage(sbn);  // EDITOR (browser features, PC addition)
+    _pendingXML.swap(s_nextXML);
+    _pendingName.swap(s_nextName);
     DrawNode* drawNode = DrawNode::create();
     stage->addChild(drawNode, 99);
     sbn->setDrawNode(drawNode);
@@ -463,7 +489,11 @@ bool EditorLayer::initWithLevelMO(LevelMO* levelMO)
     _shapesLeftLabel->setColor(color3B(0xa6a6a6));
     addChild(_shapesLeftLabel, 0x236);
 
-    if (!_levelMO)
+    if (!_levelMO && !_pendingXML.empty())
+    {
+        addLevelItems();  // EDITOR (browser features, PC addition): createSceneWithXML
+    }
+    else if (!_levelMO)
     {
         ValueMap character;
         character["x"] = Value("75");
@@ -583,6 +613,7 @@ void EditorLayer::onEnter()
     eventGroups->onTouchCancelled = [closeGroup](Touch*, Event*) { closeGroup(); };
     _eventDispatcher->addEventListenerWithFixedPriority(eventGroups, -1000);
     _undoEventListener = eventGroups;
+    installPCInput();  // EDITOR (browser features, PC addition)
 
     LayerColor::onEnter();
 }
@@ -605,6 +636,20 @@ void EditorLayer::onExit()
     {
         hideMenu(nullptr);
     }
+    // EDITOR (browser features, PC addition)
+    flashed::ui::closePopups();
+    if (_linkTrigger) endLinkMode();
+    if (_polygonTool) finishPolygonTool(false);
+    if (_keyListener)
+    {
+        _eventDispatcher->removeEventListener(_keyListener);
+        _keyListener = nullptr;
+    }
+    if (_mouseListener)
+    {
+        _eventDispatcher->removeEventListener(_mouseListener);
+        _mouseListener = nullptr;
+    }
     if (_popover)
     {
         _popover->dismissPopoverAnimated(false);
@@ -619,8 +664,29 @@ void EditorLayer::onExit()
 // @ios 100005dc0
 void EditorLayer::addLevelItems()
 {
-    EditorLevelXMLParser parser(_levelMO->data(), this);
-    parser.parse();
+    // EDITOR (browser features, PC addition): browser-format levels (what this editor saves,
+    // online levels) load through flashed::readBrowserLevel; iOS-format ones as on iOS.
+    const std::string xml = _levelMO ? _levelMO->data() : _pendingXML;
+    if (flashed::isBrowserLevelXml(xml))
+    {
+        flashed::LevelInfo info;
+        flashed::readBrowserLevel(xml, sbn, this, &info);
+        _bgIndex = info.background;
+        _bgColor = info.backgroundColor;
+    }
+    else
+    {
+        EditorLevelXMLParser parser(xml, this);
+        parser.parse();
+    }
+    if (sbn->refs().empty())
+    {
+        ValueMap character;
+        character["x"] = Value("75");
+        character["y"] = Value("50");
+        character["c"] = Value("2");
+        addCharacter(character);
+    }
     sbn->undoManager()->removeAllActions();
     undoStackUpdated(nullptr);
 }
@@ -823,6 +889,44 @@ void EditorLayer::updateShapeCount()
 // @ios 1000060f4
 void EditorLayer::addItemsBtnPressed(EditorLayerButton* sender)
 {
+    // EDITOR (browser features, PC addition): the modern item palette (flashed::ItemPalette) with
+    // the browser items replaces the iOS AddSpecialItemUIView table; the iOS code follows, unused.
+    if (getParent())
+    {
+        if (_palette)
+        {
+            _palette->removeFromParent();
+            _palette = nullptr;
+            return;
+        }
+        const bool reopenInspector = _inspector != nullptr;
+        closeInspector();
+        const Size vs = Director::getInstance()->getVisibleSize();
+        const Vec2 vo = Director::getInstance()->getVisibleOrigin();
+        const float ptd = EditorAssets::pointsToDesign();
+        const float bar = (pointSize(menuBtn).height + 8.0f) * ptd;
+        const float w = std::min(1080.0f, vs.width * 0.42f);
+        flashed::ItemPalette* palette = flashed::ItemPalette::create(Size(w, vs.height - bar * 2.0f));
+        palette->setPosition(Vec2(vo.x + vs.width - w - uikit::notchOffset() * ptd - 12.0f, vo.y + bar));
+        getParent()->addChild(palette, uikit::kWindowZOrder - 10);
+        _palette = palette;
+        _artLeftLabel->setVisible(false);
+        _shapesLeftLabel->setVisible(false);
+        palette->onClose = [this]() {
+            if (_palette) _palette->removeFromParent();
+            _palette = nullptr;
+            refreshButtons();
+        };
+        palette->onPick = [this, reopenInspector](int id) {
+            if (_palette) _palette->removeFromParent();
+            _palette = nullptr;
+            refreshButtons();
+            int itemID = id;
+            handleMenuTouch(&itemID);
+            if (reopenInspector) showInspector();
+        };
+        return;
+    }
     Size winSize = uikit::windowSize();
     double width = (double)(long long)std::fmin((double)winSize.width * 0.5, 284.0);
     float notch = uikit::notchOffset();
@@ -845,6 +949,12 @@ void EditorLayer::handleMenuTouch(void* notification)
 {
     removeObserver(kEditorViewItemAdded);
     int levelItemID = notification ? *static_cast<int*>(notification) : 0;
+    if (levelItemID == PolygonRefShape::kPolygonLevelItemID || levelItemID == PolygonRefShape::kArtLevelItemID)
+    {
+        // EDITOR (browser features, PC addition): polygons are drawn point by point.
+        beginPolygonTool(levelItemID == PolygonRefShape::kArtLevelItemID);
+        return;
+    }
     Size winSize = uikit::windowSize();
     Vec2 center = sbn->convertToNodeSpace(
         convertToWorldSpace(Vec2((float)((double)winSize.width * 0.5), (float)((double)winSize.height * 0.5))));
@@ -931,6 +1041,12 @@ void EditorLayer::refreshButtons()
     }
     setEnabled(undoBtn, canUndo());
     setEnabled(pasteBtn, !_copiedRefs.empty());
+    setEnabled(editParamsBtn, true);  // EDITOR (browser features, PC addition): toggles the inspector
+    if (_inspector && _artLeftLabel && _shapesLeftLabel)
+    {
+        _artLeftLabel->setVisible(false);
+        _shapesLeftLabel->setVisible(false);
+    }
 }
 
 // @ios 100006bec
@@ -1220,6 +1336,20 @@ void EditorLayer::editorUIView(EditorUIView* view, const Value& value, const std
 // @ios 100007f24
 void EditorLayer::editParamsBtnPressed(EditorLayerButton* sender)
 {
+    // EDITOR (browser features, PC addition): the modern inspector (flashed::Inspector) replaces
+    // the iOS EditParametersView panel; the button toggles it. The iOS code follows, unused.
+    if (_inspector)
+    {
+        closeInspector();
+    }
+    else
+    {
+        showInspector();
+    }
+    if (sender != reinterpret_cast<EditorLayerButton*>(1))
+    {
+        return;
+    }
     Vector<EditorLayerButton*> except;
     except.pushBack(undoBtn);
     setAllButtonsVisible(false, except);
@@ -1329,11 +1459,23 @@ const Vector<Special*>& EditorLayer::selectedRefs()
 void EditorLayer::copySelection()
 {
     _copiedRefs.clear();
+    std::vector<Special*> copied;  // EDITOR (browser features, PC addition): group membership
     for (Special* ref : sbn->selectedRefs())
     {
         if (dynamic_cast<CharacterRef*>(ref) == nullptr)
         {
             _copiedRefs.push_back(Value(ref->properties()));
+            copied.push_back(ref);
+        }
+    }
+    for (size_t i = 0; i < copied.size(); ++i)
+    {
+        if (GroupRef* g = dynamic_cast<GroupRef*>(copied[i]))
+        {
+            ValueVector members;
+            for (size_t j = 0; j < copied.size(); ++j)
+                if (copied[j]->group() == g) members.push_back(Value((int)j));
+            _copiedRefs[i].asValueMap()["members"] = Value(members);
         }
     }
     enableButton(pasteBtn);
@@ -1355,6 +1497,31 @@ void EditorLayer::pasteInPlace(bool inPlace)
         ref->setProperties(properties);
         ref->createRef();
         pasted.pushBack(ref);
+    }
+    // EDITOR (browser features, PC addition): pasted groups get their pasted members (indices
+    // into the copied list; skipped refs shift them, so map through the copied order).
+    {
+        std::vector<Special*> byIndex(_copiedRefs.size(), nullptr);
+        ssize_t next = 0;
+        for (size_t i = 0; i < _copiedRefs.size() && next < pasted.size(); ++i)
+        {
+            const int t = valueInt(dictValue(_copiedRefs[i].asValueMap(), "t"));
+            if (pasted.at(next)->levelItemID() == t || dynamic_cast<FlashSpecialRef*>(pasted.at(next)))
+                byIndex[i] = pasted.at(next++);
+        }
+        for (size_t i = 0; i < _copiedRefs.size(); ++i)
+        {
+            GroupRef* g = dynamic_cast<GroupRef*>(byIndex[i]);
+            const Value members = dictValue(_copiedRefs[i].asValueMap(), "members");
+            if (!g || members.getType() != Value::Type::VECTOR) continue;
+            Vector<Special*> list;
+            for (const Value& m : members.asValueVector())
+            {
+                const int j = m.asInt();
+                if (j >= 0 && j < (int)byIndex.size() && byIndex[j]) list.pushBack(byIndex[j]);
+            }
+            g->setMembers(list);
+        }
     }
     unsigned int shapes = 0;
     unsigned int art = 0;
@@ -1483,8 +1650,17 @@ static void appendProperties(std::string& xml, Special* ref)
     }
 }
 
-// @ios 100008140
+// EDITOR (browser features, PC addition): the editor saves browser level XML (FlashLevelIO.h).
 std::string EditorLayer::levelData()
+{
+    flashed::LevelInfo info;
+    info.background = _bgIndex;
+    info.backgroundColor = _bgColor;
+    return flashed::writeBrowserLevel(sbn, info);
+}
+
+// @ios 100008140
+std::string EditorLayer::iosLevelData()
 {
     CharacterRef* character = static_cast<CharacterRef*>(sbn->refs().at(0));
     char info[512];
@@ -1567,7 +1743,20 @@ void EditorLayer::testLevel(EditorLayerButton* sender)
 {
     applyLevelDataToSession();
     std::string xml = sessionLevelData()["data"].asString();
-    Director::getInstance()->pushScene(Gameplay::createTestingScene(xml));
+    // EDITOR (browser features, PC addition): browser XML plays through the converter, like an
+    // online level (the converter keeps restored characters and may change a forced one).
+    bool converted = false;
+    int character = 0;
+    bool force = false;
+    std::string playable = flashed::playableLevelXml(xml, &converted, &character, &force);
+    if (converted && character > 0)
+    {
+        Settings::getInstance()->setSelectedCharacterId(character);
+    }
+    // The last test-played level, as written and as played (for bug reports / debugging).
+    FileUtils::getInstance()->writeStringToFile(xml, FileUtils::getInstance()->getWritablePath() + "editor_test_level.xml");
+    FileUtils::getInstance()->writeStringToFile(playable, FileUtils::getInstance()->getWritablePath() + "editor_test_level.played.xml");
+    Director::getInstance()->pushScene(Gameplay::createTestingScene(playable));
 }
 
 // @ios 1000086f4
@@ -1679,4 +1868,471 @@ void EditorLayer::setLevelMO(LevelMO* levelMO)
     CC_SAFE_RETAIN(levelMO);
     CC_SAFE_RELEASE(_levelMO);
     _levelMO = levelMO;
+}
+
+// ==== EDITOR (browser features, PC addition) ==========================================================
+
+Scene* EditorLayer::createSceneWithXML(const std::string& xml, const std::string& name)
+{
+    s_nextXML = xml;
+    s_nextName = name;
+    Scene* scene = createScene();
+    s_nextXML.clear();
+    s_nextName.clear();
+    return scene;
+}
+
+void EditorLayer::readerAddCharacter(float xMetres, float yMetres, int character, bool force, bool hideVehicle)
+{
+    ValueMap c;
+    c["x"] = Value(xMetres);
+    c["y"] = Value(yMetres);
+    c["c"] = Value(character);
+    c["f"] = Value(force ? 1 : 0);
+    c["h"] = Value(hideVehicle ? 1 : 0);
+    addCharacter(c);
+}
+
+void EditorLayer::showInspector()
+{
+    if (_inspector || !getParent()) return;
+    if (_palette)
+    {
+        _palette->removeFromParent();
+        _palette = nullptr;
+    }
+    const Size vs = Director::getInstance()->getVisibleSize();
+    const Vec2 vo = Director::getInstance()->getVisibleOrigin();
+    const float ptd = EditorAssets::pointsToDesign();
+    // Between the top and bottom toolbar rows, so the toolbar stays usable.
+    const float bar = (pointSize(menuBtn).height + 8.0f) * ptd;
+    const float w = std::min(1080.0f, vs.width * 0.42f);
+    const float h = vs.height - bar * 2.0f;
+    _inspector = flashed::Inspector::create(Size(w, h));
+    _inspector->setPosition(Vec2(vo.x + vs.width - w - uikit::notchOffset() * ptd - 12.0f, vo.y + bar));
+    getParent()->addChild(_inspector, uikit::kWindowZOrder - 10);
+    _inspector->onClose = [this]() {
+        Director::getInstance()->getScheduler()->performFunctionInCocosThread([this]() { closeInspector(); });
+    };
+    _inspector->onFunction = [this](const std::string& key) {
+        RefPtr<EditorLayer> keep(this);
+        Director::getInstance()->getScheduler()->performFunctionInCocosThread([keep, key]() {
+            if (keep->isRunning()) keep->inspectorFunction(key);
+        });
+    };
+    _inspector->setSelection(sbn->selectedRefs());
+    _artLeftLabel->setVisible(false);
+    _shapesLeftLabel->setVisible(false);
+}
+
+void EditorLayer::closeInspector()
+{
+    if (!_inspector) return;
+    _inspector->removeFromParent();
+    _inspector = nullptr;
+    refreshButtons();
+}
+
+void EditorLayer::inspectorFunction(const std::string& key)
+{
+    if (key.compare(0, 5, "link:") == 0)
+    {
+        if (TriggerRef* t = flashed::triggerWithUid(std::atoi(key.c_str() + 5))) beginLinkMode(t);
+        return;
+    }
+    if (key == "fn:group") { groupSelection(); return; }
+    if (key == "fn:ungroup") { ungroupSelection(); return; }
+    if (key == "fn:delete") { trashBtnPressed(trashBtn); return; }
+    if (key == "fn:vehicle" || key == "fn:unvehicle")
+    {
+        for (Special* ref : sbn->selectedRefs())
+        {
+            GroupRef* g = dynamic_cast<GroupRef*>(ref);
+            if (!g) continue;
+            const bool old = g->vehicle;
+            sbn->undoManager()->prepareWithInvocationTarget(g, [old](GroupRef* gr) {
+                gr->setValueForKey(Value(old), "vehicle");
+            });
+            g->setValueForKey(Value(key == "fn:vehicle"), "vehicle");
+        }
+        uikit::NotificationCenter::postNotification(kUndoStackUpdated, sbn->undoManager());
+        return;
+    }
+}
+
+// ---- tool banner (link mode, polygon tool) ----------------------------------------------------------------
+
+void EditorLayer::showToolBanner(const std::string& text, const std::string& doneText, std::function<void()> done,
+                                 std::function<void()> cancel)
+{
+    hideToolBanner();
+    if (!getParent()) return;
+    namespace oui = online::ui;
+    const Size vs = Director::getInstance()->getVisibleSize();
+    const Vec2 vo = Director::getInstance()->getVisibleOrigin();
+    // Centred in the part of the screen the inspector / palette leaves free.
+    const float panelW = (_inspector || _palette) ? std::min(1080.0f, vs.width * 0.42f) + 24.0f : 0.0f;
+    const float freeW = vs.width - panelW;
+    const float w = std::min(2000.0f, freeW * 0.9f), h = 190.0f;
+    Node* banner = Node::create();
+    banner->setContentSize(Size(w, h));
+    Sprite* bg = oui::roundedRect(Size(w, h), 40.0f, Color3B(28, 28, 36), 225);
+    bg->setAnchorPoint(Vec2::ZERO);
+    banner->addChild(bg);
+    Label* label = Label::createWithTTF(text, oui::kFontBodyBold, 44.0f, Size(w - 760.0f, h), TextHAlignment::LEFT,
+                                        TextVAlignment::CENTER);
+    label->setAnchorPoint(Vec2(0.0f, 0.5f));
+    label->setPosition(Vec2(50.0f, h * 0.5f));
+    banner->addChild(label);
+    float x = w - 40.0f;
+    if (cancel)
+    {
+        oui::Button* b = oui::Button::create("Cancel", Size(300.0f, 120.0f), oui::Button::window("pink"), 48.0f);
+        b->setPosition(Vec2(x - 150.0f, h * 0.5f));
+        b->setCallback([cancel]() { Director::getInstance()->getScheduler()->performFunctionInCocosThread(cancel); });
+        banner->addChild(b);
+        x -= 330.0f;
+    }
+    oui::Button* d = oui::Button::create(doneText, Size(320.0f, 120.0f), oui::Button::window("blue"), 48.0f);
+    d->setPosition(Vec2(x - 160.0f, h * 0.5f));
+    d->setCallback([done]() { Director::getInstance()->getScheduler()->performFunctionInCocosThread(done); });
+    banner->addChild(d);
+    banner->setPosition(Vec2(vo.x + (freeW - w) * 0.5f, vo.y + vs.height - h - 250.0f));
+    getParent()->addChild(banner, uikit::kWindowZOrder - 5);
+    _toolBanner = banner;
+}
+
+void EditorLayer::hideToolBanner()
+{
+    if (_toolBanner)
+    {
+        _toolBanner->removeFromParent();
+        _toolBanner = nullptr;
+    }
+}
+
+// ---- link mode -------------------------------------------------------------------------------------------------
+
+void EditorLayer::beginLinkMode(TriggerRef* trigger)
+{
+    if (_polygonTool) finishPolygonTool(false);
+    _linkTrigger = trigger;
+    _linkTriggerKeep = trigger;
+    showToolBanner(StringUtils::format("Linking trigger %d: tap items to add or remove them as targets",
+                                       flashed::triggerNumber(trigger)),
+                   "Done", [this]() { endLinkMode(); }, nullptr);
+    sbn->touchInterceptor = [this](const cg::Point& p, Touch*) {
+        TriggerRef* trigger = _linkTrigger;
+        if (!trigger || !flashed::onStage(trigger)) return false;
+        std::vector<Special*> hits;
+        for (Special* ref : sbn->refs())
+            if (ref != trigger && !ref->locked() && ref->containsPoint(p)) hits.push_back(ref);
+        if (hits.empty()) return true;
+        std::stable_sort(hits.begin(), hits.end(), [this](Special* a, Special* b) {
+            if (a->getLocalZOrder() != b->getLocalZOrder()) return a->getLocalZOrder() < b->getLocalZOrder();
+            return sbn->refs().getIndex(a) < sbn->refs().getIndex(b);
+        });
+        Special* unit = flashed::unitOf(hits.back());
+        const int index = trigger->indexOfTarget(unit);
+        if (index >= 0) trigger->removeTargetAt(index, true);
+        else if (!trigger->addTarget(unit, true))
+        {
+            online::ui::showToast("Can't link that", {"a " + flashed::displayName(unit) + " can't be a trigger target"}, 0.0f);
+        }
+        return true;
+    };
+    sbn->touchInterceptorMoved = nullptr;
+    sbn->touchInterceptorEnded = nullptr;
+}
+
+void EditorLayer::endLinkMode()
+{
+    _linkTrigger = nullptr;
+    _linkTriggerKeep = nullptr;
+    sbn->touchInterceptor = nullptr;
+    sbn->setHighlightRef(nullptr);
+    hideToolBanner();
+    flashed::refreshPanelLater();
+}
+
+// ---- polygon / art tool ----------------------------------------------------------------------------------------
+
+void EditorLayer::beginPolygonTool(bool art)
+{
+    if (_linkTrigger) endLinkMode();
+    _polygonTool = true;
+    _polygonArt = art;
+    _polygonPoints.clear();
+    if (!_toolDraw)
+    {
+        _toolDraw = DrawNode::create();
+        stage->addChild(_toolDraw, 102);
+    }
+    showToolBanner(art ? "Art shape: click to place points, then Done (up to 100)"
+                       : "Polygon: click points clockwise, convex, up to 8; click the first point or Done to finish",
+                   "Done", [this]() { finishPolygonTool(true); }, [this]() { finishPolygonTool(false); });
+    sbn->touchInterceptor = [this](const cg::Point& p, Touch*) {
+        const Vec2 v((float)p.x, (float)p.y);
+        const float closeDist = flashed::pxToStageLength(12.0f) / std::max(0.05f, stage->getScale() / stageUnitInPoints());
+        if (_polygonPoints.size() >= 3 && v.distance(_polygonPoints[0]) < closeDist)
+        {
+            finishPolygonTool(true);
+            return true;
+        }
+        const size_t limit = _polygonArt ? PolygonRefShape::kMaxArtVerts : PolygonRefShape::kMaxPolygonVerts;
+        if (_polygonPoints.size() < limit) _polygonPoints.push_back(v);
+        _toolDraw->clear();
+        const float px = flashed::pxToStageLength(1.0f);
+        for (size_t i = 0; i < _polygonPoints.size(); ++i)
+        {
+            if (i > 0) _toolDraw->drawSegment(_polygonPoints[i - 1], _polygonPoints[i], 1.5f * px, Color4F(0.24f, 0.53f, 0.78f, 1));
+            _toolDraw->drawDot(_polygonPoints[i], (i == 0 ? 6.0f : 4.0f) * px, Color4F(0.24f, 0.53f, 0.78f, 1));
+        }
+        if (_polygonPoints.size() == limit) finishPolygonTool(true);
+        return true;
+    };
+}
+
+void EditorLayer::finishPolygonTool(bool keep)
+{
+    if (!_polygonTool) return;
+    if (keep && _polygonPoints.size() >= 3)
+    {
+        Vec2 c;
+        for (const Vec2& p : _polygonPoints) c += p;
+        c = c / (float)_polygonPoints.size();
+        std::vector<Vec2> verts;
+        for (const Vec2& p : _polygonPoints)
+            verts.push_back(Vec2(flashed::stageToPxLength(p.x - c.x), -flashed::stageToPxLength(p.y - c.y)));
+        // Flash wants clockwise (y down): positive signed area there.
+        float area = 0.0f;
+        for (size_t i = 0; i < verts.size(); ++i)
+            area += verts[i].x * verts[(i + 1) % verts.size()].y - verts[(i + 1) % verts.size()].x * verts[i].y;
+        if (area < 0.0f) std::reverse(verts.begin(), verts.end());
+        if (!_polygonArt && !PolygonRefShape::validPolygon(verts))
+        {
+            online::ui::showToast("Not a convex polygon",
+                                  {"physics polygons must be convex: try again, or make an art shape"}, 0.0f);
+            _polygonPoints.clear();
+            if (_toolDraw) _toolDraw->clear();
+            return;
+        }
+        PolygonRefShape* poly = PolygonRefShape::create(_polygonArt);
+        if (poly && showAlertIfExceedingShapeCount(poly->shapeCount(), poly->artCount()))
+        {
+            poly->setVertsPx(verts);
+            poly->setPosition(c);
+            poly->setX(c.x, c.y);
+            Vector<Special*> refs;
+            refs.pushBack(poly);
+            sbn->addRefs(refs);
+            updateShapeCount();
+            updateArtCount();
+        }
+    }
+    _polygonTool = false;
+    _polygonPoints.clear();
+    if (_toolDraw) _toolDraw->clear();
+    sbn->touchInterceptor = nullptr;
+    hideToolBanner();
+}
+
+// ---- groups -----------------------------------------------------------------------------------------------------
+
+void EditorLayer::groupSelection()
+{
+    Vector<Special*> members;
+    Vector<Special*> oldGroups;
+    for (Special* ref : sbn->selectedRefs())
+    {
+        if (GroupRef* g = dynamic_cast<GroupRef*>(ref))
+        {
+            oldGroups.pushBack(g);
+            for (Special* m : g->liveMembers())
+                if (!members.contains(m)) members.pushBack(m);
+            continue;
+        }
+        if (GroupRef::groupable(ref) && !members.contains(ref)) members.pushBack(ref);
+    }
+    if (members.size() < 2)
+    {
+        online::ui::showToast("Can't group that", {"select two or more shapes / groupable items"}, 0.0f);
+        return;
+    }
+    EditorUndoManager* um = sbn->undoManager();
+    um->beginUndoGrouping();
+    // Members return to their previous group (or none) on undo.
+    std::vector<std::pair<RefPtr<Special>, RefPtr<Ref>>> previous;
+    for (Special* m : members) previous.push_back({RefPtr<Special>(m), RefPtr<Ref>((Ref*)m->group())});
+    um->registerUndo(nullptr, [previous]() {
+        for (const auto& p : previous) p.first->setGroup(static_cast<GroupRef*>(p.second.get()));
+    });
+    if (!oldGroups.empty()) sbn->removeRefs(oldGroups);
+    GroupRef* group = GroupRef::create();
+    group->setMembers(members);
+    Vector<Special*> add;
+    add.pushBack(group);
+    sbn->addRefs(add);
+    um->endUndoGrouping();
+    Vector<Special*> selection;
+    selection.pushBack(group);
+    sbn->setSelectedRefs(EditorSpriteBatchNode::expandToUnits(selection));
+    uikit::NotificationCenter::postNotification(kUndoStackUpdated, um);
+}
+
+void EditorLayer::ungroupSelection()
+{
+    Vector<Special*> groups;
+    Vector<Special*> freed;
+    for (Special* ref : sbn->selectedRefs())
+        if (GroupRef* g = dynamic_cast<GroupRef*>(ref)) groups.pushBack(g);
+    if (groups.empty()) return;
+    EditorUndoManager* um = sbn->undoManager();
+    um->beginUndoGrouping();
+    for (Special* r : groups)
+    {
+        GroupRef* g = static_cast<GroupRef*>(r);
+        Vector<Special*> members = g->liveMembers();
+        RefPtr<GroupRef> keep(g);
+        um->registerUndo(g, [keep, members]() {
+            for (Special* m : members) m->setGroup(keep.get());
+        });
+        for (Special* m : members)
+        {
+            m->setGroup(nullptr);
+            freed.pushBack(m);
+        }
+    }
+    sbn->removeRefs(groups);
+    um->endUndoGrouping();
+    sbn->setSelectedRefs(freed);
+    uikit::NotificationCenter::postNotification(kUndoStackUpdated, um);
+}
+
+void EditorLayer::duplicateSelection()
+{
+    if (sbn->selectedRefs().empty()) return;
+    const ValueVector saved = _copiedRefs;
+    copySelection();
+    pasteInPlace(true);
+    sbn->nudgeSelection(Vec2(flashed::pxToStageLength(20.0f), -flashed::pxToStageLength(20.0f)));
+    _copiedRefs = saved;
+    refreshButtons();
+}
+
+void EditorLayer::selectAll()
+{
+    Vector<Special*> all;
+    for (Special* ref : sbn->refs())
+        if (!ref->locked()) all.pushBack(ref);
+    sbn->setSelectedRefs(all);
+}
+
+// ---- PC input ------------------------------------------------------------------------------------------------------
+
+void EditorLayer::installPCInput()
+{
+    if (_keyListener) _eventDispatcher->removeEventListener(_keyListener);
+    if (_mouseListener) _eventDispatcher->removeEventListener(_mouseListener);
+    auto keys = EventListenerKeyboard::create();
+    keys->onKeyPressed = [this](EventKeyboard::KeyCode key, Event* e) {
+        using K = EventKeyboard::KeyCode;
+        if (key == K::KEY_CTRL || key == K::KEY_LEFT_CTRL || key == K::KEY_RIGHT_CTRL) _ctrl = true;
+        if (key == K::KEY_SHIFT || key == K::KEY_LEFT_SHIFT || key == K::KEY_RIGHT_SHIFT) flashed::setShiftDown(true);
+        if (handleKey(key)) e->stopPropagation();
+    };
+    keys->onKeyReleased = [this](EventKeyboard::KeyCode key, Event*) {
+        using K = EventKeyboard::KeyCode;
+        if (key == K::KEY_CTRL || key == K::KEY_LEFT_CTRL || key == K::KEY_RIGHT_CTRL) _ctrl = false;
+        if (key == K::KEY_SHIFT || key == K::KEY_LEFT_SHIFT || key == K::KEY_RIGHT_SHIFT) flashed::setShiftDown(false);
+    };
+    _eventDispatcher->addEventListenerWithFixedPriority(keys, 5);
+    _keyListener = keys;
+
+    auto mouse = EventListenerMouse::create();
+    mouse->onMouseDown = [this](EventMouse* e) {
+        if (e->getMouseButton() != EventMouse::MouseButton::BUTTON_RIGHT) return;
+        _rightDrag = true;
+        _rightDragLast = Vec2(e->getCursorX(), e->getCursorY());
+    };
+    mouse->onMouseUp = [this](EventMouse* e) {
+        if (e->getMouseButton() == EventMouse::MouseButton::BUTTON_RIGHT) _rightDrag = false;
+    };
+    mouse->onMouseMove = [this](EventMouse* e) {
+        const Vec2 cursor(e->getCursorX(), e->getCursorY());
+        if (_rightDrag)
+        {
+            // Right-drag pans the stage (in this layer's point space).
+            const Vec2 delta = (cursor - _rightDragLast) / getScale();
+            _rightDragLast = cursor;
+            stage->setPosition(stage->getPosition() + delta);
+            sbn->positionMoveRotCircs();
+        }
+        if (_linkTrigger)
+        {
+            const cg::Point p(sbn->convertToNodeSpace(cursor));
+            Special* top = nullptr;
+            for (Special* ref : sbn->refs())
+                if (ref != _linkTrigger && !ref->locked() && ref->containsPoint(p)) top = ref;
+            sbn->setHighlightRef(top ? flashed::unitOf(top) : nullptr);
+        }
+    };
+    _eventDispatcher->addEventListenerWithFixedPriority(mouse, 6);
+    _mouseListener = mouse;
+}
+
+bool EditorLayer::handleKey(EventKeyboard::KeyCode key)
+{
+    using K = EventKeyboard::KeyCode;
+    if (flashed::ui::textEditing() || flashed::ui::popupOpen() || online::ui::modalOpen()) return false;
+    if (currentUIView || _popover || !isRunning() || Director::getInstance()->getRunningScene() != getParent()) return false;
+    const bool shift = flashed::shiftDown();
+    if (key == K::KEY_ESCAPE)
+    {
+        if (_polygonTool) finishPolygonTool(false);
+        else if (_linkTrigger) endLinkMode();
+        else if (_palette)
+        {
+            _palette->removeFromParent();
+            _palette = nullptr;
+        }
+        else if (!sbn->selectedRefs().empty()) sbn->setSelectedRefs(Vector<Special*>());
+        else if (_inspector) closeInspector();
+        else return false;
+        return true;
+    }
+    if ((key == K::KEY_ENTER || key == K::KEY_KP_ENTER) && _polygonTool)
+    {
+        finishPolygonTool(true);
+        return true;
+    }
+    if (_ctrl)
+    {
+        switch (key)
+        {
+        case K::KEY_C: copySelection(); return true;
+        case K::KEY_V: pasteInPlace(false); return true;
+        case K::KEY_D: duplicateSelection(); return true;
+        case K::KEY_Z: if (shift) redo(); else undo(); return true;
+        case K::KEY_Y: redo(); return true;
+        case K::KEY_A: selectAll(); return true;
+        case K::KEY_G: if (shift) ungroupSelection(); else groupSelection(); return true;
+        case K::KEY_E: editParamsBtnPressed(editParamsBtn); return true;
+        default: return false;
+        }
+    }
+    const float step = flashed::pxToStageLength(shift ? 10.0f : 1.0f);
+    switch (key)
+    {
+    case K::KEY_DELETE:
+    case K::KEY_BACKSPACE:
+        if (sbn->selectedRefs().empty()) return false;
+        trashBtnPressed(trashBtn);
+        return true;
+    case K::KEY_LEFT_ARROW: sbn->nudgeSelection(Vec2(-step, 0)); return true;
+    case K::KEY_RIGHT_ARROW: sbn->nudgeSelection(Vec2(step, 0)); return true;
+    case K::KEY_UP_ARROW: sbn->nudgeSelection(Vec2(0, step)); return true;
+    case K::KEY_DOWN_ARROW: sbn->nudgeSelection(Vec2(0, -step)); return true;
+    default: return false;
+    }
 }
