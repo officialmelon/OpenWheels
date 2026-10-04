@@ -203,7 +203,7 @@ bool Inspector::specFor(Special* ref, const std::string& key, RowSpec* spec)
         spec->kind = RowSpec::Button;
         spec->label = "";
         spec->buttonText = "+ Add action";
-        spec->buttonColor = "yellow";
+        spec->buttonColor = "blue";  // white text is unreadable on the yellow skin
         return true;
     }
     if (parts[0] == "fn")

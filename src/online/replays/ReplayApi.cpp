@@ -3,8 +3,7 @@
 
 #include <cstring>
 
-#include <openssl/aes.h>
-#include <openssl/rand.h>
+#include "online/replays/Aes128.h"  // portable AES: OpenSSL AES does not link on Android arm64
 
 #include "cocos2d.h"
 #include "online/account/TjfAccount.h"
@@ -136,7 +135,7 @@ bool ReplayApi::postEncrypt(const std::string& plain, std::string* cipherB64, st
     unsigned char iv[16];
     if (fixedIv) {
         std::memcpy(iv, fixedIv, 16);
-    } else if (RAND_bytes(iv, 16) != 1) {
+    } else if (!secureRandom(iv, 16)) {
         return false;
     }
     if (ivHex) *ivHex = hexOf(iv, 16);
@@ -144,13 +143,12 @@ bool ReplayApi::postEncrypt(const std::string& plain, std::string* cipherB64, st
     std::string data = plain;
     const size_t pad = 16 - data.size() % 16;
     data.append(pad, (char)pad);
-    AES_KEY aes;
-    if (AES_set_encrypt_key(key, 128, &aes) != 0) return false;
+    const Aes128 aes(key);
     std::string out(data.size(), '\0');
     unsigned char ivWork[16];
     std::memcpy(ivWork, iv, 16);
-    AES_cbc_encrypt(reinterpret_cast<const unsigned char*>(data.data()), reinterpret_cast<unsigned char*>(&out[0]),
-                    data.size(), &aes, ivWork, AES_ENCRYPT);
+    aes.encryptCbc(reinterpret_cast<const unsigned char*>(data.data()), reinterpret_cast<unsigned char*>(&out[0]),
+                   data.size(), ivWork);
     if (cipherB64) *cipherB64 = account::TjfServices::base64(out);
     return true;
 }
