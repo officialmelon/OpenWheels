@@ -41,14 +41,36 @@ see [docs/RESTORED.md](docs/RESTORED.md).
 
 ![Helicopter Man](docs/screenshots/helicopter-man.png)
 
-### Level editor (ported from iOS)
+### Level editor
 
-The iOS version had a level editor that Android never got. OpenWheels ports it: build levels with
-shapes, building blocks, hazards and the other items, test-play them, save them, and play and share
-your own levels. It uses the editor art and text from your own copy of the iOS app; see
+The iOS version had a level editor that Android never got. OpenWheels ports it and extends it with
+**everything the browser game's editor can do**: NPCs, text boxes, signs, food, furniture, cannons,
+chains, paddles, tokens and buildings; polygon and art shapes; **triggers** with per-target action
+lists; pin and sliding **joints**; **groups** and user-built **vehicles**; all 11 characters and the
+city background. On PC it has full mouse and keyboard editing (box select, copy/paste, undo/redo,
+nudge, zoom, pan), and any online level can be opened with **Edit** to remix it. See
 [docs/EDITOR_PORT.md](docs/EDITOR_PORT.md).
 
 ![Level editor](docs/screenshots/level-editor.png)
+
+![Editing a trigger](docs/screenshots/editor-triggers.png)
+
+### Your levels, sent over Wi-Fi
+
+Your Levels keeps everything you've built or received. **Send to Nearby** sends a level to anyone
+running OpenWheels on the same Wi-Fi (PC or phone); they get an Accept / Decline prompt and can
+play it straight away. See [docs/NEARBY.md](docs/NEARBY.md).
+
+![Your Levels](docs/screenshots/your-levels.png)
+
+### Ghost racing
+
+Race friends on the same Wi-Fi on any campaign, user or online level. Everyone rides their own
+world; the other players appear as tinted, see-through **ghosts** behind you, complete with
+ragdolls, lost limbs, gore and broken vehicles. Race HUD, results and rematches. See
+[docs/RACE.md](docs/RACE.md).
+
+![Ghost racing](docs/screenshots/ghost-race.png)
 
 ### Online levels from the browser game
 
@@ -57,6 +79,10 @@ newest and more), then download and play them. Levels are decrypted and converte
 fly. The browser-only features are implemented too: NPC characters, text boxes, triggers,
 furniture and other items, user-built vehicles, the city background and the browser game's sounds.
 See [docs/FLASH_LEVELS.md](docs/FLASH_LEVELS.md).
+
+Each level also has its **replays and record times**: watch them, record and upload your own runs,
+and rate them. **Log in** with your totaljerkface.com account for favorites, ratings, your levels
+and replays, and publishing levels made in the editor.
 
 ![Online level browser](docs/screenshots/online-levels.png)
 
@@ -229,6 +255,9 @@ Code outside the 1:1 reconstruction is marked in the source (`EDITOR (iOS port)`
 campaign keeps behaving exactly like the original.
 
 ## Documentation
+
+See [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
+
 
 [docs/README.md](docs/README.md) is the index. The main documents are:
 
