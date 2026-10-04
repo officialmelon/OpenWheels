@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.2.1
+
+### Fixed
+- **Ghost racing:** a player who had opened the Race screen (and so was hosting an empty lobby)
+  answered every invite "busy", so two players who both tapped Race could never connect. An
+  empty lobby now accepts invites, and joining closes it.
+- A race invite popup that disappeared because of a screen change no longer leaves the device
+  stuck as "busy".
+
 ## v0.2.0
 
 ### New
