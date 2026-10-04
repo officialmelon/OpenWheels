@@ -56,23 +56,25 @@ std::map<std::string, ArtEntry>& artIndex()
 
 // Layers live as long as their session; a new session (restart) gets new ones.
 struct Layers {
-    Session* session = nullptr;
+    Session* session = nullptr;   // valid only while token.matches(session)
     Node* background = nullptr;
     Node* foreground = nullptr;
     EventListenerTouchOneByOne* touch = nullptr;
     EventListenerMouse* mouse = nullptr;
 };
 Layers g_layers;
+SessionToken g_layersToken;
 
 void syncSession()
 {
     Session* s = currentSession();
-    if (g_layers.session == s) return;
+    if (g_layers.session == s && g_layersToken.matches(s)) return;
     // The previous session is gone (its children went with it); drop the listeners.
     if (g_layers.touch) Director::getInstance()->getEventDispatcher()->removeEventListener(g_layers.touch);
     if (g_layers.mouse) Director::getInstance()->getEventDispatcher()->removeEventListener(g_layers.mouse);
     g_layers = Layers();
     g_layers.session = s;
+    g_layersToken.bind(s);
 }
 
 b2Vec2 screenToWorld(const Vec2& screen)
@@ -299,6 +301,30 @@ void installClickTriggers(LevelB2D* level)
     dispatcher->addEventListenerWithFixedPriority(mouse, 2);
     g_layers.mouse = mouse;
     (void)level;
+}
+
+bool SessionToken::matches(Session* session) const
+{
+    return session && _marker && _marker->getParent() == session;
+}
+
+void SessionToken::bind(Session* session)
+{
+    reset();
+    if (!session) return;
+    _marker = Node::create();
+    _marker->retain();
+    _marker->setVisible(false);
+    _marker->setName("onlineSessionToken");
+    session->addChild(_marker);
+}
+
+void SessionToken::reset()
+{
+    if (!_marker) return;
+    if (_marker->getParent()) _marker->removeFromParent();
+    _marker->release();
+    _marker = nullptr;
 }
 
 }  // namespace online

@@ -21,6 +21,7 @@ class Sprite;
 }
 
 class LevelB2D;
+class Session;
 class Trigger;
 
 namespace online {
@@ -88,5 +89,19 @@ void flashPostStep(b2World* world);
 // --- click triggers (triggered by "mouse click", b = 6) ---------------------------------------
 // Installs the touch/mouse listener for the current gameplay session (idempotent).
 void installClickTriggers(LevelB2D* level);
+
+// Identifies the live Session. Comparing Session pointers is not enough: a restarted level's
+// new Session is often allocated at the address the previous one was freed from, so state keyed by
+// the pointer would keep using the dead session's nodes. bind() parents an invisible marker node to
+// the session; a destroyed session clears its children's parent pointers, so matches() turns false.
+class SessionToken {
+public:
+    bool matches(Session* session) const;
+    void bind(Session* session);
+    void reset();
+
+private:
+    cocos2d::Node* _marker = nullptr;  // retained
+};
 
 }  // namespace online

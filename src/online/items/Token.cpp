@@ -1,6 +1,7 @@
 // ONLINE (PC addition): see Token.h. Port of com.totaljerkface.game.level.userspecials.Token and
 // the token HUD of com.totaljerkface.game.level.UserLevel.
 #include "online/items/Token.h"
+#include "online/FlashRuntime.h"
 
 #include <cmath>
 
@@ -36,6 +37,7 @@ struct TokenHud {
     int remaining = 0;
 };
 TokenHud g_hud;
+SessionToken g_hudToken;  // g_hud.session is only valid while this matches it
 
 void layoutHud()
 {
@@ -55,13 +57,14 @@ void registerToken()
 {
     Session* session = Settings::getInstance()->getCurrentSession();
     LevelB2D* level = session ? session->getLevel() : nullptr;
-    if (g_hud.session != session || g_hud.level != level || !g_hud.node) {
+    if (!g_hudToken.matches(session) || g_hud.session != session || g_hud.level != level || !g_hud.node) {
         if (g_hud.node) {
             g_hud.node->removeFromParent();
             g_hud.node->release();
         }
         g_hud = TokenHud();
         g_hud.session = session;
+        g_hudToken.bind(session);
         g_hud.level = level;
         Node* parent = session ? session->getParent() : nullptr;
         if (parent) {
@@ -176,7 +179,7 @@ void Token::singleAction()
     _shape = nullptr;
 
     Session* session = Settings::getInstance()->getCurrentSession();
-    if (g_hud.session == session && g_hud.level == getLevel() && g_hud.remaining > 0) {
+    if (g_hudToken.matches(session) && g_hud.session == session && g_hud.level == getLevel() && g_hud.remaining > 0) {
         g_hud.remaining--;
         layoutHud();
         if (g_hud.remaining == 0) getLevel()->levelCompleted();  // Gameplay plays "Victory"
