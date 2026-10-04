@@ -20,6 +20,7 @@
 #include "PauseLayer.h"
 #include "online/FlashLevelConverter.h"
 #include "net/NetUi.h"
+#include "net/race/RaceSession.h"  // NET (PC addition): ghost race
 
 USING_NS_CC;
 
@@ -178,7 +179,7 @@ void LevelTransfer::start() {
                                [this](const std::shared_ptr<Channel>& channel) { accept(channel); });
     if (_listener) {
         log("net: listening for levels on TCP %u", static_cast<unsigned>(_listener->port()));
-        LanDiscovery::getInstance()->announce(playerName(), deviceName(), _listener->port(), {kLevelsService});
+        LanDiscovery::getInstance()->announce(playerName(), deviceName(), _listener->port(), {kLevelsService, race::kRaceService});  // NET: + ghost race
     } else {
         log("net: no free TCP port in %u..%u, receiving levels is off", static_cast<unsigned>(kTransferPort),
             static_cast<unsigned>(kTransferPort + kTransferPortCount - 1));
@@ -217,7 +218,7 @@ void LevelTransfer::setPlayerName(const std::string& name) {
     UserDefault::getInstance()->setStringForKey(kPlayerNameKey, clean);
     UserDefault::getInstance()->flush();
     if (_listener) {
-        LanDiscovery::getInstance()->announce(playerName(), deviceName(), _listener->port(), {kLevelsService});
+        LanDiscovery::getInstance()->announce(playerName(), deviceName(), _listener->port(), {kLevelsService, race::kRaceService});  // NET: + ghost race
     }
 }
 
@@ -337,6 +338,13 @@ void LevelTransfer::onIncomingMessage(int id, const Message& m) {
     auto it = _incoming.find(id);
     if (it == _incoming.end()) return;
     Incoming& in = *it->second;
+    if (m.type == "hello" && in.state == Incoming::State::Hello && m.get("purpose") == "race") {
+        // NET (PC addition): a ghost-race invite; the race session takes the connection over.
+        std::shared_ptr<Channel> channel = in.channel;
+        finishIncoming(id);
+        race::RaceSession::get()->acceptIncoming(channel, m);
+        return;
+    }
     if (m.type == "hello" && in.state == Incoming::State::Hello) {
         if (!validHello(m) || m.get("purpose") != "level") {
             in.channel->send(Message("error").set("reason", "protocol"));

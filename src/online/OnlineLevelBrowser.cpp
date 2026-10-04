@@ -15,6 +15,7 @@
 #include "online/OnlineUi.h"
 #include "online/account/BrowserExtras.h"  // ONLINE (PC addition): account / replays
 #include "net/NearbyPanels.h"  // NET (PC addition)
+#include "net/race/RaceSession.h"  // NET (PC addition): ghost race
 
 USING_NS_CC;
 
@@ -470,6 +471,11 @@ void OnlineLevelBrowser::buildDetail() {
     _sendBtn->setPosition(R - 200.0f, y - 18.0f);
     _sendBtn->setCallback([this]() { sendSelected(); });
     _detail->addChild(_sendBtn);
+    // NET (PC addition): RACE (ghost race with nearby players) left of SEND TO NEARBY.
+    _raceBtn = ui::Button::create("RACE", Size(220.0f, 72.0f), ui::Button::window("pink"), 34.0f, ui::kFontBodyBold);
+    _raceBtn->setPosition(R - 400.0f - 30.0f - 110.0f, y - 18.0f);
+    _raceBtn->setCallback([this]() { raceSelected(); });
+    _detail->addChild(_raceBtn);
     const float boxTop = y - 56.0f;
     const float boxBottom = statusY + 56.0f;
     auto* box = ui::roundedRect(Size(R - L, boxTop - boxBottom), 30.0f, Color3B::WHITE, 150);
@@ -828,6 +834,28 @@ void OnlineLevelBrowser::sendSelected() {
     });
 }
 
+// NET (PC addition): downloads (without counting a play), converts and hosts a ghost race on it.
+void OnlineLevelBrowser::raceSelected() {
+    const BrowserState& st = state();
+    if (_playing || st.selected < 0 || st.selected >= (int)st.levels.size()) return;
+    const OnlineLevelInfo level = st.levels[st.selected];
+    _field->detachWithIME();
+    HWApi::getInstance()->downloadLevel(level, false, [level](bool ok, const std::string& error, const std::string& xml) {
+        if (!ok) {
+            log("race: %s", error.c_str());
+            return;
+        }
+        ConversionReport report;
+        race::RaceLevel r;
+        r.kind = "online";
+        r.name = level.name;
+        r.xml = FlashLevelConverter::toMobile(xml, &report);
+        if (!report.ok) return;
+        r.forced = report.forceCharacter;
+        r.forcedCharacter = report.character;
+        race::RaceSession::get()->hostLevel(r);
+    });
+}
 // EDITOR (PC addition): downloads (without counting a play) and opens the level in the editor.
 void OnlineLevelBrowser::editSelected() {
     BrowserState& st = state();
@@ -1176,6 +1204,11 @@ void OnlineLevelBrowser::refreshPlayButton() {
     _status->setPositionX(_detailRect.origin.x + 70.0f + (_playing ? 84.0f : 0.0f));
     _cachedBadge->setVisible(has && !_playing && HWApi::getInstance()->isCached(st.levels[st.selected].id));
     if (_sendBtn) _sendBtn->setVisible(_cachedBadge->isVisible());  // NET (PC addition)
+    if (_raceBtn) {  // NET (PC addition): RACE, left of SEND TO NEARBY when that one shows
+        _raceBtn->setVisible(has && !_playing);
+        const float right = _sendBtn->getPositionX() + 200.0f;
+        _raceBtn->setPositionX(_sendBtn->isVisible() ? right - 540.0f : right - 110.0f);
+    }
     if (!_playing && has) {
         const OnlineLevelInfo& l = st.levels[st.selected];
         std::string s = "Level " + std::to_string(l.id);

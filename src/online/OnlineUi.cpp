@@ -146,12 +146,24 @@ bool spinnerInside(float u, float v) {
     return std::fabs(d - 0.78f) < 0.17f;
 }
 
+// NET (PC addition): a checkered flag on a pole (the ghost race button).
+bool flagInside(float u, float v) {
+    v = -v;   // texture rows run top-down
+    if (std::fabs(u + 0.62f) < 0.07f && v > -0.9f && v < 0.82f) return true;   // pole
+    const float x0 = -0.55f, x1 = 0.8f, y0 = -0.05f, y1 = 0.78f;
+    if (u < x0 || u > x1 || v < y0 || v > y1) return false;
+    const int i = (int)((u - x0) / (x1 - x0) * 4.0f), j = (int)((v - y0) / (y1 - y0) * 3.0f);
+    const float bu = std::fabs(u - x0) < 0.05f || std::fabs(u - x1) < 0.05f ? 1.0f : 0.0f;
+    const float bv = std::fabs(v - y0) < 0.05f || std::fabs(v - y1) < 0.05f ? 1.0f : 0.0f;
+    return ((i + j) % 2 == 0) || bu > 0.0f || bv > 0.0f;
+}
 Texture2D* iconTexture(const std::string& name) {
     const int n = name == "globe" ? 256 : 128;
     if (name == "star") return generateTexture("online_icon_star", n, n, supersampled(n, starInside), true);
     if (name == "globe") return generateTexture("online_icon_globe", n, n, supersampled(n, globeInside), true);
     if (name == "search") return generateTexture("online_icon_search", n, n, supersampled(n, magnifierInside), true);
     if (name == "chevron") return generateTexture("online_icon_chevron", n, n, supersampled(n, chevronInside), true);
+    if (name == "flag") return generateTexture("online_icon_flag", n, n, supersampled(n, flagInside), true);  // NET
     if (name == "clear") return generateTexture("online_icon_clear", n, n, supersampled(n, clearInside), true);
     if (name == "spinner") {
         auto ring = supersampled(n, spinnerInside);

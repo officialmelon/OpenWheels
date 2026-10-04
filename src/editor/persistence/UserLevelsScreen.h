@@ -89,6 +89,7 @@ private:
     void deleteSelected();
     void shareSelected();
     void sendSelected();
+    void raceSelected();   // NET (PC addition): ghost race on this level
     void newLevel();
     void receive();
 

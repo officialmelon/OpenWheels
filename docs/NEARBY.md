@@ -62,8 +62,8 @@ characters (`XXXX-XXXX`).
 "busy"); one offer per address per 3 s, 10 s after a decline, at most 10 a minute; offers time
 out after 60 s; payloads are capped at 4 MB and the XML is validated before it is saved.
 
-A later ghost-race mode is meant to reuse `LanDiscovery` (another service name) and `Channel`
-(another `purpose`).
+The ghost race ([RACE.md](RACE.md)) reuses `LanDiscovery` (service `race`), the listener and `Channel`
+(`purpose` = race).
 
 ## Platform notes
 

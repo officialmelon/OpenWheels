@@ -34,3 +34,8 @@ void net::stopLevelSharing() {}
 // EDITOR (browser features, PC addition): --edit has no editor to open here.
 #include "editor/flash/FlashEditorHooks.h"
 void flashed::openLevelInEditor(const std::string&, const std::string&) {}
+
+// NET (PC addition): the ghost race (src/net/race/) is left out with src/net/.
+#include "net/race/RaceHooks.h"
+void race::openRaceMenu() {}
+bool race::suppressVictoryMenu() { return false; }

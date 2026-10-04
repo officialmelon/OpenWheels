@@ -408,6 +408,7 @@ void NPCharacter::createArt()
         _partFrame[p] = 1;
         inner->addChild(makePartNode(p, 1));
         _partZ[p] = z;
+        node->setName("ow_npc");  // NET (PC addition): not part of the player's ghost
         if (_layer) _layer->addChild(node, z);
         z++;
         _body[p]->SetUserData(node);
@@ -483,6 +484,7 @@ void NPCharacter::createStaticArt(bool inGroup, bool foreground)
         if (layer) layer->addChild(_staticRoot);
     } else {
         _layer = getSession()->getCharacterBackground();
+        _staticRoot->setName("ow_npc");  // NET (PC addition): not part of the player's ghost
         if (_layer) _layer->addChild(_staticRoot, -30000 + (s_serial % 700) * 40);
         const b2Vec2 m = flashToWorld(_x, _y);
         _staticRoot->setPosition(Vec2(m.x * getPtm(), m.y * getPtm()));
@@ -811,6 +813,7 @@ b2Body* NPCharacter::createChunk(const std::string& art, float radiusM, b2Vec2 p
     Node* node = chunkNode(art, fallbackRadiusPx);
     node->retain();
     _extraNodes.push_back(node);
+    node->setName("ow_npc");  // NET (PC addition): not part of the player's ghost
     if (_layer) _layer->addChild(node, nearNode ? nearNode->getLocalZOrder() : 0);
     bd.userData = node;
     b2Body* body = getWorld()->CreateBody(&bd);

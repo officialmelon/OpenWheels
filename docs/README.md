@@ -25,6 +25,8 @@
   and the desktop keyboard controls.
 * [NEARBY.md](NEARBY.md) — Send to Nearby: levels between players on the same Wi-Fi (LAN
   discovery, the transfer protocol, receive codes, firewall and emulator notes).
+* [RACE.md](RACE.md) — Ghost Race: local races between nearby players, the others shown as
+  translucent ghosts (lobby, snapshot format, protocol, bandwidth).
 * [ANDROID.md](ANDROID.md) — building the Android APK, staged game files, release signing.
 
 ## Work notes

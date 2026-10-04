@@ -31,6 +31,7 @@
 #include "online/FlashRuntime.h"           // ONLINE (PC addition)
 #include "online/vehicles/UserVehicle.h"  // ONLINE (PC addition)
 #include "online/replays/ReplayRuntime.h"  // ONLINE (PC addition)
+#include "net/race/RaceHooks.h"  // NET (PC addition): ghost race
 
 USING_NS_CC;
 
@@ -676,6 +677,11 @@ void Gameplay::handleLevelComplete()
     _timer->setVisible(false);
     clearHighlights();
     if (_isTesting)
+    {
+        return;
+    }
+    // NET (PC addition): in a ghost race the race HUD shows the finish and the results.
+    if (race::suppressVictoryMenu())
     {
         return;
     }

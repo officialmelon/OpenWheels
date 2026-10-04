@@ -22,6 +22,7 @@
 // ONLINE (PC addition): online level browser (src/online)
 #include "online/OnlineLevelBrowser.h"
 #include "online/OnlineUi.h"
+#include "net/race/RaceHooks.h"  // NET (PC addition): ghost race
 
 USING_NS_CC;
 
@@ -324,6 +325,22 @@ void MainMenu::addMenu(bool animated)
             onlineBtn->setPosition(onlinePos.x + visibleSize.width, onlinePos.y);
             onlineBtn->runAction(EaseExponentialOut::create(MoveTo::create(0.35f, onlinePos)));
         }
+        rowLeft = onlinePos.x - onlineBtn->getContentSize().width;  // NET (PC addition)
+    }
+
+    // NET (PC addition): ghost race with nearby players (pink, checkered-flag icon, tag 6).
+    {
+        MenuItemSprite* raceBtn = btnWithIcon("menu_main_icon_options.png", ColorPink, false, 6);
+        online::ui::setMenuButtonIcon(raceBtn, "flag");
+        raceBtn->setAnchorPoint(Vec2(1.0f, 0.0f));
+        Vec2 racePos(rowLeft - 70.0f, 70.0f);
+        raceBtn->setPosition(racePos);
+        _menu->addChild(raceBtn);
+        if (animated)
+        {
+            raceBtn->setPosition(racePos.x + visibleSize.width, racePos.y);
+            raceBtn->runAction(EaseExponentialOut::create(MoveTo::create(0.35f, racePos)));
+        }
     }
 
     if (animated)
@@ -516,6 +533,9 @@ void MainMenu::btnPressed(Ref* sender)
     case 5:  // ONLINE (PC addition): online level browser
         Director::getInstance()->replaceScene(TransitionFade::create(
             globals::ui::menuFadeTime, online::OnlineLevelBrowser::createScene(), Color3B(0, 0, 0)));
+        break;
+    case 6:  // NET (PC addition): ghost race
+        race::openRaceMenu();
         break;
     default:
         break;

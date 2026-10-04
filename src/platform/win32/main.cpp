@@ -28,6 +28,9 @@
 //   --select-character <id>  with --play-level: open character select first, on character <id>
 //   --width <px> --height <px>   window ("device") size, default 1600x900
 //   --console             log to a console window
+//   --race-test <spec>    NET (PC addition) test hook: host:campaign:<chapter>:<level> | host:online:<file> |
+//                         host:level:<file> | join (accept race invites, get ready); with --race-players N,
+//                         --race-char <id>, --player-name <name>
 //   --dump-world <out.json> [--level levels/<chapter>/<file>.xml] [--frames N] [--script f:hex,...]
 //                         verification: play the level with scripted controls at exactly 1/60 s
 //                         per frame and write the Box2D world (tools/re/worlddiff.py vs the oracle)
@@ -59,6 +62,8 @@
 #include "online/OnlinePlay.h"
 #include "online/account/TjfTestDriver.h"  // ONLINE (PC addition)
 #include "online/FlashLevelConverter.h"
+#include "net/LevelTransfer.h"        // NET (PC addition)
+#include "net/race/RaceSession.h"     // NET (PC addition)
 
 #ifdef OW_WITH_PC_LAYER  // enable once src/game links (PCInput.cpp, WorldDumpRunner.cpp)
 #include "platform/win32/CrashHandler.h"
@@ -160,6 +165,10 @@ struct Options
     int frames = 120;
     std::string script = "0:00";
     std::string dumpAt;
+    std::string raceTest;     // NET (PC addition): --race-test
+    int racePlayers = 2;
+    int raceCharacter = 0;
+    std::string playerName;
 };
 
 Options parseOptions()
@@ -190,6 +199,10 @@ Options parseOptions()
         else if (a == L"--frames") o.frames = _wtoi(next().c_str());
         else if (a == L"--script") o.script = narrow(next());
         else if (a == L"--dump-at") o.dumpAt = narrow(next());
+        else if (a == L"--race-test") o.raceTest = narrow(next());  // NET (PC addition)
+        else if (a == L"--race-players") o.racePlayers = _wtoi(next().c_str());
+        else if (a == L"--race-char") o.raceCharacter = _wtoi(next().c_str());
+        else if (a == L"--player-name") o.playerName = narrow(next());
     }
     LocalFree(argv);
     if (!explicitSize)
@@ -451,6 +464,17 @@ int WINAPI _tWinMain(HINSTANCE hInstance,
         // ONLINE (PC addition): automated account / replay / publish walk-through (mock site only).
         const std::string scenario = opt.onlineTest;
         runOnMainMenu([scenario]() { online::runTjfTestScenario(scenario); });
+    }
+
+    if (!opt.playerName.empty() || !opt.raceTest.empty())
+    {
+        // NET (PC addition): name shown to nearby players; ghost-race test automation.
+        const std::string name = opt.playerName, spec = opt.raceTest;
+        const int players = opt.racePlayers, character = opt.raceCharacter;
+        runOnMainMenu([name, spec, players, character]() {
+            if (!name.empty()) net::LevelTransfer::getInstance()->setPlayerName(name);
+            if (!spec.empty()) race::RaceSession::get()->setAutoTest(spec, players, character);
+        });
     }
 
     if (opt.playOnline > 0)

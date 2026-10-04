@@ -167,6 +167,8 @@ private:
     void editSelected();              // EDITOR (PC addition)
     ui::Button* _sendBtn = nullptr;   // NET (PC addition): send a downloaded level to a nearby player
     void sendSelected();              // NET (PC addition)
+    ui::Button* _raceBtn = nullptr;   // NET (PC addition): ghost race on the selected level
+    void raceSelected();              // NET (PC addition)
 
     // requests
     RequestId _listRequest = 0;

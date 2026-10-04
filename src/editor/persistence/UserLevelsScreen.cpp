@@ -18,6 +18,7 @@
 #include "UIKitCompat.h"
 #include "net/NearbyPanels.h"
 #include "net/NetUi.h"
+#include "net/race/RaceSession.h"  // NET (PC addition): ghost race
 #include "online/OnlineUi.h"
 #include "platform/common/Localization.h"
 
@@ -367,12 +368,13 @@ void UserLevelsScreen::buildDetail()
     };
     const Action actions[] = {{"Edit", "blue", 1.0f, &UserLevelsScreen::editSelected},
                               {"Send to Nearby", "blue", 1.75f, &UserLevelsScreen::sendSelected},
+                              {"Race", "blue", 0.9f, &UserLevelsScreen::raceSelected},  // NET (PC addition)
                               {"Share", "blue", 1.0f, &UserLevelsScreen::shareSelected},
                               {"Delete", "pink", 1.0f, &UserLevelsScreen::deleteSelected}};
     const float gap = 26.0f;
     float weights = 0.0f;
     for (const Action& a : actions) weights += a.weight;
-    const float unit = (R - L - gap * 3.0f) / weights;
+    const float unit = (R - L - gap * (float)(sizeof(actions) / sizeof(actions[0]) - 1)) / weights;
     float ax = L;
     for (const Action& a : actions)
     {
@@ -838,6 +840,20 @@ void UserLevelsScreen::sendSelected()
 {
     LevelMO* level = selectedLevel();
     if (level) net::showSendToNearby(net::LevelPackage::fromLevel(level));
+}
+
+// NET (PC addition): hosts a ghost race on the selected level (src/net/race/).
+void UserLevelsScreen::raceSelected()
+{
+    LevelMO* level = selectedLevel();
+    if (!level) return;
+    race::RaceLevel r;
+    r.kind = "mobile";
+    r.name = level->name();
+    r.xml = level->data();
+    r.forced = level->force_character();
+    r.forcedCharacter = level->playable_character();
+    race::RaceSession::get()->hostLevel(r);
 }
 
 void UserLevelsScreen::receive()
