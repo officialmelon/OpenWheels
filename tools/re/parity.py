@@ -26,7 +26,23 @@ from elfsyms import Elf, GHIDRA_BASE  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 SO = os.path.join(ROOT, "binary", "HappyWheels_Android", "config.arm64_v8a", "lib", "arm64-v8a", "libMyGame.so")
-NDK = os.environ.get("ANDROID_NDK", r"<home>/ndk-install/android-ndk-r27")
+
+
+def _find_ndk():
+    """Android NDK r27: $ANDROID_NDK / $ANDROID_NDK_HOME / $ANDROID_NDK_ROOT, else the copy
+    tools/build_android.ps1 installs into the Android SDK (<sdk>/ndk/27.3.13750724)."""
+    for var in ("ANDROID_NDK", "ANDROID_NDK_HOME", "ANDROID_NDK_ROOT"):
+        if os.environ.get(var):
+            return os.environ[var]
+    sdk = (os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
+           or os.path.join(os.environ.get("LOCALAPPDATA", ""), "Android", "Sdk"))
+    ndk = os.path.join(sdk, "ndk", "27.3.13750724")
+    if not os.path.isdir(ndk):
+        sys.exit("parity.py: Android NDK r27 not found; set ANDROID_NDK to its folder")
+    return ndk
+
+
+NDK = _find_ndk()
 OBJDUMP = os.path.join(NDK, "toolchains", "llvm", "prebuilt", "windows-x86_64", "bin", "llvm-objdump.exe")
 CXXFILT = os.path.join(NDK, "toolchains", "llvm", "prebuilt", "windows-x86_64", "bin", "llvm-cxxfilt.exe")
 

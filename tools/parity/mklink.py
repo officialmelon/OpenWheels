@@ -1,9 +1,11 @@
 """Write build_parity/clangobj/link.rsp: the MSVC link of OpenWheels.exe with every game object
-replaced by its clang-cl counterpart from build_parity/clangobj, output to bin/OpenWheels/Clang."""
+replaced by its clang-cl counterpart from build_parity/clangobj, output to bin/OpenWheels/Clang.
+Build tree: OW_PARITY_BUILD, default <repo>/build_parity."""
 import os
 import re
 
-B = os.path.join('C:' + os.sep, 'Users', '<user>', 'OpenWheels', 'build_parity')
+B = os.environ.get('OW_PARITY_BUILD') or os.path.abspath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'build_parity'))
 CO = os.path.join(B, 'clangobj')
 tl = os.path.join(B, 'OpenWheels.dir', 'RelWithDebInfo', 'OpenWheels.tlog', 'link.command.1.tlog')
 cmd = open(tl, 'rb').read().decode('utf-16-le').splitlines()[1]

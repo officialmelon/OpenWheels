@@ -5,7 +5,17 @@
 #   OW_CHECK_EMIT_OBJ=1 tools/check_tu.sh ...   also emit build/arm64/<name>.o for parity diffing
 set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-NDK="${ANDROID_NDK:-<home>/ndk-install/android-ndk-r27}"
+# NDK r27: $ANDROID_NDK (or $ANDROID_NDK_HOME / $ANDROID_NDK_ROOT), else the copy that
+# tools/build_android.ps1 installs into the Android SDK ($ANDROID_HOME/ndk/27.3.13750724).
+NDK="${ANDROID_NDK:-${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-}}}"
+if [ -z "$NDK" ]; then
+  SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-${LOCALAPPDATA:+$LOCALAPPDATA/Android/Sdk}}}"
+  [ -n "$SDK" ] && NDK="$SDK/ndk/27.3.13750724"
+fi
+if [ -z "$NDK" ] || [ ! -d "$NDK" ]; then
+  echo "check_tu: Android NDK r27 not found; set ANDROID_NDK to its folder" >&2
+  exit 2
+fi
 CLANG="$NDK/toolchains/llvm/prebuilt/windows-x86_64/bin/clang++.exe"
 E="$ROOT/thirdparty/cocos2d-x"
 FLAGS=(--target=aarch64-linux-android23 -std=c++14 -DANDROID -DUSE_FILE32API -DCOCOS2D_DEBUG=0

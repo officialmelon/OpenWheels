@@ -18,7 +18,9 @@
     5. Copies the APK to build\android\OpenWheels-<config>.apk; -Install / -Run use adb.
 
 .PARAMETER Config
-    Debug (default) or Release (release is signed with the debug key; no store keystore).
+    Debug (default) or Release. Release is signed with the keystore described by the properties
+    file in OW_KEYSTORE_PROPERTIES (storeFile, storePassword, keyAlias, keyPassword; keep it outside
+    the repo), or with the debug key when that is not set.
 .PARAMETER Abis
     ':'-separated ABIs (default from android\gradle.properties: arm64-v8a:armeabi-v7a:x86).
     Use x86 alone for a quick emulator build, arm64-v8a alone for a quick phone build.

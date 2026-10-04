@@ -10,7 +10,7 @@ section per method) and the Mach-O ObjC metadata.
   iosre.py senders <selector-re>      classes/methods whose decompilation sends a selector
                                       (objc_stub::<sel> / Class::<sel> calls)
 
-Exports: $OW_IOS_EXPORTS or ~/openwheels_old/ghidra/exports/happywheels.
+Exports: $OW_IOS_EXPORTS (folder of ns_<Class>.c Ghidra exports of the iOS binary).
 Output is derived from the player's binary: read it to understand behaviour and write NEW code;
 never paste it into src/.
 """
@@ -20,8 +20,7 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-EXPORTS = os.environ.get("OW_IOS_EXPORTS",
-                         os.path.expanduser("~/openwheels_old/ghidra/exports/happywheels"))
+EXPORTS = os.environ.get("OW_IOS_EXPORTS", "")
 SECTION = re.compile(r"^// ---- (\S+) @ ([0-9a-f]+)\s*$", re.M)
 
 
@@ -45,6 +44,8 @@ def main():
         print(__doc__)
         return
     cmd, args = sys.argv[1], sys.argv[2:]
+    if cmd != "ivars" and (not EXPORTS or not os.path.isdir(EXPORTS)):
+        sys.exit("iosre.py: set OW_IOS_EXPORTS to the folder of ns_<Class>.c iOS Ghidra exports")
     if cmd == "classes":
         rx = re.compile(args[0]) if args else None
         for f in sorted(os.listdir(EXPORTS)):

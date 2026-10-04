@@ -37,7 +37,8 @@ from elfsyms import Elf, GHIDRA_BASE  # noqa: E402
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 SO = os.path.join(ROOT, "binary", "HappyWheels_Android", "config.arm64_v8a", "lib", "arm64-v8a",
                   "libMyGame.so")
-EXPORTS = os.environ.get("OW_EXPORTS", r"<home>/ghidra-projects/exports/openwheels")
+# Per-function Ghidra JSON exports of libMyGame.so (<gaddr>.json); only `fn` bodies need them.
+EXPORTS = os.environ.get("OW_EXPORTS", "")
 DECOMP = os.path.join(ROOT, "reports", "decomp")
 
 _elf = None
@@ -90,6 +91,8 @@ def find_functions(query):
 
 
 def load_export(gaddr):
+    if not EXPORTS or not os.path.isdir(EXPORTS):
+        sys.exit("owre.py: set OW_EXPORTS to the folder of Ghidra JSON exports of libMyGame.so")
     p = os.path.join(EXPORTS, f"{gaddr:08x}.json")
     if not os.path.exists(p):
         return None

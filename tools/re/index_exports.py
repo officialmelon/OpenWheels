@@ -25,7 +25,8 @@ from names import class_and_method, qualified_name, _split_depth0  # noqa: E402
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 SO = os.path.join(ROOT, "binary", "HappyWheels_Android", "config.arm64_v8a", "lib", "arm64-v8a",
                   "libMyGame.so")
-EXPORTS = os.environ.get("OW_EXPORTS", r"<home>/ghidra-projects/exports/openwheels")
+# Folder of per-function Ghidra JSON exports of libMyGame.so (<gaddr>.json).
+EXPORTS = os.environ.get("OW_EXPORTS", "")
 OUT = os.path.join(ROOT, "reports", "decomp")
 
 # Game code is linked first: [start of .text, cocos_android_app_init]. Everything after is
@@ -42,6 +43,8 @@ def is_library_top(top):
 
 
 def main():
+    if not EXPORTS or not os.path.isdir(EXPORTS):
+        sys.exit("index_exports.py: set OW_EXPORTS to the folder of Ghidra JSON exports of libMyGame.so")
     os.makedirs(os.path.join(OUT, "classes"), exist_ok=True)
     elf = Elf(SO).load()
     text = elf.sections[".text"]
