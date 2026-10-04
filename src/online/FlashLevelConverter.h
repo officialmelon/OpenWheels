@@ -12,7 +12,7 @@ struct ConversionReport {
     bool ok = false;
     std::string error;                 // set when ok == false
     std::vector<std::string> warnings; // player-facing, short ("2 chairs replaced by blocks")
-    bool hasUserVehicle = false;       // <g v="t"> custom vehicles (not playable as vehicles here)
+    bool hasUserVehicle = false;       // <g v="t"> user-built vehicles (driven by src/online/vehicles)
     int droppedItems = 0;              // items removed (decoration with no mobile equivalent)
     int substitutedItems = 0;          // items replaced by placeholder shapes
     int character = 0;                 // mobile character id the level uses (after fallback)

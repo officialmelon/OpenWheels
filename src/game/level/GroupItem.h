@@ -12,6 +12,7 @@
 #include "math/Vec2.h"
 
 class b2Body;
+class b2Fixture;  // ONLINE (PC addition)
 class LevelItem;
 class ShapeItem;
 
@@ -52,6 +53,11 @@ public:
     float artOpacity();
     bool getImmovable();
     void removeShapeItem(ShapeItem* shapeItem);  // erase + delete
+
+    // ONLINE (PC addition): fixtures of the group's own shapes (Flash material 8), as opposed to
+    // fixtures that specials in the group put on the body. Filled by LevelB2D::addGroup for
+    // browser levels only; trigger actions on groups change only these, as Flash does.
+    std::vector<b2Fixture*> onlineShapeFixtures;
 
 protected:
     bool _immovable;                          // +0x08

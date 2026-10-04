@@ -1,5 +1,6 @@
 #include "CharacterSelectLayer.h"
 #include "LevelSession.h"  // EDITOR (iOS port): user levels (src/editor/persistence)
+#include "restored/Restored.h"  // RESTORED (PC addition)
 
 #include "CharacterB2D.h"
 #include "Gameplay.h"
@@ -64,6 +65,7 @@ bool CharacterSelectLayer::init(int unused1, unsigned long unused2)
 
     Texture2D::setDefaultAlphaPixelFormat(Texture2D::PixelFormat::RGBA8888);
     SpriteFrameCache::getInstance()->addSpriteFramesWithFile("menus/character_select/character_select.plist");
+    restored::loadIconFrames();  // RESTORED (PC addition): icons of the browser characters
     MenuHelper::addBg(this, 0);
 
     _spotlight1 = Sprite::createWithSpriteFrameName("spotlight.png");

@@ -1,3 +1,4 @@
+#include "online/FlashRuntime.h"  // ONLINE (PC addition)
 #include "Spikes.h"
 
 #include <algorithm>
@@ -40,6 +41,7 @@ Spikes* Spikes::create(LevelDataElement* element, b2Body* groupBody, b2Vec2 grou
 bool Spikes::init(LevelDataElement* element, b2Body* groupBody, b2Vec2 groupOffset)
 {
     loadSpriteFrames(LevelItemTextureIdLevelItems);
+    if (online::flashLevel()) _stabbableMaterials |= 4;  // ONLINE (PC addition): Flash stabs materials & 6 (food)
 
     float x = 0.0f;
     float y = 0.0f;

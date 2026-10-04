@@ -1,0 +1,131 @@
+# Breakable props (src/online/items: Table, Chair, TV, Boombox, Toilet, TrashCan, FoodItem).
+# <name> <symbol class> [frame] [zoom=2] [hide=depths]
+props_table TableMC
+props_table_top clip:933 1 hide=2,4   # TableMC.inner without leg1/leg2
+props_table_leg TableLegMC
+props_table_top1 TableTop1MC
+props_table_top2 TableTop2MC
+props_chair clip:2689                 # ChairMC.container
+props_chair_leg ChairLegMC
+props_chair_top ChairTopMC
+props_chair_back ChairBackMC
+props_tv_1 TVMC 1
+props_tv_2 TVMC 2
+props_tv_3 TVMC 3
+props_tv_4 TVMC 4
+props_tv_5 TVMC 5
+props_tv_piece1 TVPiece1MC
+props_tv_piece2 TVPiece2MC
+props_tv_piece3 TVPiece3MC
+props_tvshard_1 TVShardsMC 1
+props_tvshard_2 TVShardsMC 2
+props_tvshard_3 TVShardsMC 3
+props_tvshard_4 TVShardsMC 4
+props_tvshard_5 TVShardsMC 5
+props_tvshard_6 TVShardsMC 6
+props_tvshard_7 TVShardsMC 7
+props_tvshard_8 TVShardsMC 8
+props_tvshard_9 TVShardsMC 9
+props_boombox_1 BoomboxMC 1
+props_boombox_2 BoomboxMC 2
+props_boombox_3 BoomboxMC 3
+props_boombox_4 BoomboxMC 4
+props_boombox_piece1 BoomboxPiece1MC
+props_boombox_piece2 BoomboxPiece2MC
+props_boomboxshard_1 BoomboxShardsMC 1
+props_boomboxshard_2 BoomboxShardsMC 2
+props_boomboxshard_3 BoomboxShardsMC 3
+props_boomboxshard_4 BoomboxShardsMC 4
+props_boomboxshard_5 BoomboxShardsMC 5
+props_boomboxshard_6 BoomboxShardsMC 6
+props_toilet_base clip:910            # ToiletMC.container.base
+props_toilet_back clip:912            # ToiletMC.container.back
+props_toilet_basepiece1 ToiletBasePiece1MC
+props_toilet_basepiece2 ToiletBasePiece2MC
+props_toilet_backpiece1 ToiletBackPiece1MC
+props_toilet_backpiece2 ToiletBackPiece2MC
+props_toiletpart_1 ToiletParticlesMC 1
+props_toiletpart_2 ToiletParticlesMC 2
+props_toiletpart_3 ToiletParticlesMC 3
+props_toiletpart_4 ToiletParticlesMC 4
+props_toiletpart_5 ToiletParticlesMC 5
+props_water_1 WaterMC 1
+props_water_2 WaterMC 2
+props_water_3 WaterMC 3
+props_water_4 WaterMC 4
+props_water_5 WaterMC 5
+props_water_6 WaterMC 6
+props_water_7 WaterMC 7
+props_water_8 WaterMC 8
+props_water_9 WaterMC 9
+props_water_10 WaterMC 10
+props_water_11 WaterMC 11
+props_water_12 WaterMC 12
+props_water_13 WaterMC 13
+props_trashcan_1 TrashCanMC 1 hide=4,6
+props_trashcan_2 TrashCanMC 2 hide=4,6
+props_trashcan_3 TrashCanMC 3 hide=4,6
+props_trash_c0_1 CircleTrashItem0 1
+props_trash_c0_2 CircleTrashItem0 2
+props_trash_c1_1 CircleTrashItem1 1
+props_trash_c1_2 CircleTrashItem1 2
+props_trash_c1_3 CircleTrashItem1 3
+props_trash_c2_1 CircleTrashItem2 1
+props_trash_r0_1 RectTrashItem0 1
+props_trash_r0_2 RectTrashItem0 2
+props_trash_r1_1 RectTrashItem1 1
+props_trash_r2_1 RectTrashItem2 1
+props_trash_r3_1 RectTrashItem3 1
+props_trash_r3_2 RectTrashItem3 2
+props_trash_r4_1 RectTrashItem4 1
+props_trash_r4_2 RectTrashItem4 2
+props_trash_r5_1 RectTrashItem5 1
+props_trash_r5_2 RectTrashItem5 2
+props_trash_r6_1 RectTrashItem6 1     # the lid
+props_food_1 WatermelonMC 1 hide=3,19
+props_food_2 PumpkinMC 1 hide=4,20
+props_food_3 PineappleMC 1 hide=3,19
+props_food_1_m0 clip:544
+props_food_1_m1 clip:540
+props_food_1_m2 clip:542
+props_food_1_m3 clip:538
+props_food_2_m0 clip:563
+props_food_2_m1 clip:565
+props_food_2_m2 clip:567
+props_food_2_m3 clip:569
+props_food_3_m0 clip:585
+props_food_3_m1 clip:587
+props_food_3_m2 clip:589
+props_food_3_m3 clip:591
+props_foodpart_1_1 WatermelonParticlesMC 1
+props_foodpart_1_2 WatermelonParticlesMC 2
+props_foodpart_1_3 WatermelonParticlesMC 3
+props_foodpart_1_4 WatermelonParticlesMC 4
+props_foodpart_1_5 WatermelonParticlesMC 5
+props_foodpart_1_6 WatermelonParticlesMC 6
+props_foodpart_1_7 WatermelonParticlesMC 7
+props_foodpart_1_8 WatermelonParticlesMC 8
+props_foodpart_1_9 WatermelonParticlesMC 9
+props_foodpart_1_10 WatermelonParticlesMC 10
+props_foodpart_1_11 WatermelonParticlesMC 11
+props_foodpart_1_12 WatermelonParticlesMC 12
+props_foodpart_1_13 WatermelonParticlesMC 13
+props_foodpart_1_14 WatermelonParticlesMC 14
+props_foodpart_1_15 WatermelonParticlesMC 15
+props_foodpart_2_1 PumpkinParticlesMC 1
+props_foodpart_2_2 PumpkinParticlesMC 2
+props_foodpart_2_3 PumpkinParticlesMC 3
+props_foodpart_2_4 PumpkinParticlesMC 4
+props_foodpart_2_5 PumpkinParticlesMC 5
+props_foodpart_2_6 PumpkinParticlesMC 6
+props_foodpart_2_7 PumpkinParticlesMC 7
+props_foodpart_2_8 PumpkinParticlesMC 8
+props_foodpart_2_9 PumpkinParticlesMC 9
+props_foodpart_3_1 PineappleParticlesMC 1
+props_foodpart_3_2 PineappleParticlesMC 2
+props_foodpart_3_3 PineappleParticlesMC 3
+props_foodpart_3_4 PineappleParticlesMC 4
+props_foodpart_3_5 PineappleParticlesMC 5
+props_foodpart_3_6 PineappleParticlesMC 6
+props_foodpart_3_7 PineappleParticlesMC 7
+props_foodpart_3_8 PineappleParticlesMC 8

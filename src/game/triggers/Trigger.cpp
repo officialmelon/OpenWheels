@@ -1,5 +1,7 @@
 #include "Trigger.h"
 
+#include <cmath>
+
 #include "base/CCDirector.h"
 #include "base/CCEventDispatcher.h"
 
@@ -15,6 +17,10 @@
 #include "TargetActionRevJoint.h"
 #include "TargetActionSpecial.h"
 #include "TargetActionTrigger.h"
+#include "Sound.h"
+#include "online/FlashRuntime.h"  // ONLINE (PC addition)
+#include "online/items/NPCharacter.h"  // ONLINE (PC addition)
+#include "online/items/NPCharacter.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -66,6 +72,8 @@ bool Trigger::init(LevelDataElement* element, b2Body* levelBody, b2Vec2 offset)
     _repeatFrames = 0.0f;
     _repeatCount = 0.0f;
     _soundLocation = 1;
+    _onlineClickSpent = false;  // ONLINE (PC addition)
+    _onlineClickHover = false;
 
     element->floatAttribute("d", &_delayTime);
     element->floatAttribute("i", &_repeatFrames);
@@ -102,6 +110,12 @@ void Trigger::createShape(LevelDataElement* element)
         fixtureDef.isSensor = true;
         fixtureDef.filter.categoryBits = 8;
         fixtureDef.filter.groupIndex = -20;
+        if (online::flashLevel())
+        {
+            // ONLINE (PC addition): Flash trigger sensors are category 24 (8 | 16), so shapes that
+            // only collide with "fixed" / category-16 shapes (collision 5 and 6) still enter them.
+            fixtureDef.filter.categoryBits = 24;
+        }
 
         float width = 0.0f;
         float height = 0.0f;
@@ -111,6 +125,8 @@ void Trigger::createShape(LevelDataElement* element)
         element->floatAttribute("a", &angle);
         getLevel()->convertLengthData(&width);
         getLevel()->convertLengthData(&height);
+        _onlineHalfWidth = width * 0.5f;  // ONLINE (PC addition): click-trigger button area
+        _onlineHalfHeight = height * 0.5f;
         angle = angle * -0.017453292f;
         shape.SetAsBox(width * 0.5f, height * 0.5f, b2Vec2(_xMeters, _yMeters), angle);
         fixtureDef.shape = &shape;
@@ -186,6 +202,19 @@ void Trigger::checkAdd2(b2Fixture* fixture)
         {
             addTriggeringBody(body);
         }
+    }
+    // ONLINE (PC addition): Flash checkAdd2 also accepts the central body of an NPCharacter.
+    else if (item != nullptr && online::flashLevel() &&
+             online::isNPCharacterCentralBody(item, fixture->GetBody()))
+    {
+        addTriggeringBody(fixture->GetBody());
+    }
+    // ONLINE (PC addition): Flash Trigger.checkAdd2 also accepts browser NPCs
+    // (NPCharacter.centralBody).
+    else if (item != nullptr && online::flashLevel() &&
+             online::isNPCharacterCentralBody(item, fixture->GetBody()))
+    {
+        addTriggeringBody(fixture->GetBody());
     }
 }
 
@@ -462,6 +491,13 @@ void Trigger::setDisabled(bool disabled)
             _repeatCount = _repeatFrames;
             removeFromSingleAction();
             removeFromActions();
+            // ONLINE (PC addition): Flash Trigger.disabled = true also drops the pending delayed
+            // activations (delayVector = new Vector) and the "continuously" click hover.
+            if (online::flashLevel())
+            {
+                _delayVector.clear();
+                _onlineClickHover = false;
+            }
         }
     }
     else if (!disabled && !_activationDictionaryNulled)
@@ -470,7 +506,27 @@ void Trigger::setDisabled(bool disabled)
         {
             addToBeginContact(_sensor);
         }
-        if (_sensor != nullptr)
+        if (_sensor != nullptr && online::flashLevel())
+        {
+            // ONLINE (PC addition): Flash's world.Refilter(sensor) (Box2D 2.0) recreates the
+            // sensor's broad-phase proxy, so a body already inside an enabled trigger gets a fresh
+            // contact "add" and fires it. Box2D 2.3's Refilter keeps touching contacts, so the
+            // sensor fixture is rebuilt instead.
+            b2FixtureDef fixtureDef;
+            fixtureDef.shape = _sensor->GetShape();
+            fixtureDef.isSensor = true;
+            fixtureDef.filter = _sensor->GetFilterData();
+            b2Fixture* oldSensor = _sensor;
+            removeBeginContact(oldSensor);
+            removeEndContact(oldSensor);
+            _sensor = getLevelBody()->CreateFixture(&fixtureDef);
+            getLevelBody()->DestroyFixture(oldSensor);
+            if (static_cast<unsigned int>(_triggeredBy - 1) < 4)
+            {
+                addToBeginContact(_sensor);
+            }
+        }
+        else if (_sensor != nullptr)
         {
             // Re-apply the unchanged filter to re-run contact filtering on the sensor.
             b2Filter filter = _sensor->GetFilterData();
@@ -579,6 +635,11 @@ void Trigger::activateByTrigger()
     {
         return;
     }
+    if (online::flashLevel())
+    {
+        onlineActivateByTrigger();  // ONLINE (PC addition)
+        return;
+    }
 
     switch (_repeatType)
     {
@@ -654,6 +715,105 @@ void Trigger::activateByTrigger()
     }
 }
 
+// ---------------------------------------------------------------------------------------------
+// ONLINE (PC addition): Flash Trigger.activateByTrigger for converted browser levels. Differences
+// to the mobile version above: "each time" without delay does nothing while the trigger already
+// waits in the single-action vector, "continuously" with a delay only queues when the trigger is
+// not already running, and the queue checks also see the items added this step (Flash pushes into
+// actionsVector at once). Trigger chains with no delay recurse exactly as in Flash; Flash ends a
+// runaway chain with a stack overflow that aborts the frame, here the recursion is cut at a depth
+// Flash's stack would not reach either.
+namespace {
+int g_onlineActivationDepth = 0;
+const int kOnlineMaxActivationDepth = 256;
+}  // namespace
+
+void Trigger::onlineActivateByTrigger()
+{
+    if (g_onlineActivationDepth >= kOnlineMaxActivationDepth)
+    {
+        return;
+    }
+    struct DepthGuard
+    {
+        DepthGuard() { g_onlineActivationDepth++; }
+        ~DepthGuard() { g_onlineActivationDepth--; }
+    } guard;
+
+    LevelB2D* level = getLevel();
+    const bool inSingle = level->singleActionsContainsLevelItem(this);
+    const bool inActions = level->onlineActionsContainsLevelItem(this);
+    switch (_repeatType)
+    {
+        case TriggerRepeatTypeOnce:
+            if (_activationDictionaryNulled)
+            {
+                break;
+            }
+            if (_delayTime == 0.0f)
+            {
+                if (!inSingle)
+                {
+                    removeBeginContact(_sensor);
+                    _activationDictionary.clear();
+                    _activationDictionaryNulled = true;
+                    singleAction();
+                }
+            }
+            else if (!inActions)
+            {
+                removeBeginContact(_sensor);
+                _activationDictionary.clear();
+                _activationDictionaryNulled = true;
+                level->addToActions(this);
+                _delayVector.push_back(0.0f);
+            }
+            break;
+
+        case TriggerRepeatTypeEachTime:
+            if (_delayTime == 0.0f)
+            {
+                if (!inSingle)
+                {
+                    singleAction();
+                }
+            }
+            else
+            {
+                level->addToActions(this);
+                _delayVector.push_back(0.0f);
+            }
+            break;
+
+        case TriggerRepeatTypeContinuous:
+            if (_triggeringBody != nullptr)
+            {
+                break;
+            }
+            if (_delayTime == 0.0f)
+            {
+                if (!inSingle)
+                {
+                    singleAction();
+                }
+            }
+            else if (!inActions)
+            {
+                level->addToActions(this);
+                _delayVector.push_back(0.0f);
+            }
+            break;
+
+        case TriggerRepeatTypeContinuousForever:
+            if (_triggeringBody == nullptr)
+            {
+                _triggeringBody = getLevelBody();
+                level->addToActions(this);
+            }
+            break;
+    }
+}
+
 // @0057532c
 void Trigger::singleAction()
 {
@@ -689,7 +849,23 @@ void Trigger::singleAction()
     {
         std::string soundName =
             Settings::getInstance()->getSoundController()->soundFileName(_soundId);
-        if (_soundLocation == 1)
+        if (online::flashLevel())
+        {
+            // ONLINE (PC addition): Flash plays the sound at the trigger's volume (0..1):
+            // playSoundInstance(effect, 0, 0, SoundTransform(volume, panning)) or
+            // playPointSoundInstance(effect, position, volume). Panning has no AudioEngine
+            // equivalent and is dropped.
+            if (_soundLocation == 1)
+            {
+                Sound::playSound(soundName, _volume, 1.0f, _panning, false);
+            }
+            else if (Sound* sound =
+                         createPositionSound(soundName, Vec2(_xMeters, _yMeters), 1.0f, false))
+            {
+                sound->setMaxVolume(_volume);
+            }
+        }
+        else if (_soundLocation == 1)
         {
             SoundController::playSound(soundName, _volume, 1.0f, _panning);
         }
@@ -700,7 +876,10 @@ void Trigger::singleAction()
     }
     else if (type == TriggerTypeFinish)
     {
-        if (!getSession()->getIsReplay() && !getLevel()->getCharacter()->getDead())
+        // ONLINE (PC addition): a Flash victory trigger completes the level even when the
+        // character is dead (Trigger.singleAction only checks isReplay).
+        if (!getSession()->getIsReplay() &&
+            (online::flashLevel() || !getLevel()->getCharacter()->getDead()))
         {
             getLevel()->levelCompleted();
         }
@@ -729,6 +908,11 @@ void Trigger::singleAction()
 // @00575610
 void Trigger::actions()
 {
+    if (online::flashLevel())
+    {
+        onlineActions();  // ONLINE (PC addition)
+        return;
+    }
     // Delayed activations: each entry counts up to _delayTime, then fires and is removed.
     std::vector<float>::iterator it = _delayVector.begin();
     while (it != _delayVector.end())
@@ -770,4 +954,119 @@ void Trigger::actions()
         _delayVector.push_back(0.0f);
     }
     _repeatCount = 0.0f;
+}
+
+// ONLINE (PC addition): Flash Trigger.actions. The delay list is walked backwards by index as in
+// Flash, so activations queued by the trigger's own targets (a trigger re-activating itself) or a
+// "disable" clearing the list while it is walked are safe.
+void Trigger::onlineActions()
+{
+    bool delaysDone = true;
+    if (!_delayVector.empty())
+    {
+        for (int i = (int)_delayVector.size() - 1; i >= 0; i--)
+        {
+            if (i >= (int)_delayVector.size())
+            {
+                continue;  // the list was cleared (trigger disabled) by an earlier entry
+            }
+            const float elapsed = _delayVector[i];
+            if (elapsed < _delayTime)
+            {
+                _delayVector[i] = elapsed + getTimeStep();
+            }
+            else
+            {
+                _delayVector.erase(_delayVector.begin() + i);
+                singleAction();
+            }
+        }
+        delaysDone = _delayVector.empty();
+    }
+
+    bool repeatDone = true;
+    if (_repeatType > TriggerRepeatTypeEachTime && _triggeringBody != nullptr)
+    {
+        repeatDone = false;
+        if (_repeatCount < _repeatFrames)
+        {
+            _repeatCount += getTimeStep();
+        }
+        else
+        {
+            if (_delayTime == 0.0f)
+            {
+                singleAction();
+            }
+            else
+            {
+                _delayVector.push_back(0.0f);
+            }
+            _repeatCount = 0.0f;
+        }
+    }
+    if (delaysDone && repeatDone)
+    {
+        removeFromActions();
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// ONLINE (PC addition): mouse-click triggers of browser levels (Flash Trigger.as).
+
+bool Trigger::onlineClickHit(const b2Vec2& worldPoint)
+{
+    // Flash's button hit area is the trigger box without its rotation (Trigger.createShape
+    // copies x, y, scaleX, scaleY to the hit-area sprite, not the angle).
+    return _triggeredBy == TriggerTriggeredByMouseClick && !_disabled && !_onlineClickSpent &&
+           onlineInButton(worldPoint);
+}
+
+bool Trigger::onlineInButton(const b2Vec2& worldPoint)
+{
+    return std::fabs(worldPoint.x - _xMeters) <= _onlineHalfWidth &&
+           std::fabs(worldPoint.y - _yMeters) <= _onlineHalfHeight;
+}
+
+// Flash mouseUpHandler.
+void Trigger::onlineMouseClick()
+{
+    LevelB2D* level = getLevel();
+    if (_repeatType > TriggerRepeatTypeEachTime)
+    {
+        if (!level->actionsContainsLevelItem(this))
+        {
+            level->addToActions(this);
+            _triggeringBody = getLevelBody();
+            _onlineClickHover = _repeatType == TriggerRepeatTypeContinuous;
+        }
+        return;
+    }
+    if (_repeatType == TriggerRepeatTypeOnce)
+    {
+        _onlineClickSpent = true;
+    }
+    if (_delayTime == 0.0f)
+    {
+        level->addToSingleActions(this);
+    }
+    else
+    {
+        _delayVector.push_back(0.0f);
+        level->addToActions(this);
+    }
+}
+
+// Flash mouseOutHandler (registered for "continuously" click triggers).
+void Trigger::onlineMouseMove(const b2Vec2& worldPoint)
+{
+    if (!_onlineClickHover || onlineInButton(worldPoint))
+    {
+        return;
+    }
+    _onlineClickHover = false;
+    if (_triggeringBody == getLevelBody())
+    {
+        _triggeringBody = nullptr;
+    }
 }

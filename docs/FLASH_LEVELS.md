@@ -166,7 +166,7 @@ unknown.
   elements `<sh i="2"><a i="3" p0="100" p1="2"/></sh>`; older Flash and all mobile levels put a
   single action inline: `<sh i="2" a="3" p0="100" p1="2"/>`.
 
-## 6. Converter plan (not implemented)
+## 6. Converter plan (original plan; implemented, see section 10)
 
 1. **Fetch + decode** with `hwflash.py` (or let the player paste exported level XML, which the
    Flash/HTML5 editor's import box also produces — same schema, no crypto involved).
@@ -225,3 +225,110 @@ unknown.
   play time, at human rates, with `ip_tracking` even unless the player is genuinely playing.
 * Unofficial GitHub rehosts of the game ("Happy-Wheels-Source-Code" forks with `get_level.hw`
   files) exist; they were not used.
+
+## 10. Making browser levels behave like the browser game (2026-10-04)
+
+The first converter (sections 5/6) made browser levels *load*; most of them still did not *work*:
+items the Android game lacks were dropped or replaced by grey blocks, text boxes and NPCs were
+missing, click triggers did nothing, "hide vehicle" starts spawned a vehicle, and Box2D 2.3
+differences broke contraptions. Ground truth for everything below is the decompiled Flash v1.87
+code (`binary/flash/decomp/.../game/level`, `userspecials`, `editor/specials`, `character`).
+A Flash reference player was not available: Ruffle runs the decrypted SWF, but the game loads its
+characters and sounds as separate SWFs from swf.totaljerkface.com, which we don't have.
+
+### 10.1 How the PC additions are wired (all marked `// ONLINE (PC addition):`)
+
+* **Gate.** The converter writes `<info ... src="flash" fv="<browser version>">`. `LevelB2D::addInfo`
+  calls `online::setFlashLevel()` for every level it loads, so every hook below is off for the
+  campaign, the editor and editor test-play (`src/online/FlashRuntime.h`). `compare_play` stays
+  73/73.
+* **Item ports.** `src/online/items/`: each browser special registers itself
+  (`FlashSpecialRegistration`, `FlashSpecials.h`); `LevelB2D::addSpecial` asks the registry for
+  ids the Android game lacks (and for overrides: Chain/Token are stubs on Android, Van/Bottle
+  inside groups). Ports derive from `online::FlashItem`, which tells `TargetActionSpecial` which
+  actions run over time (Flash `_instant`). The converter passes the browser parameters of a
+  ported id through unchanged (attributes p0..pN plus string properties such as a text box's
+  `<p7>` caption) and only falls back to placeholder boxes for unported ids.
+* **Art and fonts** come from the player's own SWF at build time:
+  `tools/assets/extract_flash_items.py` renders the symbols listed in
+  `tools/assets/flash_items/*.txt` (one manifest per item family; `clip:<id>` addresses nested
+  clips) with `FlashPartRender.java`, and exports the text-box fonts, into
+  `<exe dir>/generated/flash/` (`index.tsv` holds the registration points). Nothing is committed;
+  without the SWF the items draw plain shapes. The CMake/Gradle post-build hook for it still has
+  to be added (10.6).
+
+### 10.2 Findings and fixes, by how many popular levels they affect
+
+Sample: the 38 levels of section 4 plus 12 of the most played (50 in total, including the top 30
+by plays).
+
+| problem (Flash behaviour) | levels | fix |
+|---|---|---|
+| Text boxes (special 16) not shown | 32/38 | `TextBox` port: embedded Helvetica Neue / Clarendon fonts, colour, size, alignment, rotation, opacity, groups, trigger actions "change opacity" / "slide" (30 Hz frame interpolation as in Flash); levels before 1.69 hide trigger-targeted text until triggered |
+| NPC characters (17) dropped (POKEMON TRAINING's Pokemon, 10 WAYS TO DIE...) | 21/38, 9/12 | `NPCharacter` port: 16 skins from the SWF, Flash ragdoll shapes and limits, hold/release pose, injuries, gore, blood, voices, trigger actions, joints, "any character" triggers, lawnmower grinding |
+| Click triggers (b=6) did nothing (CLICK PARKOUR, Tic-Tac-Toe, MEME FACE...) | 9/38 (229 triggers) | `Trigger::onlineMouseClick` + `online::installClickTriggers`: Flash mouseUpHandler / roll-out semantics, only the topmost enabled button gets the click, unrotated hit box |
+| "Hide vehicle" (info h="t") spawned the vehicle | 13/38 | `online::createBareCharacter`: the character's ragdoll without vehicle, with ejected controls (Flash PlayableCharacterB2D) |
+| Trigger semantics (target order, delays, repeat, disable/enable, sensors, shape/group/joint actions, sounds) | most trigger levels | 30 differences fixed, see below |
+| Furniture: table, chair, TV, boombox, toilet, trash can, food (1, 19, 21, 22, 24, 26, 32) were grey blocks | 6-7 each | ports with Flash break thresholds, pieces, damage frames, sounds, particles; food is stabbable (materials & 6) and grindable |
+| User-built vehicles (`<g v="t">`) didn't drive | 9/38 | `src/online/vehicles/`: grab the handles with space; arrows drive the vehicle's joints (acceleration, lean); space/shift/ctrl actions (jets, arrow guns, brake, lock joints); Z ejects |
+| Box2D 2.3 wakes sleeping bodies as soon as their bounding boxes overlap (Box2D 2.0 only on real contact) | many (sleeping shapes are common) | `online::flashPostStep` puts bodies woken that way back to sleep (POKEMON TRAINING's arena bar fell on its mine row at the start and blew up the arena) |
+| Box2D 2.3 polygon skin (0.6 px) makes items placed a pixel apart touch | many | polygon radius 0 in browser levels (`flashPreStep`) |
+| Groups whose shapes sit far from the group origin: float inertia cancels to <= 0, NaN bodies (even the level body), physics hang | e.g. "string" (37M plays) | converter moves the group body origin onto its shapes (`recenterGroup`); NaN guard restores exploded bodies |
+| Chain (30) and Token (31) were Android stubs; glass (18), meteor (11), buildings (13/14), rail (27), cannon (33), paddle (35) missing | 1-6 each | ports (token HUD and "all tokens" victory, glass shards and stabbing, cannon firing sequence...) |
+| More than 1600 shapes per layer: decoration dropped | big levels (ROPE SWING 4 lost 644 shapes) | `FFDrawNode`'s delegate table grows (vector) |
+| Draw order of levels < 1.8: Flash draws all immovable shapes first, then the others | old levels (POKEMON TRAINING is 1.31) | converter orders shapes that way |
+| v <= 1.84: group shapes pick their collision filter by their own "immovable" flag | old levels | converter `fim` attribute, read by `LevelB2D::addShape` |
+| v <= 1.84 joints: limits only when enabled, torque 50 / speed 0 without motor | old levels | converter (+ `LevelB2D::addJoint`) |
+| Spikes, blades, harpoons and arrows stab materials & 6 (food too) | food levels | gated mask |
+| Lawnmower Man (restored character 6) grinds NPCs and food | levels forcing c=6 | `online::Grindable` (Flash grindShape/removeBody), called from `src/restored/LawnMower.cpp` |
+
+Trigger audit (Flash `Trigger`/`TargetAction*` against the mobile code and the converter), fixed in
+flash-gated paths of `src/game/triggers/*`, `LevelB2D` and the converter: targets run in document
+order; `prepareForTrigger` only for activating triggers; item targets without an action list (fan,
+boost, mine, homing mine, wrecking ball) still activate; v >= 1.87 targets with != 1 action do
+nothing; editor clamps (size, interval, delay, volume, `sd`); delays/intervals in whole 30 Hz
+frames; sound volume; victory while dead; disabling clears pending delays; enabling with a body
+inside fires; "each time"/"continuously" re-activation rules; zero-delay trigger chains recurse
+(capped at depth 256 instead of Flash's stack overflow); safe iteration while triggers disable each
+other; sensor category 24; NPCs count as characters; set fixed / non fixed with Flash's filters,
+density, friction and joint removal; delete shape keeps the art; change collision per version (and
+collision 7); group fixed/collision only on the group's own shapes; change limits enables limits
+(v > 1.84); deleted joints notify their holders; density "NaN" shapes are static. The converter
+no longer removes "unsafe" trigger actions: the runtime handles them. Flash's sound list and the
+Android `soundlist.tsv` are identical (326 ids, same order), so sound ids need no mapping.
+
+### 10.3 POKEMON TRAINING (562820, v1.31, 105M plays)
+
+Was: no Pokemon (9 NPCs dropped) and no texts (15 text boxes: "I CHOOSE YOU!", "POKEMON GYM"...);
+the sleeping red bar of the arena woke on the first step (Box2D 2.3 bounding-box wake), fell 1 px
+onto the 16 mines below and the explosion wrecked the arena; the draw order of a 1.31 level was
+wrong. Now: NPCs posed and asleep until hit, texts shown, mines intact (headless: 16 mines alive
+after 600 frames), Flash draw order.
+
+### 10.4 Characters
+
+Browser characters 6, 7, 8, 10 and 11 map to `restored::hasCharacter(id) ? id : fallback`
+(fallbacks: motor cart, motor cart, moped couple, irresponsible dad, segway guy). A "hide vehicle"
+start with a restored character still uses the wheelchair guy's ragdoll (`BareCharacter.cpp`
+knows only the six mobile characters).
+
+### 10.5 Remaining gaps (by levels affected in the sample)
+
+* 56 browser sounds don't exist in the Android build (Santa, elves, girl and helicopter voices,
+  BoomboxHit): those sound triggers are silent (11 levels).
+* Not ported: the city background (bg 2: Flash CityBackDrop; the night horizon is shown), HTML5-only
+  item ids > 35 (none in the sample), trigger hooks of the wrecking ball, NPC grind art states.
+* Approximations: no Flash reference run was possible; Box2D 2.0 vs 2.3 solver differences remain
+  (stacking, joint stiffness); props use the mobile particle systems; trigger counters of levels
+  <= 1.8 restart where Flash doesn't; restored characters in hide-vehicle starts.
+* CLICK PARKOUR 3's intro relies on a camera position we couldn't verify.
+
+### 10.6 Build and test notes
+
+* `tools/assets/extract_flash_items.py --optional --swf <swf> --ffdec <ffdec> --out <exe dir>/generated`
+  has to run after the build (like `extract_kid_gore.py`); the CMakeLists.txt / Android Gradle hook
+  is not added yet.
+* Tests: `OpenWheels.exe --convert-flash in.xml out.xml`, then `--dump-world` / `--play-level`.
+  Build trees outside the repo need an `assets` junction next to the exe (the exe finds the
+  Android assets by walking up from its folder). Debug switches for the physics changes:
+  `OW_FLASH_KEEP_POLYGON_RADIUS=1`, `OW_FLASH_KEEP_BOX2D_WAKES=1`.

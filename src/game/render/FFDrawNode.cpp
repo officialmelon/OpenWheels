@@ -122,6 +122,7 @@ FFDrawNode::FFDrawNode(float lineWidth)
 , _dirtyGLLine(false)
 , _lineWidth(lineWidth)
 , _defaultLineWidth(lineWidth)
+, _artDelegates(1600)
 , _artDelegateCount(0)
 {
     // _pointSize is left uninitialised (never used), as in the original.
@@ -1204,6 +1205,7 @@ void FFDrawNode::drawDotWithOffset(Vec2 position, Vec2 offset, float radius, Col
                           transform);
     }
 
+    onlineReserveArtDelegate();  // ONLINE (PC addition)
     _artDelegates[_artDelegateCount] = art;
     _artDelegateCount++;
 }
@@ -1283,6 +1285,7 @@ void FFDrawNode::drawPolyWithVerts(Vec2* verts, int count, Color4F fillColor, do
         }
     }
 
+    onlineReserveArtDelegate();  // ONLINE (PC addition)
     _artDelegates[_artDelegateCount] = art;
     _artDelegateCount++;
 }
@@ -1402,4 +1405,13 @@ void FFDrawNode::updateVerts()
         }
     }
     _dirty = true;
+}
+
+// ONLINE (PC addition): grow the delegate table instead of writing past 1600 entries.
+void FFDrawNode::onlineReserveArtDelegate()
+{
+    if (_artDelegateCount >= _artDelegates.size())
+    {
+        _artDelegates.resize(_artDelegates.size() * 2);
+    }
 }

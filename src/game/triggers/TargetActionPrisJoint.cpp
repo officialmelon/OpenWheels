@@ -3,6 +3,7 @@
 #include "DestructionListener.h"
 #include "LevelB2D.h"
 #include "Session.h"
+#include "online/FlashRuntime.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -67,7 +68,15 @@ void TargetActionPrisJoint::singleAction()
         case 2:  // delete joint
             if (_joint != nullptr)
             {
-                getWorld()->DestroyJoint(_joint);
+                b2Joint* joint = _joint;
+                if (online::flashLevel())
+                {
+                    // ONLINE (PC addition): tell the items holding this joint (an NPC's user
+                    // joints, the other trigger actions on it) before it goes, as
+                    // b2World::DestroyBody does for the joints it destroys.
+                    getSession()->getDestructionListener()->SayGoodbye(joint);
+                }
+                getWorld()->DestroyJoint(joint);
                 _joint = nullptr;
                 getLevel()->updateTargetActionPrisJoint(_index, nullptr, this);
             }
@@ -105,6 +114,11 @@ void TargetActionPrisJoint::singleAction()
                 level->convertLengthData(&upper);
                 level->convertLengthData(&lower);
                 _joint->SetLimits(lower, upper);
+                // ONLINE (PC addition): Flash also switches the limits on (levels > 1.84).
+                if (online::flashLevel() && online::flashVersion() > 1.84f)
+                {
+                    _joint->EnableLimit(true);
+                }
             }
             break;
 
@@ -137,6 +151,12 @@ void TargetActionPrisJoint::actions()
         {
             // Unlike the other target actions the counter is left at the duration (sic).
             _counter = duration;
+            // ONLINE (PC addition): Flash restarts the ramp counter (levels > 1.8), so the
+            // next activation ramps again instead of jumping to the speed.
+            if (online::flashLevel() && online::flashVersion() > 1.8f)
+            {
+                _counter = 0.0f;
+            }
             _joint->SetMotorSpeed(targetSpeed);
             getLevel()->removeFromActions(this);
             return;
@@ -145,6 +165,17 @@ void TargetActionPrisJoint::actions()
         _joint->SetMotorSpeed(speed + (targetSpeed - speed) / ((duration - _counter) / getTimeStep()));
     }
     _counter += getTimeStep();
+}
+
+// ONLINE (PC addition): in browser levels the joint reference is dropped when Box2D destroys the
+// joint with one of its bodies (a deleted shape or group), as TargetActionRevJoint does; Flash
+// keeps a harmless detached joint object there.
+void TargetActionPrisJoint::jointWillBeDestroyed(b2Joint* joint)
+{
+    if (online::flashLevel() && joint == _joint)
+    {
+        _joint = nullptr;
+    }
 }
 
 // @00571980

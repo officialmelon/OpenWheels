@@ -4,6 +4,7 @@
 #include "PrivacyPolicyScene.h"
 #include "Settings.h"
 #include "qol/QoL.h"  // QOL (PC addition)
+#include "restored/Restored.h"  // RESTORED (PC addition)
 
 #include "sdkbox/PluginReview.h"
 
@@ -87,6 +88,7 @@ bool AppDelegate::applicationDidFinishLaunching()
     }
     fileUtils->addSearchPath(resolutionDirectory);
     qol::setAssetTier(resolutionDirectory);  // QOL (PC addition): generated/<tier>/ sheets
+    restored::addSearchPaths(resolutionDirectory);  // RESTORED (PC addition): browser characters
     director->setContentScaleFactor(resolutionHeight / designResolutionSize.height);
 
     Settings::getInstance()->getIAPController()->init();

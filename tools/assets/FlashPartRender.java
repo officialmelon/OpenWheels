@@ -3,10 +3,13 @@
 // the clip's registration point on a known pixel. Run as a single-file program (Java 11+):
 //   java -cp "<ffdec>/lib/ffdec_lib.jar;<ffdec>/lib/*" FlashPartRender.java <swf> <commands.txt>
 // Commands, one per line:
-//   tree <symbol class name>
+//   tree <symbol class name | @root>
 //       prints "ROOT <id>", then for every clip reachable from it "S <id> <frameCount>" and one
-//       "P <clipId> <frame> <depth> <characterId> <isClip 0|1> <instanceName|-> <tx> <ty>" per
-//       display-list entry (frames 1-based, translation in twips).
+//       "P <clipId> <frame> <depth> <characterId> <isClip 0|1> <instanceName|-> <tx> <ty> <a> <b> <c> <d>"
+//       per display-list entry (frames 1-based, translation in twips; a b c d = the placement
+//       matrix: scaleX, rotateSkew0, rotateSkew1, scaleY). "@root" walks the SWF's main timeline,
+//       reported as clip id 0 (the player characters' SWFs keep their parts there). Each placed
+//       character's bounds are printed once as "B <characterId> <xmin> <ymin> <xmax> <ymax>" (twips).
 //   render <out.png> <clipId> <frame> <zoom> <ignoredDepths|->
 //       renders the frame (zoom = output pixels per Flash pixel) without the listed depths and
 //       prints "R <out.png> <originX> <originY>", the pixel of the clip's (0,0). The canvas covers
@@ -15,6 +18,7 @@ import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.exporters.commonshape.ExportRectangle;
 import com.jpexs.decompiler.flash.exporters.commonshape.Matrix;
 import com.jpexs.decompiler.flash.tags.DefineSpriteTag;
+import com.jpexs.decompiler.flash.tags.base.BoundedTag;
 import com.jpexs.decompiler.flash.tags.base.CharacterTag;
 import com.jpexs.decompiler.flash.tags.base.RenderContext;
 import com.jpexs.decompiler.flash.timeline.DepthState;
@@ -63,20 +67,34 @@ public class FlashPartRender {
     }
 
     static void tree(SWF swf, String className) {
-        CharacterTag root = swf.getCharacterByClass(className);
-        if (!(root instanceof DefineSpriteTag)) {
-            System.out.println("ERROR no clip with class " + className);
-            return;
-        }
-        System.out.println("ROOT " + root.getCharacterId());
         Set<Integer> seen = new HashSet<>();
+        Set<Integer> bounded = new HashSet<>();
         ArrayDeque<DefineSpriteTag> queue = new ArrayDeque<>();
-        queue.add((DefineSpriteTag) root);
-        seen.add(root.getCharacterId());
-        while (!queue.isEmpty()) {
-            DefineSpriteTag sprite = queue.poll();
-            Timeline tl = sprite.getTimeline();
-            int id = sprite.getCharacterId();
+        boolean mainTimeline = className.equals("@root");
+        if (mainTimeline) {
+            System.out.println("ROOT 0");
+        } else {
+            CharacterTag root = swf.getCharacterByClass(className);
+            if (!(root instanceof DefineSpriteTag)) {
+                System.out.println("ERROR no clip with class " + className);
+                return;
+            }
+            System.out.println("ROOT " + root.getCharacterId());
+            queue.add((DefineSpriteTag) root);
+            seen.add(root.getCharacterId());
+        }
+        while (mainTimeline || !queue.isEmpty()) {
+            Timeline tl;
+            int id;
+            if (mainTimeline) {
+                tl = swf.getTimeline();
+                id = 0;
+                mainTimeline = false;
+            } else {
+                DefineSpriteTag sprite = queue.poll();
+                tl = sprite.getTimeline();
+                id = sprite.getCharacterId();
+            }
             System.out.println("S " + id + " " + tl.getFrameCount());
             for (int f = 0; f < tl.getFrameCount(); f++) {
                 Frame frame = tl.getFrame(f);
@@ -88,8 +106,14 @@ public class FlashPartRender {
                     String name = ds.instanceName == null || ds.instanceName.isEmpty() ? "-" : ds.instanceName;
                     int tx = ds.matrix == null ? 0 : ds.matrix.translateX;
                     int ty = ds.matrix == null ? 0 : ds.matrix.translateY;
+                    Matrix mm = ds.matrix == null ? new Matrix() : new Matrix(ds.matrix);
                     System.out.println("P " + id + " " + (f + 1) + " " + e.getKey() + " " + ds.characterId + " "
-                                       + (isClip ? 1 : 0) + " " + name + " " + tx + " " + ty);
+                                       + (isClip ? 1 : 0) + " " + name + " " + tx + " " + ty + " "
+                                       + mm.scaleX + " " + mm.rotateSkew0 + " " + mm.rotateSkew1 + " " + mm.scaleY);
+                    if (ch instanceof BoundedTag && bounded.add(ds.characterId)) {
+                        RECT r = ((BoundedTag) ch).getRect();
+                        System.out.println("B " + ds.characterId + " " + r.Xmin + " " + r.Ymin + " " + r.Xmax + " " + r.Ymax);
+                    }
                     if (isClip && seen.add(ds.characterId)) {
                         queue.add((DefineSpriteTag) ch);
                     }

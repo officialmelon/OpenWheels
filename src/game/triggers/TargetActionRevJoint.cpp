@@ -3,6 +3,7 @@
 #include "DestructionListener.h"
 #include "LevelB2D.h"
 #include "Session.h"
+#include "online/FlashRuntime.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -65,7 +66,15 @@ void TargetActionRevJoint::singleAction()
         case 2:  // delete joint
             if (_joint != nullptr)
             {
-                getWorld()->DestroyJoint(_joint);
+                b2Joint* joint = _joint;
+                if (online::flashLevel())
+                {
+                    // ONLINE (PC addition): tell the items holding this joint (an NPC's user
+                    // joints, the other trigger actions on it) before it goes, as
+                    // b2World::DestroyBody does for the joints it destroys.
+                    getSession()->getDestructionListener()->SayGoodbye(joint);
+                }
+                getWorld()->DestroyJoint(joint);
                 _joint = nullptr;
                 getLevel()->updateTargetActionRevJoint(_index, nullptr, this);
             }
@@ -103,6 +112,11 @@ void TargetActionRevJoint::singleAction()
                 level->convertRotationData(&lower);
                 level->convertRotationData(&upper);
                 _joint->SetLimits(lower, upper);
+                // ONLINE (PC addition): Flash also switches the limits on (levels > 1.84).
+                if (online::flashLevel() && online::flashVersion() > 1.84f)
+                {
+                    _joint->EnableLimit(true);
+                }
             }
             break;
 

@@ -213,6 +213,34 @@ if(Python3_FOUND)
         COMMENT "Building the kid's gore sprites from ${OW_FLASH_SWF} (skipped if missing)")
 endif()
 
+# RESTORED (PC addition): the browser game's player characters the mobile port left out (Lawnmower
+# Man so far), rebuilt from the player's own browser character<N>.swf files with FFDec + Java
+# (+ ffmpeg for sounds) by tools/assets/extract_character.py into <exe dir>/generated/restored/.
+# Skipped quietly (the character list stays the original six) when the inputs are missing.
+set(OW_FLASH_CHARACTERS "${CMAKE_CURRENT_SOURCE_DIR}/binary/flash/swf/characters"
+    CACHE PATH "Folder with the browser game's character<N>.swf (from your own copy)")
+set(OW_FLASH_SOUNDS "${CMAKE_CURRENT_SOURCE_DIR}/binary/flash/swf/happy_sounds_v1_72.swf"
+    CACHE FILEPATH "The browser game's sound SWF (from your own copy)")
+if(Python3_FOUND)
+    add_custom_command(TARGET ${APP_NAME} POST_BUILD
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/assets/extract_character.py
+                --optional --swf-dir "${OW_FLASH_CHARACTERS}" --sounds-swf "${OW_FLASH_SOUNDS}"
+                --ffdec "${OW_FFDEC_DIR}" --out "$<TARGET_FILE_DIR:${APP_NAME}>/generated/restored"
+        COMMENT "Building the restored browser characters from ${OW_FLASH_CHARACTERS} (skipped if missing)")
+endif()
+
+# ONLINE (PC addition): art for the browser-level items the mobile game lacks (furniture, food,
+# glass, buildings, NPCs, text-box fonts...), rendered from the player's own browser-game SWF by
+# tools/assets/extract_flash_items.py into <exe dir>/generated/. Without it those items draw as
+# plain shapes. Skipped quietly when the inputs are missing.
+if(Python3_FOUND)
+    add_custom_command(TARGET ${APP_NAME} POST_BUILD
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/assets/extract_flash_items.py
+                --optional --swf "${OW_FLASH_SWF}" --ffdec "${OW_FFDEC_DIR}"
+                --out "$<TARGET_FILE_DIR:${APP_NAME}>/generated"
+        COMMENT "Building the browser-level item art from ${OW_FLASH_SWF} (skipped if missing)")
+endif()
+
 # Copy the runtime DLLs of every imported engine dependency next to the exe
 # (glew32, libcurl, websockets, sqlite3, libmpg123, OpenAL32, libogg/vorbis,
 # zlib1, iconv, libcrypto/libssl ...), like the template's post-build step.

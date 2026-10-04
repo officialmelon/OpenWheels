@@ -7,6 +7,7 @@
 #include "cocos2d.h"
 #include "GameplayBtn.h"
 #include "GameplayControls.h"
+#include "online/vehicles/UserVehicle.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -30,6 +31,9 @@ const std::map<EventKeyboard::KeyCode, Binding>& bindings() {
         {K::KEY_LEFT_ARROW, {kStateBit, 0x08}},  {K::KEY_A, {kStateBit, 0x08}},
         {K::KEY_SPACE, {kStateBit, 0x10}},
         {K::KEY_Z, {kStateBit, 0x80}},
+        // RESTORED (PC addition): the restored characters' extra buttons (Flash shift / ctrl).
+        {K::KEY_LEFT_SHIFT, {kStateBit, 0x20}},  {K::KEY_RIGHT_SHIFT, {kStateBit, 0x20}},
+        {K::KEY_LEFT_CTRL, {kStateBit, 0x40}},   {K::KEY_RIGHT_CTRL, {kStateBit, 0x40}},
         {K::KEY_ESCAPE, {kPause, 0}},            {K::KEY_P, {kPause, 0}},
         {K::KEY_R, {kReset, 0}},
     };
@@ -103,15 +107,39 @@ void release(EventKeyboard::KeyCode key) {
     Director::getInstance()->getOpenGLView()->handleTouchesEnd(1, &id, &x, &y);
 }
 
+// ONLINE (PC addition): keys with no on-screen button, read by browser levels only (Gameplay
+// ORs online::pcExtraControlBits() into the control byte): Shift 0x20 / Ctrl 0x40 = the browser
+// game's secondary actions of user vehicles, Z 0x80 = eject from a user vehicle.
+void onlineExtraKey(EventKeyboard::KeyCode key, bool down) {
+    using K = EventKeyboard::KeyCode;
+    switch (key) {
+    case K::KEY_LEFT_SHIFT: case K::KEY_RIGHT_SHIFT:
+        online::setPcExtraKey(0x20, down);
+        break;
+    case K::KEY_LEFT_CTRL: case K::KEY_RIGHT_CTRL:
+        online::setPcExtraKey(0x40, down);
+        break;
+    case K::KEY_Z:
+        online::setPcExtraKey(0x80, down);
+        break;
+    default:
+        break;
+    }
+}
+
 }  // namespace
 
 void installKeyboardControls() {
     auto listener = EventListenerKeyboard::create();
     listener->onKeyPressed = [](EventKeyboard::KeyCode key, Event*) {
+        onlineExtraKey(key, true);  // ONLINE (PC addition)
         auto it = bindings().find(key);
         if (it != bindings().end()) press(key, it->second);
     };
-    listener->onKeyReleased = [](EventKeyboard::KeyCode key, Event*) { release(key); };
+    listener->onKeyReleased = [](EventKeyboard::KeyCode key, Event*) {
+        onlineExtraKey(key, false);  // ONLINE (PC addition)
+        release(key);
+    };
     Director::getInstance()->getEventDispatcher()->addEventListenerWithFixedPriority(listener, 1);
 }
 

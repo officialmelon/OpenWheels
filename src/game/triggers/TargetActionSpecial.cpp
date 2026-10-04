@@ -2,6 +2,8 @@
 
 #include "LevelB2D.h"
 #include "Trigger.h"
+#include "online/FlashRuntime.h"           // ONLINE (PC addition)
+#include "online/items/FlashSpecials.h"   // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -45,6 +47,14 @@ bool TargetActionSpecial::initWithSpecial(LevelItem* levelItem, Trigger* trigger
     _levelItem = levelItem;
     _properties = properties;
     _instant = (_actionIndex != 3);
+    // ONLINE (PC addition): browser-only items say which of their actions run over time.
+    if (online::flashLevel())
+    {
+        if (online::FlashItem* flashItem = dynamic_cast<online::FlashItem*>(levelItem))
+        {
+            _instant = flashItem->isInstantAction(_actionIndex);
+        }
+    }
     return true;
 }
 
@@ -69,6 +79,13 @@ void TargetActionSpecial::actions()
     if (_levelItem->triggerRepeatActivation(_trigger, _actionIndex, _properties, _counter))
     {
         getLevel()->removeFromActions(this);
+        // ONLINE (PC addition): Flash TargetActionSpecial restarts its counter (levels > 1.8),
+        // so a trigger firing again replays the action.
+        if (online::flashLevel() && online::flashVersion() > 1.8f)
+        {
+            _counter = 0.0f;
+            return;
+        }
     }
     _counter += getTimeStep();
 }

@@ -1,3 +1,4 @@
+#include "online/FlashRuntime.h"  // ONLINE (PC addition)
 #include "BladeWeapon.h"
 
 #include <algorithm>
@@ -48,6 +49,7 @@ bool BladeWeapon::init(LevelDataElement* element, b2Body* groupBody, b2Vec2 grou
     loadSpriteFrames(LevelItemTextureIdLevelItems);
     _fleshSound = nullptr;
     _stabbableMaterials = 2;
+    if (online::flashLevel()) _stabbableMaterials |= 4;  // ONLINE (PC addition): Flash stabs materials & 6 (food)
     _bladeType = 1;
 
     float x = 0.0f;

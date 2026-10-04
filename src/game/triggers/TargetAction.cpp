@@ -5,6 +5,10 @@
 #include "2d/CCSprite.h"
 #include "LevelB2D.h"
 #include "ShapeItem.h"
+#include "DestructionListener.h"
+#include "Session.h"
+#include "online/FlashRuntime.h"  // ONLINE (PC addition)
+#include "online/TriggerFilters.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -96,6 +100,11 @@ void TargetAction::updateTargetActionsForShapeItem(ShapeItem* shapeItem, b2Fixtu
 // @005700c8
 void TargetAction::singleAction()
 {
+    if (online::flashLevel())
+    {
+        onlineSingleAction();  // ONLINE (PC addition)
+        return;
+    }
     switch (_action)
     {
         case 0:  // wake
@@ -315,6 +324,227 @@ void TargetAction::singleAction()
         }
 
         default:  // 3 (fade) runs in actions()
+            break;
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// ONLINE (PC addition): Flash TargetAction.singleAction (browser levels). Flash rebuilds a shape
+// when it changes between fixed and non-fixed (Box2D 2.0 has no body types); here the body type
+// is switched and the visible differences of the rebuild are reproduced: the "fixed" collision
+// filter variants (levels > 1.84), the default friction 0.2 / restitution 0 of the new shape,
+// density 1 for a shape that was fixed in the editor, and the joints of a body that becomes
+// fixed are destroyed with it. "Delete shape" removes the physics and leaves the art frozen where
+// it is, "change collision" uses Flash's per-version filters. Targets that no longer exist are
+// skipped (Flash keeps null references and checks them).
+void TargetAction::onlineSingleAction()
+{
+    const float version = online::flashVersion();
+    switch (_action)
+    {
+        case 0:  // wake from sleep
+            if (_shape != nullptr && _shape->GetBody() != nullptr)
+            {
+                _shape->GetBody()->SetAwake(true);
+            }
+            break;
+
+        case 1:  // set to fixed
+        {
+            if (_shape == nullptr)
+            {
+                break;
+            }
+            b2Body* body = _shape->GetBody();
+            if (!(body->GetMass() > 0.0f))
+            {
+                break;
+            }
+            online::destroyJointsOf(body);
+            if (_shapeItem != nullptr)
+            {
+                _shapeItem->setStatic(true);
+            }
+            body->SetType(b2_staticBody);
+            b2Filter filter = _shape->GetFilterData();
+            online::filterToFixed(&filter, version);
+            _shape->SetFilterData(filter);
+            _shape->SetFriction(0.2f);
+            _shape->SetRestitution(0.0f);
+            break;
+        }
+
+        case 2:  // set to non fixed
+        {
+            if (_shape == nullptr)
+            {
+                break;
+            }
+            b2Body* body = _shape->GetBody();
+            if (body->GetMass() != 0.0f || getLevel()->onlineNanMassBodies.count(body))
+            {
+                break;
+            }
+            b2Filter filter = _shape->GetFilterData();
+            online::filterToNonFixed(&filter, version);
+            if (body == getLevelBody())
+            {
+                // Mobile path of the original (a new body for the fixture), with Flash's values.
+                b2FixtureDef fixtureDef;
+                // Flash builds fixed shapes with density 0 and gives the new body density 1.
+                fixtureDef.density = 1.0f;
+                fixtureDef.friction = 0.2f;
+                fixtureDef.restitution = 0.0f;
+                fixtureDef.isSensor = _shape->IsSensor();
+                fixtureDef.filter = filter;
+                b2BodyDef bodyDef;
+                bodyDef.type = b2_dynamicBody;
+                b2Body* newBody = getWorld()->CreateBody(&bodyDef);
+                fixtureDef.shape = _shape->GetShape();
+                b2Fixture* newFixture = newBody->CreateFixture(&fixtureDef);
+                const int material = getLevel()->getFixtureMaterial(_shape);
+                getLevel()->removeFixtureMaterial(_shape);
+                if (material != 0)
+                {
+                    getLevel()->addFixtureMaterial(newFixture, material);
+                }
+                if (_shapeItem != nullptr)
+                {
+                    _shapeItem->setStatic(false);
+                    _shapeItem->setFixtureRef(newFixture);
+                    _shapeItem->setPtmRatio(getPtm());
+                    _shapeItem->removeFromOwner(false);
+                    getLevel()->addShapeItem(_shapeItem);
+                    getLevel()->updateTargetActionsFor(_shapeItem->getIndex(), _shapeItem, _shape,
+                                                       newFixture, this);
+                }
+                getLevelBody()->DestroyFixture(_shape);
+                _shape = newFixture;
+            }
+            else
+            {
+                if (_shapeItem != nullptr)
+                {
+                    _shapeItem->setStatic(false);
+                }
+                body->SetType(b2_dynamicBody);
+                body->SetAwake(true);
+                _shape->SetFilterData(filter);
+                _shape->SetFriction(0.2f);
+                _shape->SetRestitution(0.0f);
+            }
+            break;
+        }
+
+        case 4:  // apply impulse: {x, y, spin}
+        {
+            if (_shape == nullptr)
+            {
+                break;
+            }
+            b2Body* body = _shape->GetBody();
+            const float mass = body->GetMass();
+            if (!(mass > 0.0f) || _properties.size() < 2)
+            {
+                break;
+            }
+            LevelB2D* level = getLevel();
+            float y = _properties[1];
+            level->convertDirectionIfNecessaryBasedOnRegistration(&y);
+            body->ApplyLinearImpulse(mass * b2Vec2(_properties[0], y), body->GetWorldCenter(),
+                                     true);
+            float spin = _properties.size() > 2 ? _properties[2] : 0.0f;
+            if (spin != 0.0f && spin == spin)
+            {
+                level->convertRotationData(&spin);
+                body->SetAngularVelocity(body->GetAngularVelocity() + spin);
+            }
+            break;
+        }
+
+        case 5:  // delete shape: the physics goes, the art stays where it is
+        {
+            if (_shape == nullptr)
+            {
+                break;
+            }
+            b2Body* body = _shape->GetBody();
+            getLevel()->removeFixtureMaterial(_shape);
+            if (_shapeItem != nullptr)
+            {
+                _shapeItem->setStatic(true);  // freeze the art at the current transform
+                _shapeItem->setFixtureRef(nullptr);
+            }
+            if (body == getLevelBody())
+            {
+                body->DestroyFixture(_shape);
+            }
+            else
+            {
+                getWorld()->DestroyBody(body);
+            }
+            _shape = nullptr;
+            if (_shapeItem != nullptr)
+            {
+                getLevel()->updateTargetActionsFor(_shapeItem->getIndex(), _shapeItem, nullptr,
+                                                   nullptr, this);
+            }
+            break;
+        }
+
+        case 6:  // delete self
+        {
+            unsigned int index = (unsigned int)-1;
+            if (_shape != nullptr)
+            {
+                b2Body* body = _shape->GetBody();
+                getLevel()->removeFixtureMaterial(_shape);
+                if (_shapeItem != nullptr)
+                {
+                    _shapeItem->setFixtureRef(nullptr);
+                }
+                if (body == getLevelBody())
+                {
+                    body->DestroyFixture(_shape);
+                }
+                else
+                {
+                    getWorld()->DestroyBody(body);
+                }
+                _shape = nullptr;
+            }
+            if (_shapeItem != nullptr)
+            {
+                index = _shapeItem->getIndex();
+                _shapeItem->removeFromDrawNode();
+                _shapeItem->removeFromOwner(true);
+                _shapeItem = nullptr;
+            }
+            if (index != (unsigned int)-1)
+            {
+                getLevel()->updateTargetActionsFor(index, nullptr, nullptr, nullptr, this);
+            }
+            break;
+        }
+
+        case 7:  // change collision: {collision type}
+        {
+            if (_shape == nullptr || _properties.empty())
+            {
+                break;
+            }
+            const int collision = (int)_properties[0];
+            const bool fixed = _shape->GetBody()->GetMass() == 0.0f &&
+                               !getLevel()->onlineNanMassBodies.count(_shape->GetBody());
+            b2Filter filter = _shape->GetFilterData();
+            bool sensor = false;
+            online::filterForCollision(&filter, &sensor, collision, fixed, version);
+            _shape->SetSensor(sensor);
+            _shape->SetFilterData(filter);
+            break;
+        }
+
+        default:  // 3 (change opacity) runs in actions()
             break;
     }
 }

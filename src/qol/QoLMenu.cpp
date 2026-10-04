@@ -162,7 +162,7 @@ void QoLMenu::rowPressed(Ref* sender)
         HWWindow::createAlertWindow(
             "Keyboard controls",
             "Up / W: accelerate\nDown / S: reverse\nLeft / A: lean back\nRight / D: lean forward\n"
-            "Space: primary action\nZ: eject\nEsc / P: pause\nR: restart level\nF11: fullscreen",
+            "Space: primary action\nShift / Ctrl: extra actions (restored characters)\nZ: eject\nEsc / P: pause\nR: restart level\nF11: fullscreen",
             "Ok", "", true, false, false);
         return;
     default:

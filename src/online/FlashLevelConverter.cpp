@@ -35,6 +35,8 @@
 #include <vector>
 
 #include "online/FlashGeometry.h"
+#include "online/items/FlashSpecials.h"
+#include "restored/Restored.h"
 #include "tinyxml2/tinyxml2.h"
 
 namespace online {
@@ -50,7 +52,7 @@ const double kMaxSize = 100000.0;      // px
 const double kMinPhysicalSize = 0.5;   // px; zero-area dynamic fixtures give NaN mass centres
 const size_t kMaxPhysicsVerts = 8;     // b2_maxPolygonVertices in the game's Box2D
 const size_t kMaxArtVerts = 100;       // LevelB2D::addShape Vec2 verts[100]
-const int kDrawDelegateLimit = 1590;   // FFDrawNode::_artDelegates[1600] per shape layer
+const int kDrawDelegateLimit = 200000; // FFDrawNode grows its delegate table for browser levels (PC addition)
 const int kMaxTargetIndex = 10000;     // LevelB2D::_targetActions keys: shapes < 10000 <= joints...
 const int kSoundCount = 326;           // SoundList::_sfxArray
 
@@ -106,6 +108,8 @@ void appendEscaped(std::string& out, const std::string& text) {
         case '<': out += "&lt;"; break;
         case '>': out += "&gt;"; break;
         case '"': out += "&quot;"; break;
+        case 13: out += "&#13;"; break;  // keep line breaks (text box captions)
+        case 10: out += "&#10;"; break;
         default:
             if (c < 0x20) {
                 out += ' ';
@@ -214,6 +218,7 @@ struct ShapeRec {
     double area = 0.0;               // px^2, decides which decoration goes first when over budget
     bool referenced = false;         // by a joint or a trigger
     bool dropped = false;
+    bool flashImmovable = false;     // Flash p5 as written (draw order of levels < 1.8)
     int outIndex = -1;
 };
 
@@ -231,6 +236,7 @@ struct SpecialRec {
     bool jointable = false;          // getJointBody returns a body
     BodyKind jointBody = BodyKind::None;
     int placeholder = -1;            // index into extra shapes
+    bool ported = false;             // a PC port of the browser class (online/items)
     ChainInfo chain;
     int outIndex = -1;
 };
@@ -267,6 +273,7 @@ struct TargetRec {
     std::string kind;                // t sh j g sp
     int index = -1;                  // old index
     std::vector<Action> actions;
+    bool listFormat = false;         // actions came from <a> children (Flash v >= 1.87 loader)
 };
 
 struct TriggerRec {
@@ -277,6 +284,60 @@ struct TriggerRec {
     double delay = 0.0;
     std::vector<TargetRec> targets;
 };
+
+// ---------------------------------------------------------------------------------------------
+// Ported browser classes (online/items, registered at startup).
+
+bool mobileHasSpecial(int type) {
+    switch (type) {
+    case 0: case 2: case 3: case 4: case 5: case 6: case 7: case 8: case 9: case 10: case 12:
+    case 15: case 20: case 23: case 25: case 28: case 29: case 30: case 31: case 34:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// Whether the level loader will build this special with a port instead of the mobile class.
+bool portedSpecial(int type, bool inGroup) {
+    if (!flashSpecialImplemented(type)) return false;
+    if (inGroup && !flashSpecialGroupable(type)) return false;
+    if (!mobileHasSpecial(type)) return true;
+    switch (flashSpecialUse(type)) {
+    case FlashSpecialUse::Override: return true;
+    case FlashSpecialUse::InGroup: return inGroup;
+    default: return false;
+    }
+}
+
+bool xmlFlag(const XMLElement* e, const char* key, bool def) {
+    const char* v = e->Attribute(key);
+    if (!v) return def;
+    if (!strcmp(v, "t") || !strcmp(v, "1") || !strcmp(v, "true")) return true;
+    if (!strcmp(v, "f") || !strcmp(v, "0") || !strcmp(v, "false")) return false;
+    return def;
+}
+
+// Flash RefSprite._joinable of the ported classes (interactive ones only, where it depends).
+bool portJointable(const XMLElement* e, int type) {
+    switch (type) {
+    case 18: return true;                                 // Glass
+    case 1: case 21: case 22: case 26: case 32: case 30:  // p4 interactive
+    case 0:
+        return xmlFlag(e, "p4", true);
+    case 19: case 24: case 20: case 34:                   // p5 interactive
+        return xmlFlag(e, "p5", true);
+    case 17: return xmlFlag(e, "p7", true);              // NPCharacter
+    default: return false;
+    }
+}
+
+// In-group ports are the non-interactive (art-only) variants, except these.
+bool portAddsGroupFixture(const XMLElement* e, int type) {
+    (void)e;
+    (void)type;
+    return false;
+}
 
 const char* const kCharacterNames[] = {
     "", "Wheelchair Guy", "Segway Guy", "Irresponsible Dad", "Effective Shopper", "Moped Couple",
@@ -319,6 +380,7 @@ private:
                                   bool* jointable, BodyKind* jointBody, bool* addsGroupFixture);
     bool placeholderFor(const XMLElement* e, int type, bool inGroup, ShapeRec* shape);
     void buildChain(const XMLElement* e, SpecialRec& rec);
+    Node passThroughSpecial(const XMLElement* e, int type);
     // groups
     void convertGroup(const XMLElement* e);
     // joints / triggers
@@ -346,6 +408,7 @@ private:
     std::map<int, std::vector<std::string>> _artCache;
 
     std::vector<ShapeRec> _shapes;    // top-level <sh>, old order
+    std::vector<int> _shapeOrder;     // output order of _shapes (assignIndices)
     std::vector<ShapeRec> _extra;     // placeholders and chain links (appended after _shapes)
     std::vector<SpecialRec> _specials;
     std::vector<GroupRec> _groups;
@@ -381,11 +444,15 @@ bool Converter::convertInfo(const XMLElement* info) {
     int mobile = character;
     switch (character) {
     case 1: case 2: case 3: case 4: case 5: case 9: break;
-    case 6: mobile = 4; break;   // lawnmower -> motor cart
-    case 7: mobile = 4; break;   // explorer's mine cart -> motor cart
-    case 8: mobile = 5; break;   // santa's sleigh with elves -> moped couple
-    case 10: mobile = 3; break;  // irresponsible mom -> irresponsible dad
-    case 11: mobile = 2; break;  // helicopter man -> segway guy
+    // Browser-only characters: the restored one when the game has it (src/restored), else the
+    // closest mobile character.
+    case 6: case 7: case 8: case 10: case 11: {
+        static const int kFallback[12] = {0, 0, 0, 0, 0, 0, 4, 4, 5, 0, 3, 2};
+        // 6 lawnmower -> motor cart, 7 explorer's mine cart -> motor cart, 8 santa's sleigh ->
+        // moped couple, 10 irresponsible mom -> irresponsible dad, 11 helicopter man -> segway
+        mobile = restored::hasCharacter(character) ? character : kFallback[character];
+        break;
+    }
     default: mobile = 1; break;
     }
     if (mobile != character) {
@@ -411,6 +478,9 @@ bool Converter::convertInfo(const XMLElement* info) {
     _info.set("sh", "10000");
     _info.set("r", "1");
     _info.set("cw", "1");
+    // Runtime gate for the PC additions (online/FlashRuntime.h): browser semantics on.
+    _info.set("src", "flash");
+    _info.set("fv", formatNumber(_version));
     _report.character = mobile;
     _report.forceCharacter = forced;
     return true;
@@ -606,6 +676,7 @@ bool Converter::convertShape(const XMLElement* e, bool inGroup, ShapeRec& out) {
     bool hasHeight = readNum(e, "p3", &height);
     double rotation = angleDeg(num(e, "p4", 0.0));
     bool immovable = flag(e, "p5", false);
+    out.flashImmovable = immovable;
     bool sleeping = flag(e, "p6", false);
     double density = numClamped(e, "p7", 1.0, 0.1, 100.0);  // RefShape.density clamp
     long long fill = inum(e, "p8", 4032711);
@@ -662,9 +733,22 @@ bool Converter::convertShape(const XMLElement* e, bool inGroup, ShapeRec& out) {
     n.setInt("p9", outline >= 0 ? (outline & 0xffffff) : -1);
     n.setNum("p10", visible ? opacity : 0.0);  // no fill in Flash: the mobile game draws no outlines
     n.setInt("p11", collision);
+    // Flash <= 1.84 picks a group shape's collision filter by the shape's own "immovable"
+    // (later versions by the group's): LevelB2D reads this for converted levels (PC addition).
+    if (inGroup && out.flashImmovable && _version <= 1.84) n.set("fim", "t");
+    // A density that is not a number (p7="NaN", seen in many levels) passes RefShape's clamp as
+    // NaN: Box2D 2.0 SetMassFromShapes then leaves invMass = invI = 0, so the body is static
+    // although the shape is not "fixed" (filters stay the movable ones; "set to fixed / non fixed"
+    // and impulses do nothing on it since mass > 0 and mass == 0 are both false). LevelB2D makes
+    // such bodies static for converted levels (PC addition).
+    if (interactive && !immovable) {
+        const char* text = attr(e, "p7");
+        double parsed;
+        if (text && *text && !readNum(e, "p7", &parsed)) n.set("nm", "t");
+    }
     // Keep the attribute order the shipped levels use (t i p0..p11, then the vertex list).
     std::vector<std::pair<std::string, std::string>> ordered;
-    for (const char* key : {"t", "i", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10", "p11"}) {
+    for (const char* key : {"t", "i", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10", "p11", "fim", "nm"}) {
         if (const std::string* value = n.get(key)) ordered.emplace_back(key, *value);
     }
     n.attrs.swap(ordered);
@@ -994,7 +1078,15 @@ void Converter::convertSpecial(const XMLElement* e, int index) {
     int type = inum(e, "t", -1);
     rec.type = type;
     bool addsGroupFixture = false;
-    if (sanitizeSupportedSpecial(e, type, false, rec.node, &rec.jointable, &rec.jointBody, &addsGroupFixture)) {
+    if (portedSpecial(type, false)) {
+        // The game has a port of the browser class: hand it the browser parameters as they are.
+        rec.fate = SpecialFate::Keep;
+        rec.ported = true;
+        rec.node = passThroughSpecial(e, type);
+        rec.jointable = portJointable(e, type);
+        rec.jointBody = rec.jointable ? BodyKind::Own : BodyKind::None;
+        count("ported:" + std::to_string(type));
+    } else if (sanitizeSupportedSpecial(e, type, false, rec.node, &rec.jointable, &rec.jointBody, &addsGroupFixture)) {
         rec.fate = SpecialFate::Keep;
     } else if (type == 30) {
         rec.fate = SpecialFate::Chain;
@@ -1021,8 +1113,58 @@ void Converter::convertSpecial(const XMLElement* e, int index) {
     _specials.push_back(rec);
 }
 
+// Ported browser classes read their own parameters: copy p0..pN (attributes, and the string
+// properties Flash stores as child elements, e.g. a text box's caption <p7>) unchanged.
+Node Converter::passThroughSpecial(const XMLElement* e, int type) {
+    Node node("sp");
+    node.setInt("t", type);
+    for (const tinyxml2::XMLAttribute* a = e->FirstAttribute(); a; a = a->Next()) {
+        const char* name = a->Name();
+        if (name[0] == 'p' && name[1] >= '0' && name[1] <= '9') node.set(name, a->Value());
+    }
+    for (const XMLElement* c = e->FirstChildElement(); c; c = c->NextSiblingElement()) {
+        const char* name = c->Value();
+        if (name && name[0] == 'p' && name[1] >= '0' && name[1] <= '9') {
+            node.set(name, c->GetText() ? c->GetText() : "");
+        }
+    }
+    // Positions are clamped like every other item's.
+    node.setNum("p0", coord(num(e, "p0", 0.0)));
+    node.setNum("p1", coord(num(e, "p1", 0.0)));
+    if (!node.get("p2")) node.setNum("p2", 0.0);  // LevelB2D::addGroup reads p2 as the rotation
+    return node;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Groups
+
+// The group body sits at the group's x/y; its shapes are placed at (p0 + ox, p1 + oy) around it,
+// possibly kilometres away (editors moved the group's handle, not its shapes). Flash computes the
+// body's inertia in doubles; Box2D 2.3 does I_origin - m*|c|^2 in floats, which cancels to <= 0
+// for a small shape far from the origin and turns the body (and through the contact solver even
+// the static level body) into NaN (e.g. "string" 2534559). Move the body origin onto the shapes:
+// world placement is unchanged (x' = x + R(c + o), o' = -c with c the shapes' mean position).
+void recenterGroup(GroupRec& g) {
+    double sx = 0, sy = 0;
+    int n = 0;
+    for (const ShapeRec& s : g.shapes) {
+        if (!s.interactive) continue;
+        sx += atof(s.node.get("p0")->c_str());
+        sy += atof(s.node.get("p1")->c_str());
+        n++;
+    }
+    if (n == 0) return;
+    const double cx = sx / n, cy = sy / n;
+    const double ox = atof(g.node.get("ox")->c_str()), oy = atof(g.node.get("oy")->c_str());
+    const double lx = cx + ox, ly = cy + oy;  // shapes' centre relative to the body origin (px)
+    if (std::hypot(lx, ly) < 300.0) return;    // close enough for float inertia
+    const double r = atof(g.node.get("r")->c_str()) * kPi / 180.0;
+    const double x = atof(g.node.get("x")->c_str()), y = atof(g.node.get("y")->c_str());
+    g.node.setNum("x", x + lx * std::cos(r) - ly * std::sin(r));
+    g.node.setNum("y", y + lx * std::sin(r) + ly * std::cos(r));
+    g.node.setNum("ox", -cx);
+    g.node.setNum("oy", -cy);
+}
 
 void Converter::convertGroup(const XMLElement* e) {
     GroupRec g;
@@ -1038,15 +1180,29 @@ void Converter::convertGroup(const XMLElement* e) {
     n.setNum("o", numClamped(e, "o", 100.0, 0.0, 100.0));  // mobile default would be 0 (invisible)
     n.setBool("im", flag(e, "im", false));
     n.setBool("fr", flag(e, "fr", false));
-    if (attr(e, "v") && flag(e, "v", false)) {
+    const bool vehicle = attr(e, "v") && flag(e, "v", false);
+    if (vehicle) {
         _report.hasUserVehicle = true;
         count("vehicle");
+        // ONLINE (PC addition): RefVehicle settings for src/online/vehicles/UserVehicle.cpp
+        // (UserLevelLoader: int(@sb) etc., clamped as the RefVehicle setters do).
+        n.setBool("v", true);
+        n.setInt("sb", inumClamped(e, "sb", 0, 0, 3));
+        n.setInt("sh", inumClamped(e, "sh", 0, 0, 3));
+        n.setInt("ct", inumClamped(e, "ct", 0, 0, 3));
+        n.setInt("a", inumClamped(e, "a", 0, 1, 10));
+        n.setInt("l", inumClamped(e, "l", 0, 0, 10));
+        n.setInt("cp", inumClamped(e, "cp", 0, 0, 3));
+        n.setBool("lo", flag(e, "lo", false));
     }
 
     for (const XMLElement* s = e->FirstChildElement("sh"); s; s = s->NextSiblingElement("sh")) {
         ShapeRec shape;
         if (!convertShape(s, true, shape)) continue;
+        // ONLINE (PC addition): vehicle shapes are handles unless saved with h="f".
+        if (vehicle && attr(s, "h") && !strcmp(attr(s, "h"), "f")) shape.node.set("vh", "f");
         if (shape.interactive) g.hasBody = true;
+        if (shape.node.get("nm")) n.set("nm", "t");  // NaN mass: the whole group body is static
         g.shapes.push_back(shape);
     }
     for (const XMLElement* s = e->FirstChildElement("sp"); s; s = s->NextSiblingElement("sp")) {
@@ -1055,6 +1211,13 @@ void Converter::convertGroup(const XMLElement* e) {
         bool jointable = false, addsFixture = false;
         BodyKind body;
         // Group-aware mobile specials; the others are drawn at their raw (local) position.
+        if (portedSpecial(type, true)) {
+            g.specials.push_back(passThroughSpecial(s, type));
+            if (g.foreground) g.specials.back().set("fg", "t");  // draws with the foreground group
+            if (portAddsGroupFixture(s, type)) g.hasBody = true;
+            count("ported:" + std::to_string(type));
+            continue;
+        }
         bool groupAware = type == 3 || type == 6 || type == 23 || type == 29 || type == 34;
         if (groupAware && sanitizeSupportedSpecial(s, type, true, special, &jointable, &body, &addsFixture)) {
             if (addsFixture) g.hasBody = true;
@@ -1075,6 +1238,7 @@ void Converter::convertGroup(const XMLElement* e) {
             count("unknownSpecial");
         }
     }
+    recenterGroup(g);
     _groups.push_back(g);
 }
 
@@ -1115,7 +1279,6 @@ void Converter::convertJoints(const XMLElement* joints) {
         }
         j.keep = true;
         j.prismatic = type == 1;
-        if (flag(e, "v", false)) _report.hasUserVehicle = true;
         Node& n = j.node;
         n.setInt("t", type);
         n.setNum("x", coord(num(e, "x", 0.0)));
@@ -1126,6 +1289,8 @@ void Converter::convertJoints(const XMLElement* joints) {
         n.setBool("m", flag(e, "m", false));
         n.setBool("c", flag(e, "c", false));
         n.setNum("sp", numClamped(e, "sp", 0.0, -1.0e6, 1.0e6));
+        // ONLINE (PC addition): RefJoint.vehicleControlled (default true, saved v="f" when off).
+        if (attr(e, "v") && !strcmp(attr(e, "v"), "f")) n.set("vc", "f");
         if (type == 0) {
             double upper = numClamped(e, "ua", 0.0, -1.0e5, 1.0e5);
             double lower = numClamped(e, "la", 0.0, -1.0e5, 1.0e5);
@@ -1133,6 +1298,19 @@ void Converter::convertJoints(const XMLElement* joints) {
             n.setNum("ua", upper);
             n.setNum("la", lower);
             n.setNum("tq", numClamped(e, "tq", 0.0, 0.0, 1.0e9));
+            // Flash UserLevel.createJoints up to 1.84: limits only when enabled, and a joint
+            // without motor gets maxMotorTorque 50 and speed 0 (matters once a trigger turns the
+            // motor on); from 1.85 on everything is copied.
+            if (_version <= 1.84) {
+                if (!flag(e, "l", false)) {
+                    n.setNum("ua", 0.0);
+                    n.setNum("la", 0.0);
+                }
+                if (!flag(e, "m", false)) {
+                    n.setNum("tq", 50.0);
+                    n.setNum("sp", 0.0);
+                }
+            }
         } else {
             n.setNum("a", angleDeg(num(e, "a", 0.0)));
             double upper = numClamped(e, "ul", 0.0, -kMaxSize, kMaxSize);
@@ -1156,29 +1334,36 @@ void Converter::parseTriggers(const XMLElement* triggers) {
         Node& n = t.node;
         n.setNum("x", coord(num(e, "x", 0.0)));
         n.setNum("y", coord(num(e, "y", 0.0)));
-        n.setNum("w", std::min(kMaxSize, std::fabs(num(e, "w", 100.0))));
-        n.setNum("h", std::min(kMaxSize, std::fabs(num(e, "h", 100.0))));
+        // Flash UserLevelLoader assigns the attributes through RefTrigger's clamping setters (a
+        // missing attribute reads as 0): size 5..5000 px, triggeredBy 1..6, repeat 1..4, repeat
+        // interval 0.1..30 s, delay 0..30 s, volume 0..1, panning -1..1, location 1..2.
+        n.setNum("w", std::max(5.0, std::min(5000.0, num(e, "w", 0.0))));
+        n.setNum("h", std::max(5.0, std::min(5000.0, num(e, "h", 0.0))));
         n.setNum("a", angleDeg(num(e, "a", 0.0)));
-        t.triggeredBy = inum(e, "b", 1);
-        if (t.triggeredBy < 1 || t.triggeredBy > 5) t.triggeredBy = 5;  // only fired by triggers
+        // 6: mouse click (a PC addition handles it, online/FlashRuntime.h).
+        t.triggeredBy = inumClamped(e, "b", 0, 1, 6);
         t.type = inum(e, "t", 1);
-        t.repeat = inum(e, "r", 1);
-        if (t.repeat < 1 || t.repeat > 4) t.repeat = 1;
+        t.repeat = inumClamped(e, "r", 0, 1, 4);
         n.setInt("b", t.triggeredBy);
         n.setInt("r", t.repeat);
-        n.setBool("sd", flag(e, "sd", false));
-        if (t.repeat > 2) n.setNum("i", numClamped(e, "i", 1.0, 0.0, 1.0e6));
-        t.delay = numClamped(e, "d", 0.0, 0.0, 1.0e6);
+        n.setBool("sd", attr(e, "sd") && !strcmp(attr(e, "sd"), "t"));
+        // Trigger: repeatFrames = int(repeatInterval * 30), delayFrames = int(triggerDelay * 30)
+        // (Flash frames, 30 Hz); the mobile trigger counts seconds, so pass whole Flash frames.
+        auto frames = [](double seconds) { return std::trunc(seconds * 30.0) / 30.0; };
+        if (t.repeat > 2) n.setNum("i", frames(numClamped(e, "i", 0.0, 0.1, 30.0)));
+        t.delay = frames(numClamped(e, "d", 0.0, 0.0, 30.0));
         if (t.type == 2) {
             int sound = inum(e, "s", -1);
             if (sound < 0 || sound >= kSoundCount) {
                 t.type = 0;  // a sound this game doesn't have: the trigger does nothing
                 count("badSound");
             } else {
+                // Flash SoundList.sfxLookup[s] and the mobile SoundList (soundlist.tsv) are the
+                // same 326 entries in the same order, so the index passes through unchanged.
                 n.setInt("s", sound);
-                n.setInt("l", inum(e, "l", 1));
-                n.setNum("v", numClamped(e, "v", 1.0, 0.0, 100.0));
-                n.setNum("p", numClamped(e, "p", 0.0, -100.0, 100.0));
+                n.setInt("l", inumClamped(e, "l", 0, 1, 2));
+                n.setNum("v", numClamped(e, "v", 0.0, 0.0, 1.0));
+                n.setNum("p", numClamped(e, "p", 0.0, -1.0, 1.0));
             }
         } else if (t.type != 1 && t.type != 3) {
             t.type = 0;
@@ -1205,6 +1390,7 @@ void Converter::parseTriggers(const XMLElement* triggers) {
                     };
                     const XMLElement* firstAction = c->FirstChildElement("a");
                     if (firstAction || _version >= 1.87) {
+                        target.listFormat = firstAction != nullptr;
                         for (const XMLElement* a = firstAction; a; a = a->NextSiblingElement("a")) {
                             Action action;
                             action.a = inum(a, "i", 0);
@@ -1326,8 +1512,19 @@ void Converter::enforceDrawBudget() {
 }
 
 void Converter::assignIndices() {
+    // Draw order = shape order. Flash UserLevel draws every immovable shape first
+    // (createStaticShapes), then the others; from 1.8 on it inserts those back at their own
+    // index (addChildAt), before 1.8 they all go on top.
+    _shapeOrder.clear();
+    for (int pass = 0; pass < 2; pass++) {
+        for (size_t i = 0; i < _shapes.size(); i++) {
+            const bool first = _version >= 1.8 || _shapes[i].flashImmovable;
+            if ((pass == 0) == first) _shapeOrder.push_back((int)i);
+        }
+    }
     int next = 0;
-    for (ShapeRec& s : _shapes) {
+    for (int i : _shapeOrder) {
+        ShapeRec& s = _shapes[i];
         if (s.valid && !s.dropped) s.outIndex = next++;
     }
     for (ShapeRec& s : _extra) s.outIndex = next++;
@@ -1415,6 +1612,23 @@ bool Converter::resolveJointBody(const Ref& ref, const Pt& anchor, std::string* 
 
 namespace {
 
+// Flash _triggerActionList / _triggerActionListProperties of the ported classes:
+// number of actions, and properties per action.
+int portActionCount(int type) {
+    switch (type) {
+    case 16: return 2;  // change opacity, slide
+    case 17: return 4;  // wake, impulse, hold pose, release pose
+    case 18: return 3;  // shatter, wake, impulse
+    default: return 2;  // wake from sleep, apply impulse
+    }
+}
+
+int portActionProps(int type, int action) {
+    if (type == 16) return action == 0 ? 2 : 3;
+    if (type == 18) return action == 2 ? 3 : 0;
+    return action == 1 ? 3 : 0;
+}
+
 int requiredProps(const std::string& kind, int action) {
     if (kind == "sh") return action == 3 ? 2 : action == 4 ? 3 : action == 7 ? 1 : 0;
     if (kind == "g") return action == 1 ? 2 : action == 2 ? 3 : action == 7 ? 1 : 0;
@@ -1440,6 +1654,7 @@ std::vector<Node> Converter::emitTargets(const TriggerRec& trigger, int triggerI
         // Shape-like special stand-ins accept the shape actions that match the Flash ones.
         std::vector<Action> actions = target.actions;
         int specialType = -1;
+        bool ported = false;
         if (kind == "sh") {
             if (target.index < 0 || target.index >= (int)_shapes.size()) continue;
             const ShapeRec& s = _shapes[target.index];
@@ -1462,6 +1677,7 @@ std::vector<Node> Converter::emitTargets(const TriggerRec& trigger, int triggerI
             if (sp.fate == SpecialFate::Keep) {
                 index = sp.outIndex;
                 specialType = sp.type;
+                ported = sp.ported;
             } else if (sp.fate == SpecialFate::Placeholder || sp.fate == SpecialFate::Chain) {
                 // Map Flash's special actions onto shape actions of the stand-in shape(s).
                 std::vector<int> shapes;
@@ -1516,30 +1732,41 @@ std::vector<Node> Converter::emitTargets(const TriggerRec& trigger, int triggerI
         if (index < 0) continue;
         if ((kind == "sh" || kind == "j" || kind == "g") && index >= kMaxTargetIndex) continue;
 
+        // The flash path of LevelB2D::addTriggersComplete (onlineAddTriggerTargets) reads a = -1
+        // as "no action": the target only gives activation bodies (b = 4) and, on an "activate
+        // object" trigger, a special still gets prepareForTrigger() as in Flash.
         if (!runs) {
             // Only activation bodies (b=4 with a sound/finish trigger): actions never run.
-            if (!bodies) continue;
-            if (kind == "sp" && (specialType == 8 || specialType == 12)) continue;  // would switch them off
+            if (!bodies || kind == "t" || kind == "j") continue;
             Node node(kind);
             node.setInt("i", index);
+            node.setInt("a", -1);
+            out.push_back(node);
+            continue;
+        }
+        if (kind == "t") {
+            // Flash createTriggers stores a trigger target's action list in a String variable:
+            // the list ["disable"] reads "disable", but two actions read "disable,enable" and none
+            // reads "", which match no action - such targets do nothing in Flash (v >= 1.87).
+            if (target.listFormat && actions.size() != 1) continue;
+        }
+        if (kind == "sp" && !ported && (specialType == 2 || specialType == 7 || specialType == 8 ||
+                                        specialType == 12 || specialType == 25)) {
+            // Mine, wrecking ball, fan, boost, homing mine have no action list: Flash adds one
+            // target action per trigger anyway (triggerSingleActivation with no action name).
+            Node node(kind);
+            node.setInt("i", index);
+            node.setInt("a", 0);
             out.push_back(node);
             continue;
         }
         if (actions.empty()) {
-            if (!bodies || kind == "t" || kind == "j") continue;
-            // Activation body without an action: give it one the mobile code ignores.
-            if (kind == "sp") {
-                if (specialType != 0 && specialType != 3 && specialType != 4 && specialType != 20 && specialType != 34) continue;
-                Node node(kind);
-                node.setInt("i", index);
-                node.setInt("a", 2);
-                out.push_back(node);
-            } else {
-                Node node(kind);
-                node.setInt("i", index);
-                node.setInt("a", -1);
-                out.push_back(node);
-            }
+            if (kind == "t" || kind == "j") continue;
+            if (!bodies && kind != "sp") continue;
+            Node node(kind);
+            node.setInt("i", index);
+            node.setInt("a", -1);
+            out.push_back(node);
             continue;
         }
         for (const Action& action : actions) {
@@ -1549,24 +1776,34 @@ std::vector<Node> Converter::emitTargets(const TriggerRec& trigger, int triggerI
             if (kind == "sh" || kind == "g") supported = a <= 7;
             else if (kind == "j") supported = a <= 4;
             else if (kind == "t") supported = a <= 2;
+            else if (ported) supported = a < portActionCount(specialType);
             else supported = a <= 2;  // specials: 0 wake/fire/..., 1 impulse/disable, 2 enable
             if (!supported) {
                 count("badAction");
                 continue;
             }
-            if (kind == "sp" && a == 3) continue;
+            if (kind == "sp" && a == 3 && !ported) continue;
             Node node(kind);
             node.setInt("i", index);
             node.setInt("a", a);
-            int need = requiredProps(kind, a);
+            int need = ported ? portActionProps(specialType, a) : requiredProps(kind, a);
             for (int p = 0; p < need; p++) {
+                // Ports see missing properties as missing (Flash: Number(undefined) = NaN).
+                if (ported && !(p < (int)action.props.size() && std::isfinite(action.props[p]))) break;
                 double value = propOr(action, p, 0.0);
                 if ((kind == "sh" && a == 3) || (kind == "g" && a == 1)) {
                     if (p == 0) value = std::max(0.0, std::min(100.0, propOr(action, 0, 100.0)));
                     if (p == 1) value = std::max(0.0, std::min(1.0e4, propOr(action, 1, 0.0)));
                 }
-                if (a == 7 && (kind == "sh" || kind == "g")) value = std::max(1, std::min(7, (int)propOr(action, 0, 1.0)));
+                if (a == 7 && (kind == "sh" || kind == "g")) {
+                    // Flash: int(p0); anything but 2..7 takes the "everything" branch (1).
+                    int collision = (int)propOr(action, 0, 1.0);
+                    value = collision >= 1 && collision <= 7 ? collision : 1;
+                }
                 if (kind == "j" && a == 1 && p == 1) value = std::max(0.0, std::min(1.0e4, value));
+                // Fades and motor ramps last Math.round(time * 30) Flash frames.
+                if (p == 1 && ((kind == "sh" && a == 3) || (kind == "g" && a == 1) || (kind == "j" && a == 1)))
+                    value = std::floor(value * 30.0 + 0.5) / 30.0;
                 if (std::fabs(value) > 1.0e9) value = value < 0 ? -1.0e9 : 1.0e9;
                 node.setNum("p" + std::to_string(p), value);
             }
@@ -1583,203 +1820,17 @@ std::vector<Node> Converter::emitTargets(const TriggerRec& trigger, int triggerI
     return out;
 }
 
-// Runtime hazards of the mobile trigger code (src/game/triggers, reproduced from the original),
-// removed here because the browser game allows these combinations:
-//  * shape "delete shape" (5) on a dynamic shape deletes the ShapeItem while it is still used:
-//    replaced by "set to fixed" + "change collision: none", which looks the same;
-//  * "change collision" (7) on a shape that some trigger deletes (6) dereferences null;
-//  * group "set to fixed" (3) on a group without a body (or one whose shapes a trigger deletes);
-//  * prismatic joint actions once a body of the joint can be destroyed;
-//  * trigger loops that recurse forever or modify a vector while iterating it;
-//  * a trigger disabling a trigger from inside the same step (d = 0).
+// Every target is kept as Flash has it: the hazards the mobile trigger code had with browser
+// combinations (deleting a dynamic shape, actions on deleted shapes / groups / joints, trigger
+// loops, a trigger disabling another during the same step) are handled at run time by the
+// flash-level paths in src/game/triggers and LevelB2D (marked ONLINE). Targets are written in the
+// level's order, which LevelB2D::onlineAddTriggerTargets keeps.
 void Converter::finishTriggers() {
-    std::vector<std::vector<Node>> targets(_triggers.size());
-    for (size_t i = 0; i < _triggers.size(); i++) targets[i] = emitTargets(_triggers[i], (int)i);
-
-    // Shape index (output) -> shape record, for the body kind.
-    std::map<int, const ShapeRec*> shapeByOut;
-    for (const ShapeRec& s : _shapes) {
-        if (s.outIndex >= 0) shapeByOut[s.outIndex] = &s;
-    }
-    for (const ShapeRec& s : _extra) shapeByOut[s.outIndex] = &s;
-
-    // 1. Release (5) on dynamic shapes -> fixed + no collision.
-    for (auto& list : targets) {
-        std::vector<Node> rewritten;
-        for (const Node& n : list) {
-            const std::string* a = n.get("a");
-            if (n.name == "sh" && a && *a == "5") {
-                const ShapeRec* s = shapeByOut[atoi(n.get("i")->c_str())];
-                if (s && s->body == BodyKind::Own) {
-                    Node fix("sh");
-                    fix.set("i", *n.get("i"));
-                    fix.setInt("a", 1);
-                    Node ghost("sh");
-                    ghost.set("i", *n.get("i"));
-                    ghost.setInt("a", 7);
-                    ghost.setInt("p0", 3);
-                    rewritten.push_back(fix);
-                    rewritten.push_back(ghost);
-                    continue;
-                }
-            }
-            rewritten.push_back(n);
-        }
-        list.swap(rewritten);
-    }
-    // 2. Collect deletions.
-    // releasedGroups: "delete shapes" (5) keeps the GroupItem but destroys its body, which
-    // "set to fixed" (3) then dereferences; "delete self" (6) nulls every action instead.
-    std::set<int> deletedShapes, releasedGroups, removedGroups;
-    for (const auto& list : targets) {
-        for (const Node& n : list) {
-            const std::string* a = n.get("a");
-            if (!a) continue;
-            int index = atoi(n.get("i")->c_str());
-            if (n.name == "sh" && (*a == "5" || *a == "6")) deletedShapes.insert(index);
-            if (n.name == "g" && *a == "5") releasedGroups.insert(index);
-            if (n.name == "g" && (*a == "5" || *a == "6")) removedGroups.insert(index);
-        }
-    }
-    // Joint bodies that can disappear at runtime.
-    std::vector<bool> fragileJoint(_jointCount, false);
-    for (const JointRec& j : _joints) {
-        if (!j.keep || j.outIndex < 0 || !j.prismatic) continue;
-        bool fragile = false;
-        for (const std::string* body : {j.node.get("b1"), j.node.get("b2")}) {
-            if (!body || body->empty()) continue;
-            if ((*body)[0] == 's') fragile = true;  // specials break and explode
-            else if ((*body)[0] == 'g') fragile |= removedGroups.count(atoi(body->c_str() + 1)) > 0;
-            else if (atoi(body->c_str()) >= 0) fragile |= deletedShapes.count(atoi(body->c_str())) > 0;
-        }
-        fragileJoint[j.outIndex] = fragile;
-    }
-    int removed = 0;
-    for (size_t ti = 0; ti < targets.size(); ti++) {
-        std::vector<Node> kept;
-        for (const Node& n : targets[ti]) {
-            const std::string* a = n.get("a");
-            int index = atoi(n.get("i")->c_str());
-            if (a && n.name == "sh" && *a == "7" && deletedShapes.count(index)) {
-                removed++;
-                continue;
-            }
-            if (a && n.name == "g" && *a == "3") {
-                if (index >= (int)_groups.size() || !_groups[index].hasBody || releasedGroups.count(index)) {
-                    removed++;
-                    continue;
-                }
-            }
-            if (n.name == "j" && index < (int)fragileJoint.size() && fragileJoint[index]) {
-                removed++;
-                continue;
-            }
-            kept.push_back(n);
-        }
-        targets[ti].swap(kept);
-    }
-
-    // 3. Trigger loops: activation edges (<t a=0>) inside a strongly connected component that
-    // contains a trigger repeating each time / continuously are cut.
-    const int triggerCount = (int)_triggers.size();
-    std::vector<std::vector<int>> edges(triggerCount);
-    for (int i = 0; i < triggerCount; i++) {
-        for (const Node& n : targets[i]) {
-            const std::string* a = n.get("a");
-            if (n.name == "t" && a && *a == "0") edges[i].push_back(atoi(n.get("i")->c_str()));
-        }
-    }
-    // Tarjan (iterative).
-    std::vector<int> component(triggerCount, -1), low(triggerCount, 0), order(triggerCount, -1), stack;
-    std::vector<bool> onStack(triggerCount, false);
-    int counter = 0, components = 0;
-    for (int root = 0; root < triggerCount; root++) {
-        if (order[root] >= 0) continue;
-        std::vector<std::pair<int, size_t>> work;
-        work.push_back({root, 0});
-        order[root] = low[root] = counter++;
-        stack.push_back(root);
-        onStack[root] = true;
-        while (!work.empty()) {
-            int v = work.back().first;
-            size_t& edge = work.back().second;
-            if (edge < edges[v].size()) {
-                int w = edges[v][edge++];
-                if (w < 0 || w >= triggerCount) continue;
-                if (order[w] < 0) {
-                    order[w] = low[w] = counter++;
-                    stack.push_back(w);
-                    onStack[w] = true;
-                    work.push_back({w, 0});
-                } else if (onStack[w]) {
-                    low[v] = std::min(low[v], order[w]);
-                }
-                continue;
-            }
-            if (low[v] == order[v]) {
-                while (true) {
-                    int w = stack.back();
-                    stack.pop_back();
-                    onStack[w] = false;
-                    component[w] = components;
-                    if (w == v) break;
-                }
-                components++;
-            }
-            work.pop_back();
-            if (!work.empty()) low[work.back().first] = std::min(low[work.back().first], low[v]);
-        }
-    }
-    std::vector<int> size(components, 0);
-    std::vector<bool> risky(components, false);
-    for (int i = 0; i < triggerCount; i++) {
-        size[component[i]]++;
-        if (_triggers[i].repeat == 2 || _triggers[i].repeat == 3) risky[component[i]] = true;
-    }
-    int cut = 0;
-    for (int i = 0; i < triggerCount; i++) {
-        std::vector<Node> kept;
-        for (const Node& n : targets[i]) {
-            const std::string* a = n.get("a");
-            if (n.name == "t" && a && *a == "0") {
-                int w = atoi(n.get("i")->c_str());
-                bool loop = w >= 0 && w < triggerCount && component[w] == component[i] &&
-                            (size[component[i]] > 1 || w == i);
-                if (loop && risky[component[i]]) {
-                    cut++;
-                    continue;
-                }
-            }
-            kept.push_back(n);
-        }
-        targets[i].swap(kept);
-    }
-    if (cut) warn(plural(cut, "trigger loop link") + " cut (would hang this version)");
-    if (removed) _counts["unsafeAction"] += removed;
-
-    // 4. Emit; disabling a trigger runs one step later (d > 0) so it never edits the trigger
-    // list LevelB2D::update is walking.
     _triggerOut.clear();
-    for (int i = 0; i < triggerCount; i++) {
+    for (size_t i = 0; i < _triggers.size(); i++) {
         Node node = _triggers[i].node;
-        double delay = _triggers[i].delay;
-        bool disables = false;
-        for (const Node& n : targets[i]) {
-            const std::string* a = n.get("a");
-            if (n.name == "t" && a && *a == "1") disables = true;
-        }
-        if (_triggers[i].type == 1) {
-            if (disables && delay <= 0.0) delay = 0.001;
-            node.setNum("d", delay);
-        } else if (_triggers[i].type == 2) {
-            node.setNum("d", delay);
-        }
-        // Mobile pass 2 reads children by kind (t, sh, j, g, sp); keep that order.
-        for (const char* kind : {"t", "sh", "j", "g", "sp"}) {
-            for (const Node& n : targets[i]) {
-                if (n.name == kind) node.children.push_back(n);
-            }
-        }
+        if (_triggers[i].type == 1 || _triggers[i].type == 2) node.setNum("d", _triggers[i].delay);
+        node.children = emitTargets(_triggers[i], (int)i);
         _triggerOut.push_back(node);
     }
 }
@@ -1790,8 +1841,8 @@ std::string Converter::write() {
     Node root("levelXML");
     root.children.push_back(_info);
     Node shapes("shapes");
-    for (const ShapeRec& s : _shapes) {
-        if (s.outIndex >= 0) shapes.children.push_back(s.node);
+    for (int i : _shapeOrder) {
+        if (_shapes[i].outIndex >= 0) shapes.children.push_back(_shapes[i].node);
     }
     for (const ShapeRec& s : _extra) shapes.children.push_back(s.node);
     if (!shapes.children.empty()) root.children.push_back(shapes);
@@ -1955,7 +2006,6 @@ std::string Converter::run(const std::string& flashXml) {
     if (_counts["chain"]) warn(plural(_counts["chain"], "chain") + " rebuilt from simple links");
     if (!_unknownSpecialIds.empty()) warn(plural(_counts["unknownSpecial"], "newer item") + " not supported, skipped");
     if (_counts["unknownShape"]) warn(plural(_counts["unknownShape"], "unknown shape") + " skipped");
-    if (_report.hasUserVehicle) warn("custom vehicle won't drive");
     if (droppedJoints) warn(plural(droppedJoints, "joint") + " to missing items removed");
     if (_counts["badTrigger"]) warn(plural(_counts["badTrigger"], "trigger") + " of an unknown kind ignored");
     if (_counts["badSound"]) warn(plural(_counts["badSound"], "sound trigger") + " silent (unknown sound)");

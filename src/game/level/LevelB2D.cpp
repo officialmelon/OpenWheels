@@ -62,6 +62,11 @@
 #include "Van.h"
 #include "WheelchairGuy.h"
 #include "WreckingBall.h"
+#include "online/BareCharacter.h"   // ONLINE (PC addition)
+#include "online/FlashRuntime.h"   // ONLINE (PC addition)
+#include "online/items/FlashSpecials.h"  // ONLINE (PC addition)
+#include "online/vehicles/UserVehicle.h"  // ONLINE (PC addition)
+#include "restored/Restored.h"  // RESTORED (PC addition)
 
 USING_NS_CC;
 
@@ -88,6 +93,7 @@ LevelB2D::LevelB2D()
 // @005cd79c
 LevelB2D::~LevelB2D()
 {
+    online::destroyUserVehicles(this);  // ONLINE (PC addition): browser user vehicles
     for (unsigned int i = 0; i < _characters.size(); i++)
     {
         if (_characters[i] != nullptr)
@@ -188,6 +194,42 @@ void LevelB2D::update(float dt)
         }
     }
 
+    if (online::flashLevel())
+    {
+        // ONLINE (PC addition): Flash LevelB2D.actions walks singleActionVector by index over the
+        // length it had when the walk started; a trigger disabled by an earlier one is spliced
+        // out (here: nulled, see removeFromSingleActions) and does not run.
+        _onlineRunningSingleActions = true;
+        const size_t count = _singleActionVector.size();
+        for (size_t i = 0; i < count && i < _singleActionVector.size(); i++)
+        {
+            LevelItem* item = _singleActionVector[i];
+            if (item != nullptr)
+            {
+                item->singleAction();
+            }
+        }
+        _onlineRunningSingleActions = false;
+        _singleActionVector.clear();
+        // Flash pushes into actionsVector immediately, so everything queued by the single actions
+        // (delayed triggers, fades, motor ramps) gets its first actions() call in this frame.
+        for (auto it = _actionsToAdd.begin(); it != _actionsToAdd.end(); ++it)
+        {
+            if (std::find(_actionsVector.begin(), _actionsVector.end(), *it) == _actionsVector.end())
+            {
+                _actionsVector.push_back(*it);
+            }
+        }
+        _actionsToAdd.clear();
+        // actions() may queue more (pushed after Flash took the vector length: next frame).
+        const size_t actionCount = _actionsVector.size();
+        for (size_t i = 0; i < actionCount; i++)
+        {
+            _actionsVector[i]->actions();
+        }
+    }
+    else
+    {
     for (auto it = _singleActionVector.begin(); it != _singleActionVector.end(); ++it)
     {
         (*it)->singleAction();
@@ -197,6 +239,7 @@ void LevelB2D::update(float dt)
     for (auto it = _actionsVector.begin(); it != _actionsVector.end(); ++it)
     {
         (*it)->actions();
+    }
     }
 
     // Frame actions run at most at 60 Hz.
@@ -291,12 +334,24 @@ bool LevelB2D::actionsContainsLevelItem(LevelItem* item)
     return std::find(_actionsVector.begin(), _actionsVector.end(), item) != _actionsVector.end();
 }
 
+// ONLINE (PC addition)
+bool LevelB2D::onlineActionsContainsLevelItem(LevelItem* item)
+{
+    return actionsContainsLevelItem(item) ||
+           std::find(_actionsToAdd.begin(), _actionsToAdd.end(), item) != _actionsToAdd.end();
+}
+
 // @005ce4ac
 void LevelB2D::removeFromSingleActions(LevelItem* item)
 {
     auto it = std::find(_singleActionVector.begin(), _singleActionVector.end(), item);
     if (it != _singleActionVector.end())
     {
+        if (_onlineRunningSingleActions)
+        {
+            *it = nullptr;  // ONLINE (PC addition): update() is walking the vector
+            return;
+        }
         _singleActionVector.erase(it);
     }
 }
@@ -512,6 +567,11 @@ CharacterB2D* LevelB2D::createCharacter(float x, float y, CharacterId characterI
         }
         break;
     default:
+        // RESTORED (PC addition): browser characters rebuilt by tools/assets/extract_character.py.
+        if (vehicleId == VehicleIdDefault)
+        {
+            character = restored::createCharacter(x, y, characterId, groupIndex, showGore);
+        }
         break;
     }
 
@@ -563,6 +623,14 @@ void LevelB2D::addInfo(LevelDataElement* info)
     info->floatAttribute("v", &version);
     info->floatAttribute("x", &x);
     info->floatAttribute("y", &y);
+    {
+        // ONLINE (PC addition): converted browser levels carry src="flash" (and the browser
+        // version in "fv"); every other level switches the browser-only behaviour off.
+        const char* source = info->stringAttribute("src");
+        float browserVersion = version;
+        info->floatAttribute("fv", &browserVersion);
+        online::setFlashLevel(source != nullptr && std::string(source) == "flash", browserVersion);
+    }
 
     _forcedChar = false;
     bool hideVehicle = false;
@@ -586,6 +654,12 @@ void LevelB2D::addInfo(LevelDataElement* info)
     {
         characterId = settings->getSelectedCharacterId();
     }
+    if (online::flashLevel() && hideVehicle)
+    {
+        // ONLINE (PC addition): browser "hide vehicle" levels start with the bare character.
+        _characters.push_back(online::createBareCharacter(x, y, characterId));
+    }
+    else
     addCharacter(x, y, (CharacterId)characterId, VehicleIdDefault, hideVehicle, -1);
 
     int background = 0;
@@ -640,6 +714,13 @@ LevelItem* LevelB2D::addSpecial(LevelDataElement* special, int index, b2Body* gr
     bool autoreleased = false;  // created by a static create() (init + autorelease done)
 
     int type = special->getType();
+    // ONLINE (PC addition): in converted browser levels a few mobile classes are replaced by
+    // full ports of their browser versions (e.g. the Android Chain/Token are stubs).
+    if (online::flashLevel())
+    {
+        item = online::createFlashSpecialOverride(type, groupBody != nullptr);
+    }
+    if (item == nullptr)
     switch (type)
     {
     case 0:
@@ -721,8 +802,18 @@ LevelItem* LevelB2D::addSpecial(LevelDataElement* special, int index, b2Body* gr
     case 27:
     case 32:
     case 33:
+        // ONLINE (PC addition): browser-only items (text boxes, NPCs, furniture...) exist in
+        // converted browser levels; mobile levels never reach the factory.
+        if (online::flashLevel() && (item = online::createFlashSpecial(type)) != nullptr)
+        {
+            break;
+        }
         return nullptr;
     default:
+        if (online::flashLevel() && (item = online::createFlashSpecial(type)) != nullptr)
+        {
+            break;  // ONLINE (PC addition): see above
+        }
         if (type != 5001)
         {
             return nullptr;
@@ -921,7 +1012,13 @@ ShapeItem* LevelB2D::addShape(LevelDataElement* shape, GroupItem* groupItem, Vec
     }
     else
     {
-        setShapeFilter(collision, groupItem->getImmovable(), &fixtureDef);
+        bool filterImmovable = groupItem->getImmovable();
+        bool shapeImmovable = false;
+        if (online::flashLevel() && shape->boolAttribute("fim", &shapeImmovable))
+        {
+            filterImmovable = shapeImmovable;  // ONLINE (PC addition): Flash <= 1.84 group shapes
+        }
+        setShapeFilter(collision, filterImmovable, &fixtureDef);
     }
     float angle = rotation * -0.017453292f;
 
@@ -1310,7 +1407,16 @@ ShapeItem* LevelB2D::addShape(LevelDataElement* shape, GroupItem* groupItem, Vec
         bodyDef.position.Set(x, y);
         bodyDef.angle = angle;
         bodyDef.awake = !sleeping;
+        bool nanMass = false;
+        if (online::flashLevel() && shape->boolAttribute("nm", &nanMass) && nanMass)
+        {
+            bodyDef.type = b2_staticBody;  // ONLINE (PC addition): see onlineNanMassBodies
+        }
         body = world->CreateBody(&bodyDef);
+        if (nanMass)
+        {
+            onlineNanMassBodies.insert(body);
+        }
     }
     else
     {
@@ -1911,6 +2017,10 @@ void LevelB2D::addJoint(LevelDataElement* joint, int index)
             jointDef.collideConnected = true;
         }
         _joints.push_back(world->CreateJoint(&jointDef));
+        if (online::flashLevel())
+        {
+            online::userVehicleJointCreated(this, joint, _joints.back());  // ONLINE (PC addition)
+        }
     }
     else if (type == 0)
     {
@@ -1944,11 +2054,21 @@ void LevelB2D::addJoint(LevelDataElement* joint, int index)
         }
         jointDef.motorSpeed = motorSpeed;
         jointDef.maxMotorTorque = maxMotorTorque;
+        // ONLINE (PC addition): Flash <= 1.84 gives a joint without motor the torque 50 (a
+        // trigger's "change motor speed" switches the motor on with it).
+        if (online::flashLevel() && online::flashVersion() <= 1.84f && !enableMotor)
+        {
+            jointDef.maxMotorTorque = 50.0f;
+        }
         if (collideConnected)
         {
             jointDef.collideConnected = true;
         }
         _joints.push_back(world->CreateJoint(&jointDef));
+        if (online::flashLevel())
+        {
+            online::userVehicleJointCreated(this, joint, _joints.back());  // ONLINE (PC addition)
+        }
     }
 }
 
@@ -2048,6 +2168,11 @@ void LevelB2D::addTriggersComplete()
         element->intAttribute("b", &triggeredBy);
         if (type != TriggerTypeTargets && triggeredBy != TriggerTriggeredByBodies)
         {
+            continue;
+        }
+        if (online::flashLevel())
+        {
+            onlineAddTriggerTargets(element, trigger, type, triggeredBy);  // ONLINE (PC addition)
             continue;
         }
 
@@ -2224,6 +2349,142 @@ void LevelB2D::addTriggersComplete()
         (*it)->release();
     }
     _triggerElements.clear();
+
+    if (online::flashLevel())
+    {
+        online::installClickTriggers(this);  // ONLINE (PC addition): b = 6 click triggers
+    }
+}
+
+// ONLINE (PC addition): Flash UserLevel.createTriggers. Targets are wired in the order the level
+// lists them (Flash keeps the editor's target order; the mobile loader above goes by kind: t, sh,
+// j, g, sp), so a trigger whose targets are "set to non fixed" then "activate trigger X" (X
+// applying an impulse) acts in that order. Actions only exist on "activate object" triggers, and
+// specials get prepareForTrigger() only from those; "triggered by specific bodies" takes the
+// activation bodies from every target. Missing targets are skipped instead of dereferenced.
+void LevelB2D::onlineAddTriggerTargets(LevelDataElement* element, Trigger* trigger, int type,
+                                       int triggeredBy)
+{
+    const bool runs = type == TriggerTypeTargets;
+    const bool bodies = triggeredBy == TriggerTriggeredByBodies;
+    for (tinyxml2::XMLElement* target = element->getData()->FirstChildElement(); target != nullptr;
+         target = target->NextSiblingElement())
+    {
+        const std::string kind = target->Value() ? target->Value() : "";
+        int targetIndex = -1;
+        int action = -1;
+        target->QueryIntAttribute("i", &targetIndex);
+        target->QueryIntAttribute("a", &action);
+        std::vector<float> properties;
+        float value = 0.0f;
+        for (int count = 0;; count++)
+        {
+            const std::string key = "p" + std::to_string(count);
+            if (target->QueryFloatAttribute(key.c_str(), &value) == tinyxml2::XML_NO_ATTRIBUTE)
+            {
+                break;
+            }
+            properties.push_back(value);
+        }
+
+        if (kind == "t")
+        {
+            if (runs && action >= 0 && targetIndex >= 0 && targetIndex < (int)_triggers.size())
+            {
+                trigger->addTargetActionTrigger(nullptr, trigger, _triggers[targetIndex], action,
+                                                properties);
+            }
+        }
+        else if (kind == "sh")
+        {
+            ShapeItem* shapeItem = getShapeItem(targetIndex);
+            if (shapeItem == nullptr)
+            {
+                continue;
+            }
+            b2Fixture* fixture = shapeItem->getFixtureRef();
+            if (runs && action >= 0)
+            {
+                TargetAction* targetAction = trigger->addTargetActionShapeItem(
+                    shapeItem, fixture, nullptr, action, properties);
+                _targetActions[targetIndex].push_back(targetAction);
+            }
+            if (bodies && fixture != nullptr && fixture->GetBody()->GetMass() > 0.0f &&
+                !fixture->IsSensor())
+            {
+                trigger->addActivationBodies(std::vector<b2Body*>{fixture->GetBody()});
+            }
+        }
+        else if (kind == "j")
+        {
+            if (!runs || action < 0 || targetIndex < 0 || targetIndex >= (int)_joints.size() ||
+                _joints[targetIndex] == nullptr)
+            {
+                continue;
+            }
+            b2Joint* targetJoint = _joints[targetIndex];
+            if (targetJoint->GetType() == e_revoluteJoint)
+            {
+                TargetActionRevJoint* targetAction = trigger->addTargetActionRevJoint(
+                    static_cast<b2RevoluteJoint*>(targetJoint), action, properties);
+                targetAction->setIndex(targetIndex + 10000);
+                _targetActions[targetIndex + 10000].push_back(targetAction);
+            }
+            else if (targetJoint->GetType() == e_prismaticJoint)
+            {
+                TargetActionPrisJoint* targetAction = trigger->addTargetActionPrisJoint(
+                    static_cast<b2PrismaticJoint*>(targetJoint), action, properties);
+                targetAction->setIndex(targetIndex + 10000);
+                _targetActions[targetIndex + 10000].push_back(targetAction);
+            }
+        }
+        else if (kind == "g")
+        {
+            GroupItem* groupItem = groupItemWithId(targetIndex);
+            if (groupItem == nullptr)
+            {
+                continue;
+            }
+            if (runs && action >= 0)
+            {
+                TargetActionGroup* targetAction =
+                    trigger->addTargetActionGroup(groupItem, nullptr, action, properties);
+                targetAction->setIndex(targetIndex + 20000);
+                _targetActions[targetIndex + 20000].push_back(targetAction);
+            }
+            if (bodies && groupItem->getBody() != nullptr)
+            {
+                trigger->addActivationBodies(std::vector<b2Body*>{groupItem->getBody()});
+            }
+        }
+        else if (kind == "sp")
+        {
+            LevelItem* special = getSpecial(targetIndex);
+            if (special == nullptr)
+            {
+                continue;
+            }
+            if (runs)
+            {
+                special->prepareForTrigger();
+                if (action >= 0)
+                {
+                    TargetActionSpecial* targetAction =
+                        trigger->addTargetItemSpecial(special, nullptr, nullptr, action, properties);
+                    targetAction->setIndex(targetIndex + 30000);
+                    _targetActions[targetIndex + 30000].push_back(special);
+                }
+            }
+            if (bodies)
+            {
+                std::vector<b2Body*> list = special->getBodyList();
+                if (!list.empty())
+                {
+                    trigger->addActivationBodies(list);
+                }
+            }
+        }
+    }
 }
 
 // @005da388
@@ -2301,13 +2562,32 @@ void LevelB2D::addGroup(LevelDataElement* group, int index)
     groupItem->setBody(body);
     groupItem->setImmovable(immovable);
 
+    // ONLINE (PC addition): a browser group saved as a vehicle (v="t") drives like Flash's
+    // level/groups/Vehicle (src/online/vehicles/UserVehicle.cpp).
+    online::UserVehicle* userVehicle =
+        online::flashLevel() ? online::UserVehicle::createForGroup(this, group, body, index) : nullptr;
+
     for (tinyxml2::XMLElement* element = group->getData()->FirstChildElement("sh");
          element != nullptr; element = element->NextSiblingElement("sh"))
     {
         LevelDataElement* shape = new LevelDataElement;
         shape->init(element);
+        b2Fixture* previousFirstFixture = body->GetFixtureList();  // ONLINE (PC addition)
         addShape(shape, groupItem, Vec2(offsetX, offsetY), 0, foreground);
+        if (userVehicle)
+        {
+            userVehicle->shapeAdded(shape, body, previousFirstFixture);  // ONLINE (PC addition)
+        }
         delete shape;
+    }
+    if (online::flashLevel())
+    {
+        // ONLINE (PC addition): remember the shape fixtures (see GroupItem::onlineShapeFixtures).
+        for (b2Fixture* fixture = body->GetFixtureList(); fixture != nullptr;
+             fixture = fixture->GetNext())
+        {
+            groupItem->onlineShapeFixtures.push_back(fixture);
+        }
     }
 
     for (tinyxml2::XMLElement* element = group->getData()->FirstChildElement("sp");
@@ -2316,6 +2596,10 @@ void LevelB2D::addGroup(LevelDataElement* group, int index)
         LevelDataElement* specialElement = new LevelDataElement;
         specialElement->init(element);
         LevelItem* special = addSpecial(specialElement, 0, body, b2Vec2(offsetX, offsetY));
+        if (userVehicle && special)
+        {
+            userVehicle->groupSpecialAdded(special);  // ONLINE (PC addition)
+        }
         float specialX = 0.0f;
         float specialY = 0.0f;
         float specialRotation = 0.0f;
@@ -2350,6 +2634,16 @@ void LevelB2D::addGroup(LevelDataElement* group, int index)
     else
     {
         body->ResetMassData();
+        bool nanMass = false;
+        if (online::flashLevel() && group->boolAttribute("nm", &nanMass) && nanMass)
+        {
+            body->SetType(b2_staticBody);  // ONLINE (PC addition): see onlineNanMassBodies
+            onlineNanMassBodies.insert(body);
+        }
+    }
+    if (userVehicle)
+    {
+        userVehicle->groupFinished(groupItem->getBody());  // ONLINE (PC addition)
     }
     groupItem->setOpacity(opacity);
 

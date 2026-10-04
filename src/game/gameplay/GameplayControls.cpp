@@ -4,6 +4,7 @@
 #include "GameplayBtn.h"
 #include "Globals.h"
 #include "Settings.h"
+#include "restored/Restored.h"  // RESTORED (PC addition)
 
 USING_NS_CC;
 
@@ -250,6 +251,15 @@ void GameplayControls::addControls(ControlsType type)
         pushupBtn->nudgeBounds(18.0f, 90.0f, 18.0f, 6.0f);
         addChild(pushupBtn);
         _buttons.push_back(pushupBtn);
+        // RESTORED (PC addition): extra buttons of the restored characters' control sets.
+        for (GameplayBtn* btn : restored::extraControls(
+                 Settings::getInstance()->getSelectedCharacterControlType(), true, _userScale,
+                 Vec2::ZERO, Vec2::ZERO, 0.0f, grabBtn->getPosition(), grabSize.height,
+                 _specialButtonSpacing))
+        {
+            addChild(btn);
+            _buttons.push_back(btn);
+        }
 
         if (_drawBounds)
         {
@@ -405,6 +415,8 @@ void GameplayControls::addControls(ControlsType type)
             specialFrame = "controls_gameplay_btn_jump.png";
             break;
         }
+        // RESTORED (PC addition): the restored characters' special button (art and side).
+        restored::controlsSpecial(type, overrideSpecialPosition, &specialFrame, &specialOnLeft);
         _specialBtn = GameplayBtn::createWithSpriteFrameName(specialFrame, GameplayControlsStateSpecial,
                                                              _userScale);
         _specialBtn->setAdjustedScale(1.0f);
@@ -442,6 +454,14 @@ void GameplayControls::addControls(ControlsType type)
         _ejectBtn->nudgeBounds(180.0f, 180.0f, 96.0f, 96.0f);
         addChild(_ejectBtn);
         _buttons.push_back(_ejectBtn);
+        // RESTORED (PC addition): extra buttons of the restored characters' control sets.
+        for (GameplayBtn* btn : restored::extraControls(type, false, _userScale, _leanBackwardPos,
+                                                        _leanForwardPos, leanForwardSize.height,
+                                                        Vec2::ZERO, 0.0f, _specialButtonSpacing))
+        {
+            addChild(btn);
+            _buttons.push_back(btn);
+        }
 
         if (_drawBounds)
         {
@@ -480,7 +500,8 @@ void GameplayControls::addControls(ControlsType type)
         }
 
         // moped boost meter, left of the special button
-        if (type == ControlsTypeMoped)
+        // RESTORED (PC addition): also for the restored characters with a boost (Santa's flight).
+        if (type == ControlsTypeMoped || restored::controlsMeter(type))
         {
             _meterBG = Sprite::createWithSpriteFrameName("controls_meter_back.png");
             Size meterBGSize = _meterBG->getContentSize();

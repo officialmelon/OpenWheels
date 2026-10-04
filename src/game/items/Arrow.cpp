@@ -1,3 +1,4 @@
+#include "online/FlashRuntime.h"  // ONLINE (PC addition)
 #include "Arrow.h"
 
 #include <algorithm>
@@ -180,7 +181,7 @@ void Arrow::beginContact(b2Fixture* fixture, b2Fixture* otherFixture, b2Contact*
     if (material == -1) {
         return;
     }
-    if ((material & 2) == 0) {
+    if ((material & (online::flashLevel() ? 6 : 2)) == 0) {  // ONLINE (PC addition): Flash & 6
         return;
     }
     if (std::find(_bodiesToAdd.begin(), _bodiesToAdd.end(), body) != _bodiesToAdd.end()) {

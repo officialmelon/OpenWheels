@@ -1,6 +1,7 @@
 #include "Settings.h"
 
 #include "qol/QoL.h"  // QOL (PC addition)
+#include "restored/Restored.h"  // RESTORED (PC addition)
 
 #include "AdController.h"
 #include "GameText.h"
@@ -252,6 +253,7 @@ ValueVector Settings::getAllCharactersData()
     {
         std::string fullPath = FileUtils::getInstance()->fullPathForFilename("Characters.plist");
         _charactersData = FileUtils::getInstance()->getValueVectorFromFile(fullPath.c_str());
+        restored::appendCharacters(_charactersData);  // RESTORED (PC addition): browser characters
     }
     return _charactersData;
 }

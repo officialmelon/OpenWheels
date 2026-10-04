@@ -1,9 +1,12 @@
 #include "TargetActionGroup.h"
 
+#include <algorithm>
 #include <cmath>
 
 #include "GroupItem.h"
 #include "LevelB2D.h"
+#include "online/FlashRuntime.h"    // ONLINE (PC addition)
+#include "online/TriggerFilters.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -49,6 +52,11 @@ bool TargetActionGroup::initWithGroupItem(GroupItem* groupItem, b2Fixture* fixtu
 // @00570df0
 void TargetActionGroup::singleAction()
 {
+    if (online::flashLevel())
+    {
+        onlineSingleAction();  // ONLINE (PC addition)
+        return;
+    }
     switch (_actionIndex)
     {
         case 0:  // wake
@@ -216,6 +224,148 @@ void TargetActionGroup::singleAction()
     }
 }
 
+// ---------------------------------------------------------------------------------------------
+// ONLINE (PC addition): Flash TargetActionGroup.singleAction (browser levels). Filters only change
+// on the group's own shape fixtures (Flash: m_material == 8); "set to fixed" uses the 1.85+
+// fixed filter variants and drops joints to fixed-rotation bodies (levels > 1.84); a group whose
+// body is gone ("delete shapes") ignores body actions instead of dereferencing it.
+void TargetActionGroup::onlineSingleAction()
+{
+    b2Body* body = _groupItem != nullptr ? _groupItem->getBody() : nullptr;
+    const float version = online::flashVersion();
+    auto ownFixture = [this](b2Fixture* fixture) {
+        const std::vector<b2Fixture*>& own = _groupItem->onlineShapeFixtures;
+        return std::find(own.begin(), own.end(), fixture) != own.end();
+    };
+    switch (_actionIndex)
+    {
+        case 0:  // wake from sleep
+            if (body != nullptr)
+            {
+                body->SetAwake(true);
+            }
+            break;
+
+        case 2:  // apply impulse: {x, y, spin}
+        {
+            if (body == nullptr || !(body->GetMass() > 0.0f) || _properties.size() < 2)
+            {
+                break;
+            }
+            LevelB2D* level = getLevel();
+            float y = _properties[1];
+            level->convertDirectionIfNecessaryBasedOnRegistration(&y);
+            body->ApplyLinearImpulse(body->GetMass() * b2Vec2(_properties[0], y),
+                                     body->GetWorldCenter(), true);
+            float spin = _properties.size() > 2 ? _properties[2] : 0.0f;
+            if (spin != 0.0f && spin == spin)
+            {
+                level->convertRotationData(&spin);
+                body->SetAngularVelocity(body->GetAngularVelocity() + spin);
+            }
+            break;
+        }
+
+        case 3:  // set to fixed
+        {
+            if (body == nullptr || !(body->GetMass() > 0.0f))
+            {
+                break;
+            }
+            body->SetType(b2_staticBody);
+            if (version > 1.84f)
+            {
+                for (b2Fixture* fixture = body->GetFixtureList(); fixture != nullptr;
+                     fixture = fixture->GetNext())
+                {
+                    if (ownFixture(fixture))
+                    {
+                        b2Filter filter = fixture->GetFilterData();
+                        online::filterToFixed(&filter, version, true);
+                        fixture->SetFilterData(filter);
+                    }
+                }
+                online::destroyJointsOf(body, [body](b2Joint* joint) {
+                    b2Body* other = joint->GetBodyA() == body ? joint->GetBodyB() : joint->GetBodyA();
+                    return other->IsFixedRotation() && other->GetMass() != 0.0f;
+                });
+            }
+            break;
+        }
+
+        case 4:  // set to non fixed
+        {
+            if (body == nullptr || body->GetType() != b2_staticBody ||
+                getLevel()->onlineNanMassBodies.count(body))
+            {
+                break;
+            }
+            body->SetType(b2_dynamicBody);
+            body->SetAwake(true);
+            if (version > 1.84f)
+            {
+                for (b2Fixture* fixture = body->GetFixtureList(); fixture != nullptr;
+                     fixture = fixture->GetNext())
+                {
+                    b2Filter filter = fixture->GetFilterData();
+                    online::filterToNonFixed(&filter, version, true);
+                    fixture->SetFilterData(filter);
+                }
+            }
+            break;
+        }
+
+        case 5:  // delete shapes: the body goes, the art stays where it is
+            if (body != nullptr)
+            {
+                _groupItem->onlineShapeFixtures.clear();
+                _groupItem->stopInteractivity();
+                getLevel()->updateTargetActionGroupsFor(_index, _groupItem, this);
+            }
+            break;
+
+        case 6:  // delete self
+            if (_groupItem != nullptr)
+            {
+                _groupItem->onlineShapeFixtures.clear();
+                _groupItem->stopInteractivity();
+                _groupItem->removeSprites();
+                getLevel()->removeGroupItem(_groupItem);
+                _groupItem = nullptr;
+                getLevel()->updateTargetActionGroupsFor(_index, nullptr, this);
+            }
+            break;
+
+        case 7:  // change collision: {collision type}
+        {
+            if (body == nullptr || _properties.empty())
+            {
+                break;
+            }
+            const int collision = (int)_properties[0];
+            const bool fixed =
+                body->GetMass() == 0.0f && !getLevel()->onlineNanMassBodies.count(body);
+            for (b2Fixture* fixture = body->GetFixtureList(); fixture != nullptr;
+                 fixture = fixture->GetNext())
+            {
+                if (!ownFixture(fixture))
+                {
+                    continue;
+                }
+                b2Filter filter = fixture->GetFilterData();
+                bool sensor = false;
+                online::filterForCollision(&filter, &sensor, collision, fixed, version);
+                fixture->SetSensor(sensor);
+                fixture->SetFilterData(filter);
+            }
+            break;
+        }
+
+        default:  // 1 (change opacity) runs in actions()
+            break;
+    }
+}
+
 // @005712a0
 void TargetActionGroup::actions()
 {
@@ -236,6 +386,10 @@ void TargetActionGroup::actions()
                 getLevel()->removeFromActions(this);
                 // No return (unlike TargetAction): the counter restarts at one time step.
                 _counter = 0.0f;
+                if (online::flashLevel())
+                {
+                    return;  // ONLINE (PC addition): Flash restarts at 0 (levels > 1.8)
+                }
             }
             else
             {

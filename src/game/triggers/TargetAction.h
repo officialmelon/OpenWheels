@@ -40,6 +40,9 @@ public:
     virtual void singleAction() override;
     virtual void actions() override;
 
+    // ONLINE (PC addition): Flash TargetAction.singleAction for converted browser levels.
+    void onlineSingleAction();
+
 protected:
     // Names from the iOS original's TargetAction ivars (iOS `_action` was an NSString).
     b2Fixture* _shape;                // +0xa0

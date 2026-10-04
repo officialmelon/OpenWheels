@@ -18,6 +18,8 @@ public:
                                          std::vector<float> properties);
     bool initWithJoint(b2PrismaticJoint* joint, int action, std::vector<float> properties);
     void jointWillBeDestroy();
+    // ONLINE (PC addition): clears _joint in browser levels only (mobile keeps the original).
+    virtual void jointWillBeDestroyed(b2Joint* joint) override;
 
     // _actionIndex: 0 disable motor, 1 motor speed ramp (actions()), 2 delete joint, 3 disable limits,
     // 4 change limits.

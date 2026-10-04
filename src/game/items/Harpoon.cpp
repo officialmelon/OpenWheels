@@ -1,3 +1,4 @@
+#include "online/FlashRuntime.h"  // ONLINE (PC addition)
 #include "Harpoon.h"
 
 #include <algorithm>
@@ -62,6 +63,7 @@ bool Harpoon::init(b2Vec2 position, float angle, b2Vec2 velocity, int zOrder)
 {
     Node* levelItemsNode = getLevelItemsNode();
     _stabbableMaterials = 2;
+    if (online::flashLevel()) _stabbableMaterials |= 4;  // ONLINE (PC addition): Flash stabs materials & 6 (food)
     _harpoonGun = nullptr;
     _bloodComplete = false;
     _bloodCount = 0;

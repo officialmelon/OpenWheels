@@ -280,6 +280,26 @@ public:
     b2RevoluteJoint* getKneeJoint1();                                       // @005a0868
     b2RevoluteJoint* getKneeJoint2();                                       // @005a0870
 
+    // RESTORED (PC addition): the browser game's lawnmower blade (Flash CharacterB2D.grindShape /
+    // removeBody), used by the restored Lawnmower Man (src/restored/LawnMower). Not in the
+    // original; nothing in the mobile game calls these.
+    // ownsBody: the body is one of this character's parts. grindFixture: the part is caught by
+    // the blade - it stops bleeding and no longer smashes. grindBody: the blade finishes the part
+    // off - every joint holding it breaks, as in the browser game.
+    bool ownsBody(b2Body* body);
+    void grindFixture(b2Fixture* fixture);
+    void grindBody(b2Body* body);
+
+    // ONLINE (PC addition): browser user-built vehicles (Flash CharacterB2D.userVehicle,
+    // grabAction, userVehicleEject). Implemented in src/online/vehicles/UserVehicleRider.cpp and
+    // only reached in converted browser levels (online::flashLevel()).
+    bool onlineDriveUserVehicle(unsigned char state);          // setState while riding one
+    bool onlineGrabUserVehicle(int hand, b2Fixture* handle);   // a grabbing hand touched a handle
+    void onlineUserVehicleEject();
+    void onlineUserVehicleInjury(CharacterInjury injury);      // arm lost / death
+    void onlineUserVehiclePose();                              // poses 10..12 (checkPose)
+    void onlineUserVehicleJointDestroyed(b2Joint* joint);
+
 protected:
     // Voice clip names picked by playRandomVocals (.data @00abb5a8).
     static const char* _randomVocals[10];

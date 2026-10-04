@@ -25,6 +25,7 @@
 //   --open <file> | <file>  open a .happywheels / level .xml (user levels, like the iOS "Open in")
 //   --play-online <id>    download a browser Happy Wheels level by id and play it (src/online)
 //   --play-level <xml>    play a level XML file (mobile/editor format) as a user level
+//   --select-character <id>  with --play-level: open character select first, on character <id>
 //   --width <px> --height <px>   window ("device") size, default 1600x900
 //   --console             log to a console window
 //   --dump-world <out.json> [--level levels/<chapter>/<file>.xml] [--frames N] [--script f:hex,...]
@@ -140,6 +141,7 @@ struct Options
     std::wstring iosApp;
     int playOnline = 0;      // --play-online <level id>
     std::wstring playLevel;  // --play-level <level.xml>
+    int selectCharacter = 0;  // --select-character <id>
     std::wstring convertIn, convertOut;  // --convert-flash <in> <out> (PC-only test hook)
     std::wstring openFile;   // .happywheels / level .xml to open (command line or drag-and-drop onto the exe)
     float width = 1600.0f;
@@ -167,6 +169,7 @@ Options parseOptions()
         else if (a == L"--open") o.openFile = next();
         else if (a == L"--play-online") o.playOnline = _wtoi(next().c_str());
         else if (a == L"--play-level") o.playLevel = next();
+        else if (a == L"--select-character") o.selectCharacter = _wtoi(next().c_str());
         else if (a == L"--convert-flash") { o.convertIn = next(); o.convertOut = next(); }
         else if (a.size() > 4 && a[0] != L'-') o.openFile = a;   // file passed by Explorer / drag-and-drop
         else if (a == L"--width") { o.width = (float)_wtof(next().c_str()); explicitSize = true; }
@@ -407,14 +410,15 @@ int WINAPI _tWinMain(HINSTANCE hInstance,
     if (!opt.playLevel.empty())
     {
         const std::string xml = FileUtils::getInstance()->getStringFromFile(narrow(opt.playLevel));
-        runOnMainMenu([xml]() {
+        const int selectCharacter = opt.selectCharacter;
+        runOnMainMenu([xml, selectCharacter]() {
             LevelSession* session = LevelSession::getInstance();
             session->clearLevelData();
             session->setChapterIndex(5001);
             session->setLevelDataXML(xml);
-            session->setForceCharacter(true);
-            session->setCharacterIndex(1);
-            session->playLevel(true);
+            session->setForceCharacter(selectCharacter == 0);
+            session->setCharacterIndex(selectCharacter ? selectCharacter : 1);
+            session->playLevel(selectCharacter == 0);
         });
     }
 

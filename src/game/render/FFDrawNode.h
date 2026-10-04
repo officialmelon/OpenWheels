@@ -6,6 +6,8 @@
 // Polygons are triangulated with an ear-clipping port of polypartition (PartitionVert).
 // sizeof 0x902870 (arm64): the delegate table is a member array.
 
+#include <vector>
+
 #include "2d/CCNode.h"
 #include "base/ccTypes.h"
 #include "math/CCAffineTransform.h"
@@ -159,7 +161,11 @@ protected:
     bool _dirtyGLLine;                        // +0x452
     float _lineWidth;                         // +0x454
     float _defaultLineWidth;                  // +0x458
-    ArtDelegate _artDelegates[1600];          // +0x460
+    // ONLINE (PC addition): the original's inline ArtDelegate[1600] table, as a growable vector
+    // (1600 entries reserved up front, as before) so browser levels with more shapes fit. Mobile
+    // levels never get near 1600, so nothing changes for them.
+    std::vector<ArtDelegate> _artDelegates;   // +0x460 (was ArtDelegate[1600])
+    void onlineReserveArtDelegate();
     unsigned int _artDelegateCount;           // +0x902860
 
 private:

@@ -23,6 +23,8 @@ public:
     // 5 stop interactivity, 6 delete, 7 change collision.
     virtual void singleAction() override;
     virtual void actions() override;
+    // ONLINE (PC addition): Flash TargetActionGroup.singleAction for converted browser levels.
+    void onlineSingleAction();
     void updateTargetActionsForGroupItem(GroupItem* groupItem);
 
 protected:

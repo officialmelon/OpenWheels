@@ -15,6 +15,7 @@
 #include "SoundController.h"
 #include "StageCamera.h"
 #include "TerrainNode.h"
+#include "online/FlashRuntime.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -523,7 +524,15 @@ void Session::update(float dt)
     }
     _timeAccumulator -= timeStep;
 
+    if (online::flashLevel())
+    {
+        online::flashPreStep(_world);  // ONLINE (PC addition): Flash Box2D 2.0 contact rules
+    }
     _world->Step(timeStep, 8, 3);
+    if (online::flashLevel())
+    {
+        online::flashPostStep(_world);  // ONLINE (PC addition)
+    }
     if (_level != nullptr)
     {
         _level->update(timeStep);

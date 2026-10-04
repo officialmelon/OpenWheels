@@ -26,6 +26,7 @@
 #include "StageCamera.h"
 #include "Vehicle.h"
 #include "platform/compat/Box2DFloat.h"
+#include "online/FlashRuntime.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -249,6 +250,11 @@ void CharacterB2D::doNothing()
 // Riding: the control bits drive the vehicle. Ejected: they select a pose and grab.
 void CharacterB2D::setState(unsigned char state)
 {
+    // ONLINE (PC addition): riding a browser user vehicle, the controls drive it (Flash
+    // checkKeyStates -> userVehicle.operateKeys).
+    if (online::flashLevel() && onlineDriveUserVehicle(state)) {
+        return;
+    }
     if (_ejected) {
         if (state == 0) {
             doNothing();
@@ -624,6 +630,10 @@ void CharacterB2D::checkPose()
             pushupPose();
             break;
         default:
+            // ONLINE (PC addition): user-vehicle rider poses 10..12 (Flash checkPose).
+            if (online::flashLevel()) {
+                onlineUserVehiclePose();
+            }
             break;
         }
     }
@@ -688,10 +698,16 @@ void CharacterB2D::handleContactResults()
     }
     if (_contactResultBufferDict[_lowerArm1Fixture].impulse > 0.0f) {
         _contactResultBufferDict[_lowerArm1Fixture].impulse = 0.0f;
+        // ONLINE (PC addition): a browser user-vehicle handle attaches the rider (Flash grabAction).
+        if (!online::flashLevel() ||
+            !onlineGrabUserVehicle(1, _contactResultBufferDict[_lowerArm1Fixture].otherFixture))
         grabAction1(_contactResultBufferDict[_lowerArm1Fixture].otherFixture->GetBody());
     }
     if (_contactResultBufferDict[_lowerArm2Fixture].impulse > 0.0f) {
         _contactResultBufferDict[_lowerArm2Fixture].impulse = 0.0f;
+        // ONLINE (PC addition): see above.
+        if (!online::flashLevel() ||
+            !onlineGrabUserVehicle(2, _contactResultBufferDict[_lowerArm2Fixture].otherFixture))
         grabAction2(_contactResultBufferDict[_lowerArm2Fixture].otherFixture->GetBody());
     }
 }
@@ -2163,6 +2179,10 @@ void CharacterB2D::eject()
 // @0059c6a8
 void CharacterB2D::postInjury(CharacterInjury injury)
 {
+    // ONLINE (PC addition): a lost arm / death lets go of a browser user vehicle.
+    if (online::flashLevel()) {
+        onlineUserVehicleInjury(injury);
+    }
     if (_vehicle) {
         _vehicle->handleInjury(injury, this);
     }
@@ -2458,6 +2478,8 @@ void CharacterB2D::jointWillBeDestroyed(b2Joint* joint)
     } else if (_gripJoint2 == joint) {
         _gripJoint2 = nullptr;
         removePostSolve(_lowerArm2Fixture);
+    } else if (online::flashLevel()) {
+        onlineUserVehicleJointDestroyed(joint);  // ONLINE (PC addition): user-vehicle arm joints
     }
 }
 
@@ -3337,4 +3359,151 @@ void CharacterB2D::emitterComplete(Emitter* emitter)
 void CharacterB2D::setMourner(CharacterB2D* mourner)
 {
     _mourner = mourner;
+}
+
+// ---------------------------------------------------------------------------------------------
+// RESTORED (PC addition): the browser game's lawnmower blade (Flash CharacterB2D.grindShape /
+// removeBody). Called only by src/restored/LawnMower; the mobile game never reaches these.
+// ---------------------------------------------------------------------------------------------
+
+bool CharacterB2D::ownsBody(b2Body* body)
+{
+    if (body == nullptr) {
+        return false;
+    }
+    b2Body* bodies[] = {_headBody,      _chestBody,     _upperArm1Body, _upperArm2Body,
+                        _lowerArm1Body, _lowerArm2Body, _pelvisBody,    _upperLeg1Body,
+                        _upperLeg2Body, _lowerLeg1Body, _lowerLeg2Body, _upperArm3Body,
+                        _upperArm4Body, _upperLeg3Body, _upperLeg4Body, _heartBody,
+                        _brainBody,     _helmetBody};
+    for (b2Body* b : bodies) {
+        if (b == body) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void CharacterB2D::grindFixture(b2Fixture* fixture)
+{
+    auto stop = [](Emitter* e) {
+        if (e) {
+            e->stop();
+        }
+    };
+    if (fixture == _headFixture || fixture == _chestFixture || fixture == _pelvisFixture) {
+        removePostSolve(fixture);
+        _contactImpulseDict.erase(fixture);
+        removeFromContactResultBufferDict(fixture);
+    }
+    if (fixture == _headFixture) {
+        stop(_headBloodFlow);
+    } else if (fixture == _chestFixture) {
+        stop(_neckBloodFlow);
+        stop(_shoulder1BloodFlow);
+        stop(_shoulder2BloodFlow);
+        stop(_stomachBloodFlow);
+    } else if (fixture == _pelvisFixture) {
+        stop(_hip1BloodFlow);
+        stop(_hip2BloodFlow);
+    } else if (_upperArm1Body && fixture == _upperArm1Body->GetFixtureList()) {
+        stop(_arm1BloodFlow);
+    } else if (_upperArm2Body && fixture == _upperArm2Body->GetFixtureList()) {
+        stop(_arm2BloodFlow);
+    } else if (_upperLeg1Body && fixture == _upperLeg1Body->GetFixtureList()) {
+        stop(_thigh1BloodFlow);
+    } else if (_upperLeg2Body && fixture == _upperLeg2Body->GetFixtureList()) {
+        stop(_thigh2BloodFlow);
+    }
+}
+
+void CharacterB2D::grindBody(b2Body* body)
+{
+    // Flash tests joint.broken; here a joint is intact while its pointer is set and (for the
+    // shoulders/hips) no dislocated stub body exists. The neck breaks at the spine limit (the
+    // Flash force 0 would make no sense to SpinalCord's vertebra count).
+    bool shoulder1 = _shoulderJoint1 && !_upperArm3Body;
+    bool shoulder2 = _shoulderJoint2 && !_upperArm4Body;
+    bool hip1 = _hipJoint1 && !_upperLeg3Body;
+    bool hip2 = _hipJoint2 && !_upperLeg4Body;
+    if (body == _headBody) {
+        if (_neckJoint) {
+            neckBreak(_spineLimit, true, true);
+        }
+        if (_spinalCord) {
+            _spinalCord->spineBreak2();
+        }
+    } else if (body == _chestBody) {
+        if (_neckJoint) {
+            neckBreak(_spineLimit, true, true);
+        }
+        if (shoulder1) {
+            shoulderBreak1(0.0f, true);
+        }
+        if (shoulder2) {
+            shoulderBreak2(0.0f, true);
+        }
+        if (_waistJoint) {
+            torsoBreak(0.0f, true, true, false);
+        }
+        if (_intestineChain) {
+            _intestineChain->intestineBreak2();
+        }
+        if (_spinalCord) {
+            _spinalCord->spineBreak1();
+        }
+    } else if (body == _pelvisBody) {
+        if (hip1) {
+            hipBreak1(0.0f, true);
+        }
+        if (hip2) {
+            hipBreak2(0.0f, true);
+        }
+        if (_waistJoint) {
+            torsoBreak(0.0f, true, true, false);
+        }
+        if (_intestineChain) {
+            _intestineChain->intestineBreak1();
+        }
+    } else if (body == _upperArm1Body) {
+        if (shoulder1) {
+            shoulderBreak1(0.0f, true);
+        }
+        if (_elbowJoint1) {
+            elbowBreak1(1000.0f);
+        }
+        if (_arm1BloodFlow) {
+            _arm1BloodFlow->stop();
+        }
+    } else if (body == _upperArm2Body) {
+        if (shoulder2) {
+            shoulderBreak2(0.0f, true);
+        }
+        if (_elbowJoint2) {
+            elbowBreak2(1000.0f);
+        }
+        if (_arm2BloodFlow) {
+            _arm2BloodFlow->stop();
+        }
+    } else if (body == _upperLeg1Body) {
+        if (hip1) {
+            hipBreak1(0.0f, true);
+        }
+        if (_kneeJoint1) {
+            kneeBreak1(1000.0f);
+        }
+        if (_thigh1BloodFlow) {
+            _thigh1BloodFlow->stop();
+        }
+    } else if (body == _upperLeg2Body) {
+        if (hip2) {
+            hipBreak2(0.0f, true);
+        }
+        if (_kneeJoint2) {
+            kneeBreak2(1000.0f);
+        }
+        if (_thigh2BloodFlow) {
+            _thigh2BloodFlow->stop();
+        }
+    }
 }

@@ -15,6 +15,7 @@
 // (the session's PTM ratio).
 
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -87,6 +88,9 @@ public:
     void addToSingleActions(LevelItem* item);
     bool singleActionsContainsLevelItem(LevelItem* item);
     bool actionsContainsLevelItem(LevelItem* item);
+    // ONLINE (PC addition): Flash actionsVector.indexOf(item) > -1 - also true for items queued
+    // this step (Flash pushes into actionsVector at once, mobile defers through _actionsToAdd).
+    bool onlineActionsContainsLevelItem(LevelItem* item);
     void removeFromSingleActions(LevelItem* item);
     void removeFromActions(LevelItem* item);
     void addToPaintItem(LevelItem* item);
@@ -136,6 +140,9 @@ public:
     void convertRotationData(float* rotation);
     void addTrigger(LevelDataElement* trigger, int index) override;
     void addTriggersComplete() override;
+    // ONLINE (PC addition): Flash UserLevel.createTriggers target wiring for browser levels.
+    void onlineAddTriggerTargets(LevelDataElement* element, Trigger* trigger, int type,
+                                 int triggeredBy);
     ShapeItem* getShapeItem(int index);
     LevelItem* getSpecial(unsigned int index);
     void addGroup(LevelDataElement* group, int index) override;
@@ -150,6 +157,8 @@ public:
     void convertDirectionIfNecessaryBasedOnRegistration(float* value);
     std::vector<LevelItem*> getActionsVector();
     std::vector<CharacterB2D*> getCharacters();
+    // ONLINE (PC addition): the trigger list, for browser levels' click triggers.
+    const std::vector<Trigger*>& onlineTriggers() const { return _triggers; }
 
     // Notify every target action registered under `index` (except `caller`).
     void updateTargetActionRevJoint(unsigned int index, b2Joint* joint,
@@ -198,4 +207,11 @@ private:
     bool _levelComplete;                                            // +0x21e
     float _frameActionTimer;                                        // +0x220
     bool _forcedChar;                                               // +0x224  info "f"
+    // ONLINE (PC addition): true while update() runs the single actions of a browser level.
+    bool _onlineRunningSingleActions = false;
+
+public:
+    // ONLINE (PC addition): bodies of browser shapes / groups whose Flash mass is NaN (density
+    // "NaN", converter attribute nm): static, and neither "fixed" nor "non fixed" for triggers.
+    std::set<b2Body*> onlineNanMassBodies;
 };

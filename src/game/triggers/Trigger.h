@@ -45,6 +45,7 @@ enum TriggerTriggeredBy
     TriggerTriggeredByAnyObject = 3,      // any non-sensor body with mass
     TriggerTriggeredByBodies = 4,         // bodies in _activationDictionary
     TriggerTriggeredByTrigger = 5,        // no sensor; TargetActionTrigger -> activateByTrigger()
+    TriggerTriggeredByMouseClick = 6,     // ONLINE (PC addition): browser levels only
 };
 
 // Trigger::_repeatType ("r").
@@ -128,7 +129,19 @@ public:
 
     void activateByTrigger();
     virtual void singleAction() override;
+
+    // ONLINE (PC addition): browser levels' "triggered by mouse click" (b = 6), Flash
+    // Trigger.mouseUpHandler / mouseOutHandler. Only reachable through online::installClickTriggers
+    // (converted browser levels); mobile levels never use b = 6.
+    bool onlineClickHit(const b2Vec2& worldPoint);
+    bool onlineInButton(const b2Vec2& worldPoint);
+    void onlineMouseClick();
+    void onlineMouseMove(const b2Vec2& worldPoint);
     virtual void actions() override;
+
+    // ONLINE (PC addition): Flash Trigger.activateByTrigger / actions for converted browser levels.
+    void onlineActivateByTrigger();
+    void onlineActions();
 
 protected:
     // Names from the iOS original's Trigger ivars.
@@ -155,4 +168,9 @@ protected:
     int _soundLocation;                              // +0x144 "l": 1 global, else positional
     bool _disabled;                                  // +0x148 "sd" (set by LevelB2D)
     bool _activationDictionaryNulled;                // +0x149 one-shot trigger already fired
+    // ONLINE (PC addition): click-trigger state (see onlineMouseClick).
+    bool _onlineClickSpent = false;                  // "once" click trigger: button removed
+    bool _onlineClickHover = false;                  // "continuously": runs until the pointer leaves
+    float _onlineHalfWidth = 0.0f;                   // button half size (m), unrotated
+    float _onlineHalfHeight = 0.0f;
 };

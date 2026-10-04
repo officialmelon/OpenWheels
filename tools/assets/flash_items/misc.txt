@@ -1,0 +1,90 @@
+# Misc browser specials (src/online/items: Chain, Token, Glass, Meteor, Building1/2, Rail, Cannon, Paddle, Van/Bottle in groups).
+# <name> <symbol class> [frame] [zoom=2] [hide=depths]
+chain_l0_1 link0MC 1 zoom=4
+chain_l1_1 link1MC 1 zoom=4
+chain_l0_2 link0MC 2 zoom=4
+chain_l1_2 link1MC 2 zoom=4
+chain_l0_3 link0MC 3 zoom=4
+chain_l1_3 link1MC 3 zoom=4
+chain_l0_4 link0MC 4 zoom=4
+chain_l1_4 link1MC 4 zoom=4
+coin_edge_1 CoinMC 1 hide=3
+coin_edge_2 CoinMC 2 hide=3
+coin_edge_3 CoinMC 3 hide=3
+coin_edge_4 CoinMC 4 hide=3
+coin_edge_5 CoinMC 5 hide=3
+coin_edge_6 CoinMC 6 hide=3
+coin_edge_7 CoinMC 7 hide=3
+coin_edge_8 CoinMC 8 hide=3
+coin_edge_9 CoinMC 9 hide=3
+coin_edge_10 CoinMC 10 hide=3
+coin_edge_11 CoinMC 11 hide=3
+coin_edge_12 CoinMC 12 hide=3
+coin_edge_13 CoinMC 13 hide=3
+coin_edge_14 CoinMC 14 hide=3
+coin_edge_15 CoinMC 15 hide=3
+coin_edge_16 CoinMC 16 hide=3
+coin_face_1 clip:889 1
+coin_face_2 clip:889 2
+coin_face_3 clip:889 3
+coin_face_4 clip:889 4
+coin_face_5 clip:889 5
+coin_face_6 clip:889 6
+token_icon TokenIcon
+meteor MeteorMC 1 zoom=1
+rail RailMC
+cannon_base_1 CannonBaseMC 1 hide=7,11
+cannon_base_2 CannonBaseMC 2 hide=7
+cannon_meter_bg clip:2895 1 hide=2
+cannon_meter_bar clip:2894
+cannon_star CannonBaseMC 1 hide=6,7,10
+cannon_muzzle_1 CannonMuzzleMC 1
+cannon_muzzle_2 CannonMuzzleMC 2
+muzzle_flare_1 MuzzleFlare 1 zoom=1
+muzzle_flare_2 MuzzleFlare 2 zoom=1
+muzzle_flare_3 MuzzleFlare 3 zoom=1
+muzzle_flare_4 MuzzleFlare 4 zoom=1
+muzzle_flare_5 MuzzleFlare 5 zoom=1
+muzzle_flare_6 MuzzleFlare 6 zoom=1
+muzzle_flare_7 MuzzleFlare 7 zoom=1
+muzzle_flare_8 MuzzleFlare 8 zoom=1
+muzzle_flare_9 MuzzleFlare 9 zoom=1
+muzzle_flare_10 MuzzleFlare 10 zoom=1
+muzzle_flare_11 MuzzleFlare 11 zoom=1
+muzzle_flare_12 MuzzleFlare 12 zoom=1
+muzzle_flare_13 MuzzleFlare 13 zoom=1
+muzzle_flare_14 MuzzleFlare 14 zoom=1
+muzzle_flare_15 MuzzleFlare 15 zoom=1
+muzzle_flare_16 MuzzleFlare 16 zoom=1
+muzzle_flare_17 MuzzleFlare 17 zoom=1
+muzzle_flare_18 MuzzleFlare 18 zoom=1
+muzzle_flare_19 MuzzleFlare 19 zoom=1
+muzzle_flare_20 MuzzleFlare 20 zoom=1
+muzzle_flare_21 MuzzleFlare 21 zoom=1
+muzzle_flare_22 MuzzleFlare 22 zoom=1
+muzzle_flare_23 MuzzleFlare 23 zoom=1
+paddle_base PaddleBaseMC 1 hide=3
+paddle_base_nub clip:1060
+paddle PaddleMC 1 hide=4,6,10
+paddle_nub clip:1064
+paddle_arrow clip:1068 1 hide=3
+paddle_glow clip:1067
+paddle_timer clip:1070 1 hide=2
+van_body VanBodyMC 1
+van_tire VanTireMC
+bottle_1 BottleMC 1
+bottle_2 BottleMC 2
+bottle_3 BottleMC 3
+bottle_4 BottleMC 4
+glass_blood GlassBloodMC
+b1_roof clip:2770 1 zoom=2
+b1_win_back clip:2784 1 zoom=2 hide=3,5,6,8,12,14,15
+b1_win_mid clip:2784 1 zoom=2 hide=1,3,8,12,14,15
+b1_win_front clip:2784 1 zoom=2 hide=1,3,5,6,8,12,15
+b1_win_shade clip:2774 1 zoom=2
+b1_win_fshadow clip:2778 1 zoom=2
+b1_win_frame clip:2780 1 zoom=2
+b1_win_ac clip:2783 1 zoom=2
+b1_ledge clip:2786 1 zoom=2
+b2_roof clip:2748 1 zoom=2
+b2_floor clip:2726 1 zoom=2

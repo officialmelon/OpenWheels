@@ -28,6 +28,8 @@
 #include "Tracker.h"
 #include "VictoryMenu.h"
 #include "LevelSession.h"  // EDITOR (iOS port): user levels (src/editor/persistence)
+#include "online/FlashRuntime.h"           // ONLINE (PC addition)
+#include "online/vehicles/UserVehicle.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -370,6 +372,12 @@ void Gameplay::update(float dt)
     else
     {
         state = _controls->getState();
+        // ONLINE (PC addition): browser levels also read Shift / Ctrl (user-vehicle actions) and
+        // Z without an eject button (user-vehicle riders); see online/vehicles/UserVehicle.h.
+        if (online::flashLevel())
+        {
+            state |= online::pcExtraControlBits();
+        }
         _replayData->addEntry(state);
     }
 
