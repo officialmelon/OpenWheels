@@ -70,9 +70,12 @@ behaviour:
 - **Blood:** classic, streaks, liquid or realistic (the four blood settings of the browser game)
 - **Max particles:** 2000 (original), 4000 or 8000
 - **Camera:** normal, or three levels of zoom-out
+- **Textures:** auto (the original's choice) or a fixed large / medium / small / tiny asset tier
+- **Frame rate:** 60 (original) or 30 FPS, like the browser game; the physics run the same steps
+- **Sound effects** and **music** volume sliders
 - **FPS counter**, **unlock all levels**, **fullscreen** (or F11)
 - **Child gore:** gives the Irresponsible Dad's son the gore the mobile version left out
-- **Keyboard controls** reference sheet (PC)
+- **Controls** (PC): remap every keyboard action
 
 See [docs/QOL.md](docs/QOL.md).
 
@@ -98,7 +101,7 @@ Builds are published on the [Releases](https://github.com/officialmelon/OpenWhee
 ## Controls
 
 On touch screens the controls are the same as the mobile game's. On PC, the mouse acts as touch
-and these keys work:
+and these keys work by default (remap them in *Options → quality of life → controls*):
 
 | Key | Action |
 |---|---|

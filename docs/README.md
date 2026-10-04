@@ -23,6 +23,8 @@
   browser game.
 * [QOL.md](QOL.md) — the Quality of Life options page (blood styles, particles, camera, ...)
   and the desktop keyboard controls.
+* [NEARBY.md](NEARBY.md) — Send to Nearby: levels between players on the same Wi-Fi (LAN
+  discovery, the transfer protocol, receive codes, firewall and emulator notes).
 * [ANDROID.md](ANDROID.md) — building the Android APK, staged game files, release signing.
 
 ## Work notes

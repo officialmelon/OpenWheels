@@ -119,6 +119,8 @@ endforeach()
 option(OW_WITH_EDITOR "Build the level editor sources under src/editor/" ON)
 if(NOT OW_WITH_EDITOR)
     list(FILTER GAME_SOURCES EXCLUDE REGEX "/src/editor/")
+    # NET (PC addition): the LAN level transfer saves into the editor's LevelStore
+    list(FILTER GAME_SOURCES EXCLUDE REGEX "/src/net/")
     # the menus' editor hooks reference a few LevelSession members: verification-only stubs
     list(APPEND GAME_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/tools/parity/EditorlessStubs.cpp)
 endif()

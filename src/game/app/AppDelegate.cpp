@@ -5,6 +5,7 @@
 #include "Settings.h"
 #include "qol/QoL.h"  // QOL (PC addition)
 #include "restored/Restored.h"  // RESTORED (PC addition)
+#include "net/NetLevels.h"  // NET (PC addition)
 
 #include "sdkbox/PluginReview.h"
 
@@ -18,6 +19,7 @@ AppDelegate::AppDelegate()
 // @0057ce34 (D1), @0057ce38 (D0)
 AppDelegate::~AppDelegate()
 {
+    net::stopLevelSharing();  // NET (PC addition): joins the network thread
 }
 
 // @0057ce5c
@@ -43,6 +45,7 @@ bool AppDelegate::applicationDidFinishLaunching()
     bool useLowResGraphics = userDefault->getBoolForKey("use_low_res_graphics");
 
     director->setAnimationInterval(1.0f / 60);
+    qol::installFrameRate(qol::frameRate());  // QOL (PC addition): 30 / 60 FPS (60 by default)
 
     glview->setDesignResolutionSize(designResolutionSize.width, designResolutionSize.height,
                                     ResolutionPolicy::FIXED_HEIGHT);
@@ -86,6 +89,8 @@ bool AppDelegate::applicationDidFinishLaunching()
         resolutionDirectory.assign("tiny");
         resolutionHeight = tinyResolutionSize.height;
     }
+    // QOL (PC addition): "textures" overrides the tier (auto by default = the choice above).
+    qol::overrideAssetTier(&resolutionDirectory, &resolutionHeight);
     fileUtils->addSearchPath(resolutionDirectory);
     qol::setAssetTier(resolutionDirectory);  // QOL (PC addition): generated/<tier>/ sheets
     restored::addSearchPaths(resolutionDirectory);  // RESTORED (PC addition): browser characters
@@ -98,6 +103,7 @@ bool AppDelegate::applicationDidFinishLaunching()
     userDefault->setIntegerForKey("mascot_state", 0);
 
     director->runWithScene(PrivacyPolicyScene::createScene());
+    net::startLevelSharing();  // NET (PC addition): receive levels from nearby players (src/net/)
     return true;
 }
 

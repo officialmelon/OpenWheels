@@ -22,6 +22,8 @@
 
 namespace online {
 
+class BrowserExtras;  // ONLINE (PC addition): account / replay additions (online/account)
+
 namespace ui {
 class Button;
 class Dropdown;
@@ -35,6 +37,7 @@ struct BrowserState {
     std::string fieldText;                  // search field contents
     SearchBy searchBy = SearchBy::Name;     // "by Name / by Author"
     std::vector<OnlineLevelInfo> levels;    // current results
+    int special = 0;                        // ONLINE (PC addition): BrowserExtras::Favorites / MyLevels list
     int perPage = 0;                        // server page size of the last result (500)
     bool loaded = false;                    // levels is the result of query/featured
     int selected = -1;
@@ -158,6 +161,12 @@ private:
     cocos2d::Label* _status = nullptr;
     cocos2d::Sprite* _statusSpinner = nullptr;
     ui::Button* _playBtn = nullptr;
+    BrowserExtras* _extras = nullptr;   // ONLINE (PC addition): account button, favorite, rate, replays
+    void setSpecial(int special);       // ONLINE (PC addition): Favorites / My Levels list
+    ui::Button* _editBtn = nullptr;   // EDITOR (PC addition): open the level in the level editor
+    void editSelected();              // EDITOR (PC addition)
+    ui::Button* _sendBtn = nullptr;   // NET (PC addition): send a downloaded level to a nearby player
+    void sendSelected();              // NET (PC addition)
 
     // requests
     RequestId _listRequest = 0;

@@ -21,6 +21,7 @@ const char* const kFontHeading = "fonts/ClarendonLTStd-Bold.ttf";
 const char* const kFontBody = "fonts/Arial.ttf";
 const char* const kFontBodyBold = "fonts/Arial Bold.ttf";
 
+const char* const kModalNodeName = "ow_modal";  // NET (PC addition)
 const Color3B kPink(253, 129, 129);
 const Color3B kBlue(61, 139, 199);
 const Color3B kTextDim(178, 180, 200);
@@ -429,8 +430,10 @@ bool modalOpen() {
     if (s_openPopup) return true;
     Scene* scene = Director::getInstance()->getRunningScene();
     if (!scene) return false;
-    for (Node* child : scene->getChildren())
+    for (Node* child : scene->getChildren()) {
         if (dynamic_cast<HWWindow*>(child)) return true;
+        if (child->getName() == kModalNodeName) return true;  // NET (PC addition): net::ui::Modal panels
+    }
     return false;
 }
 
@@ -815,6 +818,15 @@ bool SearchField::init(const Size& size, const std::string& placeholder) {
 
 void SearchField::setText(const std::string& text) {
     _text = text;
+    refresh();
+}
+
+// NET (PC addition): fields that are not searches (player name, receive code).
+void SearchField::setIconVisible(bool visible) {
+    _icon->setVisible(visible);
+    const float r = _contentSize.height * 0.5f;
+    _textLeft = visible ? r * 1.05f + _contentSize.height * 0.40f : r * 0.9f;
+    _label->setPositionX(_textLeft);
     refresh();
 }
 

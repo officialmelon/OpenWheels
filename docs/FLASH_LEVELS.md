@@ -41,9 +41,15 @@ body. The HTML5 client sends exactly the same bodies as the Flash client (observ
 | | `get_featured` | — | same |
 | | `get_level` | `level_id` | `<lvs><lv …/></lvs>` (metadata of one level) |
 | | `get_record` | `level_id`, `ip_tracking` | **binary level record** (§3) |
-| `user.hw` | `get_favorites`, `set_favorite`, `delete_favorite` | login session | — (not used) |
-| `set_level.hw` | `create`, `update`, `publish` | login; `level_record` = base64 of an encrypted record | — (not used) |
-| `replay.hw` | `get_all_by_level`, `get_combined`, `get_cmb_records`, `get_cmb_by_user`, `rate_replay` | — | replays; `get_cmb_records` returns a level record encrypted the same way (not used) |
+| | `get_cmb_by_user` | login | the player's levels: `<…><private><lvs/></private><published><lvs/></published></…>` |
+| `user.hw` | `login`, `logout` | `login_user_email`, `login_user_pass` | `success:true` \| `failure:userpass` \| `failure:verify_email` \| `lockout:<min>` (§11.2) |
+| | `get_favorites` / `set_favorite`, `delete_favorite` | login; `level_id` | `<lvs>` / `success` \| `failure:duplicate` |
+| `set_level.hw` | `create` / `update` / `publish` | login; `level_name`, `user_comment`, `playable_character`, `level_record` (base64 of an encrypted record) / `level_id` | `success:<id>` (create) \| `failure:time_lockout`… (§11.4) |
+| | `rate_level` | login; `level_id`, `rating` | `success` \| `failure:duplicate_rating` |
+| `replay.hw` | `get_all_by_level`, `get_combined`, `get_cmb_records`, `create`, `rate_replay` | see §11.1 | replays (§11.1) |
+
+Since 2026-10-04 OpenWheels uses all of these (§11); which were exercised live and which only
+against the local mock is listed in §11.6.
 
 `<lv>` attributes: `id` level id, `ln` name, `ui` **author user id**, `un` author name,
 `rg` weighted rating, `vs` votes, `ps` plays, `dp` date published, `pc` forced character (0 = any),
@@ -245,8 +251,10 @@ characters and sounds as separate SWFs from swf.totaljerkface.com, which we don'
 
 * **Gate.** The converter writes `<info ... src="flash" fv="<browser version>">`. `LevelB2D::addInfo`
   calls `online::setFlashLevel()` for every level it loads, so every hook below is off for the
-  campaign, the editor and editor test-play (`src/online/FlashRuntime.h`). `compare_play` stays
-  73/73.
+  campaign (`src/online/FlashRuntime.h`). `compare_play` stays 73/73. Editor levels are saved in
+  the browser format and played through the converter too (`docs/EDITOR_PORT.md`), so the hooks
+  are on for them; the editor marks them `ow="1"`, which makes the converter keep the mobile
+  backgrounds (3, 4, 4001), mobile-only special params and the iOS 5001 item.
 * **Item ports.** `src/online/items/`: each browser special registers itself
   (`FlashSpecialRegistration`, `FlashSpecials.h`); `LevelB2D::addSpecial` asks the registry for
   ids the Android game lacks (and for overrides: Chain/Token are stubs on Android, Van/Bottle
@@ -313,8 +321,8 @@ after 600 frames), Flash draw order.
 
 Browser characters 6, 7, 8, 10 and 11 map to `restored::hasCharacter(id) ? id : fallback`
 (fallbacks: motor cart, motor cart, moped couple, irresponsible dad, segway guy). A "hide vehicle"
-start with a restored character still uses the wheelchair guy's ragdoll (`BareCharacter.cpp`
-knows only the six mobile characters).
+start with a restored character uses that character's own ragdoll, voice and gore without vehicle,
+kids or elves (Flash `PlayableCharacterB2D`; `restored::createBareCharacter`, `docs/RESTORED.md`).
 
 ### 10.5 Remaining gaps (by levels affected in the sample)
 
@@ -328,12 +336,42 @@ knows only the six mobile characters).
   buildings tiled downwards and drawn twice as in Flash, Flash's blur). Wrecking balls targeted by
   a trigger wait frozen (limits 0, asleep, non-colliding) until triggered (Flash
   prepareForTrigger / triggerSingleActivation).
-* Not ported: HTML5-only item ids > 35 (none in the sample), NPC grind art states.
+* Fixed since (2): restored characters in "hide vehicle" starts (10.4). NPC grind states: an NPC's
+  joint breaks skip the bleeding (head, neck, stomach, shoulder and hip flows) of a part the mower
+  blade is grinding (Flash GRIND_STATE), and the mower masks what it grinds as Flash does
+  (`targetMaskHolder`: the art is clipped below the clearance sensor's top edge and disappears
+  gradually into the deck; `LawnMower::maskTarget`, a ClippingNode around the part's art) instead
+  of hiding the whole part once its centre passes the blade. Levels <= 1.8 keep a finished trigger
+  action's counter at its end (Flash `levelVersion > 1.8` resets it), so a repeated fade / motor
+  ramp / special action completes at once instead of running again (`TargetAction`,
+  `TargetActionGroup`, `TargetActionRevJoint`, `TargetActionSpecial`, the text box's repeat
+  handler; prismatic joints already behaved that way). The city backdrops scale with the QoL camera
+  zoom (`BackgroundLayer::update`: the backdrops get the camera position at zoom 1 and are drawn at
+  the zoom about the screen centre, so they line up with the zoomed level).
+* CLICK PARKOUR 3 (10254164): its start sits in a non-fixed density-NaN box (collision 3 = none)
+  that trigger 241 switches to collision 7 (character only). In Box2D 2.0 a NaN-density shape is
+  static but its centre of mass is NaN, and the contact solver multiplies that into the impulses:
+  the "hide vehicle" character goes NaN and is frozen, and Flash's camera, fed a NaN focus, snaps
+  to the top-left limits of the stage, where the author built the whole game (title, PLAY and
+  language buttons, character choice: everything inside x 0-900, y 0-500). Ours made the box a
+  clean static body and the camera followed the character over empty space. Now
+  `online::flashPostStep` emulates the NaN island (every awake dynamic body touching a NaN-mass
+  body, and everything joined to it by joints or touching contacts, is stopped and deactivated;
+  `online::flashNanBody`) and `StageCamera::center` reads such a focus as Flash's stage origin.
+  Inferred from the Flash code, not compared with a Flash run. The camera also stops exactly at the
+  stage's top and right edges in browser levels, as Flash's `cameraBounds` do: the mobile
+  `StageCamera::setLimits` measures the window in pixels against a stage in points, so below the
+  large asset tier (a 1600x900 window uses medium) the view could pass those edges by up to half a
+  screen.
+* HTML5-only special ids > 35: none found. The Flash table (`Settings.specialList`) ends at 35
+  (PaddleRef). Ten of the newest levels (all saved by the HTML5 editor, v 2.01, 2026-10) use only
+  ids 0-35, with the Flash parameter counts. The HTML5 client's bundle is obfuscated and
+  domain-locked, so its table could not be read. Unknown ids degrade gracefully: the converter
+  drops them (counted as "unknownSpecial" in its report, like the other dropped items) and
+  `LevelB2D::addSpecial` returns nothing for an id no port registers. `tools/levels/hwflash.py`
+  now parses listings whose names contain the server's stray Latin-1 bytes.
 * Approximations: no Flash reference run was possible; Box2D 2.0 vs 2.3 solver differences remain
-  (stacking, joint stiffness); props use the mobile particle systems; trigger counters of levels
-  <= 1.8 restart where Flash doesn't; restored characters in hide-vehicle starts; the city
-  backdrops ignore the QoL camera zoom (they follow the container position like the mobile hills).
-* CLICK PARKOUR 3's intro relies on a camera position we couldn't verify.
+  (stacking, joint stiffness); props use the mobile particle systems.
 
 ### 10.6 Build and test notes
 
@@ -344,3 +382,156 @@ knows only the six mobile characters).
   Build trees outside the repo need an `assets` junction next to the exe (the exe finds the
   Android assets by walking up from its folder). Debug switches for the physics changes:
   `OW_FLASH_KEEP_POLYGON_RADIUS=1`, `OW_FLASH_KEEP_BOX2D_WAKES=1`.
+
+## 11. Replays, the player's account and publishing (2026-10-04)
+
+All of this is a PC addition (`// ONLINE (PC addition):`), in `src/online/account/` and
+`src/online/replays/`, with small hooks in `OnlineLevelBrowser`, `OnlinePlay`, `HWApi`,
+`Gameplay::update`, `Session::update` (flash levels only), `Trigger::onlineMouseClick/Move` and
+`main.cpp` (`--online-test`). Ground truth: the decompiled Flash v1.87 client (`ReplayData`,
+`RecordLoader`, `ReplayLoader`, `SessionReplay`, `CharacterB2D.checkKeyStates/checkReplayData`,
+`level/Trigger`, `menus/ReplayBrowser`, `SaveReplayMenu`, `SessionReplayMenu`, `SessionMenu`,
+`LevelBrowser`, `editor/SaverLoader`, `editor/LoadMenu`, `utils/LevelEncryptor`, `PostEncryption`,
+the preloader) and the site's own login page (`user_login.tjf`, `js/login-*.min.js`).
+
+### 11.1 Replay format and replay.hw
+
+**A browser replay stores inputs only** - no positions, no keyframes, no checkpoints:
+
+* One byte per 30 Hz frame (`Session._iteration`), bits from the most significant:
+  left (lean back), right (lean forward), up (accelerate), down, space, shift, ctrl, z (eject).
+  User vehicles use the same 8 keys (`userVehicle.operateKeys`).
+* Optionally a 0xFF separator and 4-byte big-endian mouse entries for click triggers:
+  `uint16 iteration` (+32768 = roll-out instead of click) and `uint16 trigger index` (document
+  order). Replay applies them before that frame's keys (`SessionReplay.run` → `mouseClickTrigger`).
+  `parseByteArray` splits at the first 0xFF (but not at index 0) - a frame with all eight keys down
+  would break a replay; OpenWheels writes 0xFE for it.
+* `ct` = frames when the finish was reached, else 6000 (`Settings.maxReplayFrames`, 200 s, the
+  upload limit). `ar` = an "architecture" fingerprint (x of a Box2D test body after 30 steps,
+  `ArchitectureTest`); the browser marks replays with another `ar` "not 100% accurate" and only
+  lets you vote on replays with your own `ar`: even Flash replays only played back exactly on the
+  same floating-point setup. HTML5 replays all carry `ar="40922988"`.
+
+| `action` | fields | answer |
+|---|---|---|
+| `get_all_by_level` | `level_id`, `page`, `sortby` = `newest`\|`oldest`\|`rating`\|`completion_time` | `<rps pg pp><rp id li ui un rg vs vw dc pc ct ar vr><uc/></rp>…</rps>`, 500 per page |
+| `get_combined` | `replay_id` | `<combined_data><rp/><lv/></combined_data>` (the browser's `?replay_id=` start) |
+| `get_cmb_records` | `replay_id`, `level_id` | int32 BE n, n raw replay bytes, then the level record (§3). Counts a view (`vw` +1, observed) |
+| `create` | `rr` = base64(replay bytes), `em`, `ei` (below); login | `success:<replay id>` \| `failure:time_lockout` \| `hi_comp_time` \| `not_logged_in` |
+| `rate_replay` | `replay_id`, `rating`; login | `success` \| `failure:duplicate_rating` \| `illegal_argument` |
+
+`em`/`ei` (`SaveReplayMenu` + `PostEncryption`): the query
+`id=<level>&pc=<character>&ar=<arch>&ct=<frames>&vr=<version>&uc=<AS3 escape(comment)>&ui=<user id>`,
+AES-128-CBC with PKCS#5 under the client's fixed key `7ab7657e5595b5c3486988c90728c6ae` and a
+random IV; `em` = base64 of the ciphertext, `ei` = the IV in lowercase hex. There is no "replays
+by user" action (`get_all_by_user` returns an empty body); "My Replays" are the runs kept on this
+PC. Mean rating = `ReplayDataObject.getAverageRating` (Bayesian prior of 10 votes at 2.5 undone).
+
+**How OpenWheels plays them** (`ReplayRuntime`): OpenWheels' physics are Box2D 2.3 stepped at
+1/60 s, not the browser's Box2D 2.0 at 1/30 s, so a replay is re-simulated from its keys and
+labelled "approximate" in game (overlay with author, time and progress). Each Flash frame drives
+two world steps; the byte is chosen per physics step (`Session::update` → `physicsStep`), not
+per display frame as the game's own replay mode does, so a frame without a step doesn't shift the
+input. Click/roll-out entries fire their triggers before the frame's steps. The replay's
+character is used (browser 6/7/8/10/11 → restored character or the converter's fallback, shown in
+the overlay). The player's own runs of online levels are recorded the same way (frame f = the
+byte of step 2f; clicks at frame `ceil(steps/2)`), kept for the session (last 6), and can be saved
+(`<writable>/online/replays/local/*.owreplay`), watched, uploaded or deleted. Watching one's own
+run reproduces it exactly (test: same world position after 600 steps, distance 0).
+
+Uploads say `ar="00000000"` and `vr="1.87"`: browser players see OpenWheels replays as "not 100%
+accurate", which is true. The upload form says so, and the upload needs a second confirmation.
+
+### 11.2 Login and session
+
+* The Flash game never logs in. The player logs in on the site; the Java backend keeps the login
+  in the servlet session (`JSESSIONID`, HttpOnly, `app0N~…`), and the game's requests carry that
+  cookie (`failure:not_logged_in` without it). The page passes the user id/name to the game
+  (Flash flashvars `userID`/`userName`; the HTML5 page's `HW_SETTINGS`). The preloader's
+  `session` flashvar is **not** a login token: it is the AES key that unlocks the Blowfish key
+  of the encrypted game SWF.
+* Login (`js/login-*.min.js`): `POST /user.hw` with `login_user_email`, `login_user_pass`,
+  `action=login` → `success:true` | `failure:userpass` | `failure:verify_email` |
+  `lockout:<minutes>`. The site logs in by **email**, not by user name. Logout: `action=logout`.
+* OpenWheels (`TjfAccount`): GET `user_login.tjf` (starts the servlet session), POST the login,
+  then finds the user id: `happy-wheels-js/index.tjf` (`HW_SETTINGS` keys `userID`/`userName` and
+  variants), else the site header's own profile link `profile.tjf?uid=N`, else the `ui` of the
+  player's levels (`get_cmb_by_user`), else the login panel asks for the id. **Unverified on the
+  live site** (no login was made): which of these the logged-in pages really contain.
+* Stored: the site's cookies (`Set-Cookie`, both curl's one-line-per-cookie and Android's
+  comma-joined form), user id, name and the email (form pre-fill) in
+  `<writable>/online/tjf_session.txt` - only with "Remember me"; without it only the email is kept
+  and the session lives in memory. The password exists only in the login request body (wiped after
+  sending, never logged). A `not_logged_in` answer ends the local session. While `OW_TJF_BASE`
+  points elsewhere everything goes to `<writable>/online/mock/` instead.
+
+### 11.3 Favorites, ratings, the player's levels
+
+`user.hw get_favorites` (no paging fields, `<lvs>`), `set_favorite`/`delete_favorite`
+(`level_id`; `failure:duplicate`), `set_level.hw rate_level` (`level_id`, `rating` 1-5;
+`failure:duplicate_rating`), `get_level.hw get_cmb_by_user` (the player's private and published
+levels, root children `<private>`/`<published>`, each with `<lvs>`), `get_pub_by_user` (public).
+In the browser: a heart and RATE on the detail panel's author line, "Favorites" and "My Levels"
+in the sort menu (they ask for a login), the account button in the header (LOG IN / the player's
+name → account panel: Favorites, My Levels, My Replays, Publish a Level, Log Out), and a REPLAYS
+bar under the stats showing the level's record (fastest finished replay, fetched only after the
+selection stays 1.2 s).
+
+### 11.4 Publishing (set_level.hw)
+
+`create`: `level_name`, `user_comment`, `playable_character` (= `c` when `f="t"`, else 0),
+`level_record` = base64(Blowfish-CBC("eatshit" + **the logged-in player's id**, IV `abcd1234`,
+PKCS#5) over zlib(level XML)) → `success:<new level id>` (a private level). `update`:
+`level_id` + the same fields. `publish`: `level_id` (one per day: `failure:time_lockout`).
+`del_level`/`del_priv_level` exist (not used). The Flash save menu's rules are kept: name 4-20
+characters, comment up to 255, the same character set.
+
+`PublishPanel` only publishes after the confirmation "Publish "X" to totaljerkface.com as
+<user>? Everyone will be able to play it." ("Save privately" asks too), and only levels that pass
+`checkBrowserLevel`: root `<levelXML>`, `<info v>` 1.0-2.5 with start position and character
+1-11, backgrounds 0-2, shape types 0-4, special ids 0-35, joint types 0/1, trigger types 1-3,
+only the browser's sections, at most 900 non-art shapes (`Canvas.maxShapes`); converted or
+mobile-format levels (`ptm`, `src`, `fm`...) are refused; the editor's `ow="1"` marker is
+removed. The client-side bad-words list of the Flash save menu is not reproduced.
+**Editor hook:** `online::account::publishLevel(PublishRequest{xml, name, comment})`
+(`PublishPanel.h`); the account panel's "Publish a Level" also lists the editor's browser-format
+levels (LevelStore chapter 5000) and `*.xml` in `<writable>/online/publish/`.
+
+### 11.5 Tools
+
+* `python tools/levels/hwflash.py replays <level> [--sortby completion_time]` and
+  `hwflash.py replay <replay id> <level id>` (read-only; the second counts one view).
+* `python tools/online/mock_tjf.py [--port 8765] [--identify settings|header|levels|none]`: the
+  protocol above as a local server (fixture account `tester@openwheels.test` /
+  `mock-password-1`, user id 4242 - mock only). Serves the levels of `binary/flash/samples` and
+  the replays fetched with hwflash.py, keeps logins, favorites, votes, uploads and created levels
+  in memory, decrypts and checks every `level_record` and `em`/`ei`, never logs passwords;
+  `GET /__state` dumps its state.
+* `OW_TJF_BASE=http://127.0.0.1:8765/ OW_TJF_TEST_EMAIL=... OW_TJF_TEST_PASSWORD=...
+  OW_TJF_TEST_OUT=<dir> OW_TJF_TEST_LEVEL=<browser level.xml> OpenWheels.exe --online-test tour`:
+  drives the whole flow with simulated touches, keys and typing (login, favorite, rate, Favorites
+  list, replay list, watch, record a scripted run, save, upload, watch it back and compare,
+  publish, My Levels, log out), saves screenshots and quits. It refuses to run unless
+  `OW_TJF_BASE` is a local address. `--online-test live-replays` is the read-only part (browse,
+  replay list, watch the fastest replay) and may run against the live site.
+
+### 11.6 What was verified where
+
+| path | live (read-only) | mock only |
+|---|---|---|
+| replay list `get_all_by_level` (`completion_time` live; all four sorts in code) | yes (game + hwflash) | yes |
+| `get_combined` | hwflash probe | yes |
+| `get_cmb_records`: format; its level record is byte-identical to `get_record` | yes (the game watched the POKEMON TRAINING record) | yes |
+| watching a browser replay | yes (approximate; desyncs are expected) | yes |
+| recording / saving / watching the player's own runs (exact) | n/a | yes |
+| login (`user.hw login`), cookie session, user id detection | **no** | yes (HW_SETTINGS and header detection) |
+| logout, favorites, `rate_level`, `rate_replay` | **no** | yes |
+| replay `create` (rr / em / ei) | **no** | yes (the mock decrypts and checks the query) |
+| `set_level.hw create / update / publish`, `get_cmb_by_user` | **no** | yes (create + publish) |
+
+So the first real login, favorite, vote, replay upload and publish should be done by the player
+and checked on the site. Open questions: the exact keys the logged-in `happy-wheels-js/index.tjf`
+uses for the user id and name; whether the HTML5 backend still accepts Flash-era replay `create`
+fields and `vr="1.87"`; whether `set_level.hw create` is still open to logged-in players or
+limited to the HTML5 editor. Live note: a multi-word `search_by_name` returns an empty body
+(`HWApi::parseLevelList` now reads that as "no levels").

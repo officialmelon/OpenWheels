@@ -52,9 +52,12 @@
 #include "platform/common/IOSBundle.h"
 #include "platform/common/Localization.h"
 #include "LevelSession.h"
+#include "editor/flash/FlashEditorHooks.h"  // EDITOR (browser features, PC addition)
 #include "qol/QoL.h"
+#include "qol/KeyBindings.h"
 #include "MainMenu.h"
 #include "online/OnlinePlay.h"
+#include "online/account/TjfTestDriver.h"  // ONLINE (PC addition)
 #include "online/FlashLevelConverter.h"
 
 #ifdef OW_WITH_PC_LAYER  // enable once src/game links (PCInput.cpp, WorldDumpRunner.cpp)
@@ -143,10 +146,12 @@ struct Options
     std::wstring assets;
     std::wstring iosApp;
     int playOnline = 0;      // --play-online <level id>
+    std::string onlineTest;  // --online-test <scenario>: ONLINE (PC addition), against tools/online/mock_tjf.py
     std::wstring playLevel;  // --play-level <level.xml>
     int selectCharacter = 0;  // --select-character <id>
     std::wstring convertIn, convertOut;  // --convert-flash <in> <out> (PC-only test hook)
     std::wstring openFile;   // .happywheels / level .xml to open (command line or drag-and-drop onto the exe)
+    std::wstring editFile;   // --edit <level.xml>: open a level in the editor (EDITOR, PC addition)
     float width = 1600.0f;
     float height = 900.0f;
     bool console = false;
@@ -170,7 +175,9 @@ Options parseOptions()
         if (a == L"--assets") o.assets = next();
         else if (a == L"--ios-app") o.iosApp = next();
         else if (a == L"--open") o.openFile = next();
+        else if (a == L"--edit") o.editFile = next();
         else if (a == L"--play-online") o.playOnline = _wtoi(next().c_str());
+        else if (a == L"--online-test") o.onlineTest = narrow(next());  // ONLINE (PC addition)
         else if (a == L"--play-level") o.playLevel = next();
         else if (a == L"--select-character") o.selectCharacter = _wtoi(next().c_str());
         else if (a == L"--convert-flash") { o.convertIn = next(); o.convertOut = next(); }
@@ -296,7 +303,8 @@ void installFullscreen(GLViewImpl* glview, bool interactive)
     if (!interactive) return;
     auto keys = EventListenerKeyboard::create();
     keys->onKeyPressed = [](EventKeyboard::KeyCode key, Event*) {
-        if (key == EventKeyboard::KeyCode::KEY_F11) qol::setFullscreen(!qol::fullscreen());
+        // QOL (PC addition): F11 by default, remappable (src/qol/KeyBindings.h).
+        if (qol::keyIs(key, qol::KeyAction::Fullscreen)) qol::setFullscreen(!qol::fullscreen());
     };
     Director::getInstance()->getEventDispatcher()->addEventListenerWithFixedPriority(keys, 2);
     static int s_applyTarget = 0;
@@ -413,6 +421,16 @@ int WINAPI _tWinMain(HINSTANCE hInstance,
         runOnMainMenu([path]() { LevelSession::getInstance()->openHappyWheelsFile(path); });
     }
 
+    if (!opt.editFile.empty())
+    {
+        // EDITOR (browser features, PC addition): browser or iOS level XML straight into the editor.
+        const std::string xml = FileUtils::getInstance()->getStringFromFile(narrow(opt.editFile));
+        std::string name = narrow(opt.editFile);
+        name = name.substr(name.find_last_of("/\\") + 1);
+        name = name.substr(0, name.find_last_of('.'));
+        runOnMainMenu([xml, name]() { flashed::openLevelInEditor(xml, name); });
+    }
+
     if (!opt.playLevel.empty())
     {
         const std::string xml = FileUtils::getInstance()->getStringFromFile(narrow(opt.playLevel));
@@ -426,6 +444,13 @@ int WINAPI _tWinMain(HINSTANCE hInstance,
             session->setCharacterIndex(selectCharacter ? selectCharacter : 1);
             session->playLevel(selectCharacter == 0);
         });
+    }
+
+    if (!opt.onlineTest.empty())
+    {
+        // ONLINE (PC addition): automated account / replay / publish walk-through (mock site only).
+        const std::string scenario = opt.onlineTest;
+        runOnMainMenu([scenario]() { online::runTjfTestScenario(scenario); });
     }
 
     if (opt.playOnline > 0)

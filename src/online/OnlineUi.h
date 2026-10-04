@@ -78,7 +78,9 @@ void showToast(const std::string& title, const std::vector<std::string>& lines, 
 // True when `node` and all its ancestors are visible (and it is running).
 bool isShown(cocos2d::Node* node);
 // True when an HWWindow (the game's modal popup) or a Dropdown menu is open.
+// NET (PC addition): also a full-screen panel named kModalNodeName (net::ui::Modal).
 bool modalOpen();
+extern const char* const kModalNodeName;   // "ow_modal"
 
 // ---- widgets --------------------------------------------------------------------------------------
 // A button: either an atlas frame stretched as a 9-slice (the game's chunky buttons) or a
@@ -158,6 +160,7 @@ public:
     const std::string& text() const { return _text; }
     void setText(const std::string& text);
     void setPlaceholder(const std::string& placeholder);
+    void setIconVisible(bool visible);   // NET (PC addition): hide the magnifier for non-search fields
     void focus();
     void paste();
     std::function<void()> onChange;

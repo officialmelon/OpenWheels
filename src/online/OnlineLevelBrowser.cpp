@@ -13,6 +13,8 @@
 #include "Settings.h"
 #include "online/OnlinePlay.h"
 #include "online/OnlineUi.h"
+#include "online/account/BrowserExtras.h"  // ONLINE (PC addition): account / replays
+#include "net/NearbyPanels.h"  // NET (PC addition)
 
 USING_NS_CC;
 
@@ -24,8 +26,9 @@ const float G = 70.0f;                      // layout grid (MainMenu's 70-unit m
 const Color3B kRowSelectedSub(225, 236, 255);
 const Color3B kAuthorBlue(46, 120, 186);    // link colour on the light panel
 
-// Sort dropdown entries (index -> query); the last one is the featured list.
-const char* const kSortNames[] = {"Top Rated", "Most Played", "Newest", "Oldest", "Featured"};
+// Sort dropdown entries (index -> query); then the featured list, then (ONLINE PC addition) the
+// logged-in player's Favorites and My Levels (BrowserState::special 1 / 2).
+const char* const kSortNames[] = {"Top Rated", "Most Played", "Newest", "Oldest", "Featured", "Favorites", "My Levels"};
 const SortBy kSorts[] = {SortBy::Rating, SortBy::Plays, SortBy::Newest, SortBy::Oldest};
 const char* const kPeriodNames[] = {"All Time", "This Month", "This Week", "Today"};
 const Uploaded kPeriods[] = {Uploaded::Anytime, Uploaded::Month, Uploaded::Week, Uploaded::Today};
@@ -138,6 +141,11 @@ bool OnlineLevelBrowser::init() {
     // Darker, like the options screen, so the panels and white text stand out.
     addChild(LayerColor::create(Color4B(10, 8, 22, 120)), -9);
 
+    // ONLINE (PC addition): account / replay additions (online/account/BrowserExtras.h).
+    _extras = BrowserExtras::create();
+    _extras->showSpecial = [this](int special) { setSpecial(special); };
+    addChild(_extras);
+
     buildHeader();
     buildFilters();
     buildList();
@@ -194,7 +202,10 @@ void OnlineLevelBrowser::buildHeader() {
     addChild(_searchBy, 5);
 
     const float fieldRight = _origin.x + _vs.width - G - byW - 50.0f;
-    const float fieldLeft = titleRight + 90.0f;
+    // ONLINE (PC addition): the account button between the title and the search field.
+    const float accountW = BrowserExtras::accountButtonWidth();
+    _extras->buildAccountButton(this, Vec2(titleRight + 70.0f + accountW * 0.5f, cy), fieldH);
+    const float fieldLeft = titleRight + 70.0f + accountW + 60.0f;
     const float fieldW = std::max(700.0f, fieldRight - fieldLeft);
     _field = ui::SearchField::create(Size(fieldW, fieldH), "Search levels...");
     _field->setPosition(fieldRight - fieldW * 0.5f, cy);
@@ -209,7 +220,7 @@ void OnlineLevelBrowser::buildFilters() {
     const float cy = _top - 330.0f - h * 0.5f;
     float x = _origin.x + G;
 
-    _sort = ui::Dropdown::create(std::vector<std::string>(kSortNames, kSortNames + 5), Size(560.0f, h), ui::Button::window("blue"), 52.0f);
+    _sort = ui::Dropdown::create(std::vector<std::string>(kSortNames, kSortNames + 7), Size(560.0f, h), ui::Button::window("blue"), 52.0f);
     _sort->setPosition(x + 280.0f, cy);
     _sort->onSelect = [this](int index) { setSortIndex(index); };
     addChild(_sort, 5);
@@ -411,6 +422,8 @@ void OnlineLevelBrowser::buildDetail() {
     }
     _statColW = statsW;
     y -= avatar.height + 50.0f;
+    // ONLINE (PC addition): RATE + favorite on the author line, the REPLAYS bar below the stats.
+    y = _extras->buildDetail(_detail, _authorBtn->getPositionY(), L, R, y);
 
     // Play button at the bottom, status line above it.
     const float playH = 250.0f;
@@ -424,6 +437,16 @@ void OnlineLevelBrowser::buildDetail() {
     _playBtn->setPosition(L + (R - L) * 0.5f, bottom + P + playH * 0.5f);
     _playBtn->setCallback([this]() { playSelected(); });
     _detail->addChild(_playBtn);
+    if (openInEditorHandler()) {
+        // EDITOR (PC addition): EDIT beside PLAY opens the level in the level editor to remix it.
+        const float editW = 470.0f, gap = 30.0f;
+        _playBtn->setButtonSize(Size(R - L - editW - gap, playH));
+        _playBtn->setPosition(L + (R - L - editW - gap) * 0.5f, bottom + P + playH * 0.5f);
+        _editBtn = ui::Button::create("EDIT", Size(editW, playH), ui::Button::chunky("pink"), 96.0f);
+        _editBtn->setPosition(R - editW * 0.5f, bottom + P + playH * 0.5f);
+        _editBtn->setCallback([this]() { editSelected(); });
+        _detail->addChild(_editBtn);
+    }
     const float statusY = bottom + P + playH + 56.0f;
     _statusSpinner = ui::createSpinner(56.0f, ui::kInkDim);
     _statusSpinner->setPosition(L + 28.0f, statusY);
@@ -441,6 +464,12 @@ void OnlineLevelBrowser::buildDetail() {
     Label* commentCaption = makeLabel("AUTHOR'S COMMENT", ui::kFontBodyBold, 34.0f, ui::kInkDim);
     commentCaption->setPosition(L, y - 18.0f);
     _detail->addChild(commentCaption);
+    // NET (PC addition): SEND TO NEARBY, right of the caption, for levels already downloaded.
+    _sendBtn = ui::Button::create("SEND TO NEARBY", Size(400.0f, 72.0f), ui::Button::window("blue"), 34.0f,
+                                  ui::kFontBodyBold);
+    _sendBtn->setPosition(R - 200.0f, y - 18.0f);
+    _sendBtn->setCallback([this]() { sendSelected(); });
+    _detail->addChild(_sendBtn);
     const float boxTop = y - 56.0f;
     const float boxBottom = statusY + 56.0f;
     auto* box = ui::roundedRect(Size(R - L, boxTop - boxBottom), 30.0f, Color3B::WHITE, 150);
@@ -634,6 +663,7 @@ void OnlineLevelBrowser::submitSearch() {
     st.fieldText = _field->text();
     const std::string term = trim(st.fieldText);
     if (st.featured) st.featured = false;
+    st.special = 0;  // ONLINE (PC addition)
     st.query.term = term;
     st.query.searchBy = term.empty() ? SearchBy::None : st.searchBy;
     st.query.page = 1;
@@ -642,6 +672,11 @@ void OnlineLevelBrowser::submitSearch() {
 
 void OnlineLevelBrowser::setSortIndex(int index) {
     BrowserState& st = state();
+    if (index >= 5) {
+        setSpecial(index - 4);  // ONLINE (PC addition)
+        return;
+    }
+    st.special = 0;
     if (index == 4) {
         st.featured = true;
     } else {
@@ -652,8 +687,24 @@ void OnlineLevelBrowser::setSortIndex(int index) {
     load();
 }
 
+// ONLINE (PC addition): the logged-in player's Favorites (1) / My Levels (2).
+void OnlineLevelBrowser::setSpecial(int special) {
+    RefPtr<OnlineLevelBrowser> self(this);
+    const bool now = _extras->requireLogin(special == BrowserExtras::Favorites ? "Log in to see your favorite levels."
+                                                                              : "Log in to see your levels.",
+                                           [self, special]() {
+                                               if (!self->isRunning()) return;
+                                               BrowserState& st = state();
+                                               st.special = special;
+                                               st.featured = false;
+                                               self->load();
+                                           });
+    if (!now) refreshFilters();  // the login panel is open; keep the old choice showing
+}
+
 void OnlineLevelBrowser::setPeriodIndex(int index) {
     BrowserState& st = state();
+    st.special = 0;  // ONLINE (PC addition)
     st.featured = false;
     st.query.uploaded = kPeriods[index];
     st.query.page = 1;
@@ -666,6 +717,7 @@ void OnlineLevelBrowser::searchAuthor(const std::string& author) {
     _field->setText(author);
     st.fieldText = author;
     st.featured = false;
+    st.special = 0;  // ONLINE (PC addition)
     st.query.searchBy = SearchBy::Author;
     st.query.term = author;
     st.query.page = 1;
@@ -674,7 +726,7 @@ void OnlineLevelBrowser::searchAuthor(const std::string& author) {
 
 void OnlineLevelBrowser::changePage(int delta) {
     BrowserState& st = state();
-    if (st.featured || _loading) return;
+    if (st.featured || st.special || _loading) return;
     st.query.page = std::max(1, st.query.page + delta);
     load();
 }
@@ -722,6 +774,10 @@ void OnlineLevelBrowser::load() {
         setListOffset(0.0f);
         refreshDetail();
     };
+    if (st.special) {
+        _listRequest = _extras->loadSpecial(st.special, done);  // ONLINE (PC addition)
+        return;
+    }
     _listRequest = st.featured ? api->listFeatured(done) : api->listLevels(st.query, done);
 }
 
@@ -751,6 +807,51 @@ void OnlineLevelBrowser::playSelected() {
     });
 }
 
+// NET (PC addition): the browser-format XML goes as kind "flash"; the receiver converts it like
+// finishPlay does. Only offered for cached levels, so this reads the cache (no play is counted).
+void OnlineLevelBrowser::sendSelected() {
+    const BrowserState& st = state();
+    if (_playing || st.selected < 0 || st.selected >= (int)st.levels.size()) return;
+    const OnlineLevelInfo level = st.levels[st.selected];
+    if (!HWApi::getInstance()->isCached(level.id)) return;
+    _field->detachWithIME();
+    HWApi::getInstance()->downloadLevel(level, false, [level](bool ok, const std::string&, const std::string& xml) {
+        if (!ok) return;
+        net::LevelPackage package;
+        package.name = level.name;
+        package.comments = level.comment;
+        package.data = xml;
+        package.kind = "flash";
+        package.playableCharacter = level.character;
+        package.forceCharacter = level.character != 0;
+        net::showSendToNearby(package);
+    });
+}
+
+// EDITOR (PC addition): downloads (without counting a play) and opens the level in the editor.
+void OnlineLevelBrowser::editSelected() {
+    BrowserState& st = state();
+    if (_playing || st.selected < 0 || st.selected >= (int)st.levels.size() || !openInEditorHandler()) return;
+    const OnlineLevelInfo level = st.levels[st.selected];
+    _playing = true;
+    refreshPlayButton();
+    _status->setString("Opening in the editor...");
+    _downloadRequest = HWApi::getInstance()->downloadLevel(level, false, [this, level](bool ok, const std::string& error,
+                                                                                     const std::string& xml) {
+        _downloadRequest = 0;
+        if (!_playing) return;
+        _playing = false;
+        refreshPlayButton();
+        if (!ok) {
+            HWWindow* w = Settings::getInstance()->createWindow(HWWindowAppearanceAlert, nullptr, false, false);
+            w->showAlertMessage("Couldn't download level", friendlyError(error), "OK", "", true);
+            return;
+        }
+        state().fieldText = _field->text();
+        openInEditorHandler()(xml, level);
+    });
+}
+
 void OnlineLevelBrowser::finishPlay(const std::string& xml) {
     if (!_playing) return;
     BrowserState& st = state();
@@ -771,6 +872,8 @@ void OnlineLevelBrowser::finishPlay(const std::string& xml) {
     }
     // The converter's warnings (report.warnings) go to the log only: the level just starts.
     for (const std::string& w : report.warnings) log("online: %s", w.c_str());
+    // ONLINE (PC addition): runs of this level are recorded as browser replays.
+    if (st.selected >= 0 && st.selected < (int)st.levels.size()) BrowserExtras::levelStarted(st.levels[st.selected]);
     _status->setString("Starting...");
 }
 
@@ -782,10 +885,11 @@ void OnlineLevelBrowser::refreshFilters() {
     if (!st.featured)
         for (int i = 0; i < 4; ++i)
             if (kSorts[i] == st.query.sortBy) sort = i;
+    if (st.special) sort = 4 + st.special;  // ONLINE (PC addition)
     _sort->setSelectedIndex(sort);
     for (int i = 0; i < 4; ++i)
         if (kPeriods[i] == st.query.uploaded) _period->setSelectedIndex(i);
-    _period->setEnabled(!st.featured);
+    _period->setEnabled(!st.featured && !st.special);
     _searchBy->setSelectedIndex(st.searchBy == SearchBy::Author ? 1 : 0);
     _field->setPlaceholder(st.searchBy == SearchBy::Author ? "Search by author..." : "Search levels...");
 }
@@ -816,7 +920,8 @@ void OnlineLevelBrowser::refreshListState() {
         Sprite* spin = ui::createSpinner(150.0f, Color3B::WHITE);
         spin->setPosition(0.0f, 80.0f);
         _listMessage->addChild(spin);
-        body(st.featured ? "Loading featured levels..." : "Loading levels...", -40.0f);
+        body(st.special ? std::string("Loading ") + BrowserExtras::specialName(st.special) + "..."
+                        : (st.featured ? "Loading featured levels..." : "Loading levels..."), -40.0f);
     } else if (!_error.empty()) {
         heading("Couldn't load levels", 180.0f);
         Label* msg = body(friendlyError(_error), 80.0f);
@@ -827,7 +932,9 @@ void OnlineLevelBrowser::refreshListState() {
     } else if (st.loaded && st.levels.empty()) {
         heading("No levels found", 120.0f);
         std::string hint;
-        if (st.featured)
+        if (st.special)
+            hint = _extras->emptyHint(st.special);  // ONLINE (PC addition)
+        else if (st.featured)
             hint = "There are no featured levels right now.";
         else if (st.query.searchBy == SearchBy::Name && !st.query.term.empty())
             hint = "Check the spelling, or search by author instead.";
@@ -835,7 +942,7 @@ void OnlineLevelBrowser::refreshListState() {
             hint = "Check the spelling, or search by level name instead.";
         else
             hint = "Nothing was uploaded in this period.";
-        if (!st.featured && st.query.uploaded != Uploaded::Anytime) hint += "\nTry All Time for older levels.";
+        if (!st.featured && !st.special && st.query.uploaded != Uploaded::Anytime) hint += "\nTry All Time for older levels.";
         body(hint, 20.0f);
     }
 
@@ -844,10 +951,11 @@ void OnlineLevelBrowser::refreshListState() {
     std::string count;
     if (showList) {
         count = ui::formatThousands(n) + (n == 1 ? " level" : " levels");
-        if (st.query.searchBy == SearchBy::Author && !st.query.term.empty() && !st.featured) count += " by this author";
+        if (st.query.searchBy == SearchBy::Author && !st.query.term.empty() && !st.featured && !st.special) count += " by this author";
+        if (st.special == BrowserExtras::Favorites) count += " in your favorites";  // ONLINE (PC addition)
     }
     const bool full = st.perPage > 0 && n >= st.perPage;
-    const bool paging = !st.featured && !_loading && _error.empty() && (st.query.page > 1 || full);
+    const bool paging = !st.featured && !st.special && !_loading && _error.empty() && (st.query.page > 1 || full);
     _prevBtn->setVisible(paging);
     _nextBtn->setVisible(paging);
     _pageText->setVisible(paging);
@@ -974,6 +1082,7 @@ void OnlineLevelBrowser::refreshDetail() {
     _detail->setVisible(has);
     _detailEmpty->setVisible(!has);
     if (Node* hint = _detailEmpty->getChildByTag(1)) hint->setVisible(!st.levels.empty());
+    _extras->onSelect(has ? &st.levels[st.selected] : nullptr);  // ONLINE (PC addition)
     if (!has) return;
     const OnlineLevelInfo& l = st.levels[st.selected];
 
@@ -1001,7 +1110,8 @@ void OnlineLevelBrowser::refreshDetail() {
     }
     {
         const std::string author = "by " + trim(l.authorName);
-        const float maxW = _detailRect.getMaxX() - 70.0f - _authorBtn->getPositionX() - 32.0f;
+        const float maxW = _detailRect.getMaxX() - 70.0f - _authorBtn->getPositionX() - 32.0f -
+                           BrowserExtras::authorLineReserve();  // ONLINE (PC addition): rate + heart
         ui::setEllipsized(_authorBtn->label(), author, maxW);
         _authorBtn->setButtonSize(Size(_authorBtn->label()->getContentSize().width + 32.0f, 76.0f));
     }
@@ -1061,9 +1171,11 @@ void OnlineLevelBrowser::refreshPlayButton() {
     const BrowserState& st = state();
     const bool has = st.selected >= 0 && st.selected < (int)st.levels.size();
     _playBtn->setEnabled(has && !_playing);
+    if (_editBtn) _editBtn->setEnabled(has && !_playing);  // EDITOR (PC addition)
     _statusSpinner->setVisible(_playing);
     _status->setPositionX(_detailRect.origin.x + 70.0f + (_playing ? 84.0f : 0.0f));
     _cachedBadge->setVisible(has && !_playing && HWApi::getInstance()->isCached(st.levels[st.selected].id));
+    if (_sendBtn) _sendBtn->setVisible(_cachedBadge->isVisible());  // NET (PC addition)
     if (!_playing && has) {
         const OnlineLevelInfo& l = st.levels[st.selected];
         std::string s = "Level " + std::to_string(l.id);

@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <map>
+#include <set>
 #include <sstream>
 
 #include "cocos2d.h"
@@ -23,6 +24,7 @@ namespace {
 
 bool g_flashLevel = false;
 float g_flashVersion = 0.0f;
+std::set<b2Body*> g_nanBodies;  // bodies poisoned by a NaN-density shape (see flashNanBody)
 
 Session* currentSession() { return Settings::getInstance()->getCurrentSession(); }
 
@@ -132,7 +134,59 @@ void setFlashLevel(bool on, float browserVersion)
     setFlashSoundPath(on);  // ONLINE (PC addition)
     g_flashLevel = on;
     g_flashVersion = on ? browserVersion : 0.0f;
+    g_nanBodies.clear();  // a new level: none of its bodies are poisoned yet
 }
+
+bool flashNanBody(b2Body* body)
+{
+    return g_flashLevel && body && g_nanBodies.count(body) != 0;
+}
+
+namespace {
+
+// Box2D 2.0's NaN island (FlashRuntime.h, flashNanBody): every dynamic body touching a NaN-mass
+// static body and everything joined to it through joints or touching contacts.
+void poisonNanIslands(b2World* world)
+{
+    Session* session = currentSession();
+    LevelB2D* level = session ? session->getLevel() : nullptr;
+    if (!level || level->onlineNanMassBodies.empty()) return;
+    auto solid = [](b2Contact* c) {
+        return c->IsTouching() && c->IsEnabled() && !c->GetFixtureA()->IsSensor() &&
+               !c->GetFixtureB()->IsSensor();
+    };
+    std::vector<b2Body*> stack;
+    for (b2Contact* c = world->GetContactList(); c; c = c->GetNext()) {
+        if (!solid(c)) continue;
+        b2Body* a = c->GetFixtureA()->GetBody();
+        b2Body* b = c->GetFixtureB()->GetBody();
+        // Box2D 2.0 only solves islands of awake bodies.
+        if (level->onlineNanMassBodies.count(a) && b->GetType() == b2_dynamicBody && b->IsAwake()) stack.push_back(b);
+        if (level->onlineNanMassBodies.count(b) && a->GetType() == b2_dynamicBody && a->IsAwake()) stack.push_back(a);
+    }
+    std::vector<b2Body*> poisoned;
+    while (!stack.empty()) {
+        b2Body* body = stack.back();
+        stack.pop_back();
+        if (!body->IsActive() || !g_nanBodies.insert(body).second) continue;
+        poisoned.push_back(body);
+        for (b2JointEdge* je = body->GetJointList(); je; je = je->next) {
+            if (je->other->GetType() == b2_dynamicBody) stack.push_back(je->other);
+        }
+        for (b2ContactEdge* ce = body->GetContactList(); ce; ce = ce->next) {
+            if (solid(ce->contact) && ce->other->GetType() == b2_dynamicBody) stack.push_back(ce->other);
+        }
+    }
+    // Box2D 2.0 freezes them where the NaN put them (no velocity, no collision); the art stays
+    // where it was last drawn.
+    for (b2Body* body : poisoned) {
+        body->SetLinearVelocity(b2Vec2_zero);
+        body->SetAngularVelocity(0.0f);
+        body->SetActive(false);
+    }
+}
+
+}  // namespace
 
 float pointsPerFlashPx()
 {
@@ -212,7 +266,7 @@ void flashPreStep(b2World* world)
 
 void flashPostStep(b2World* world)
 {
-    (void)world;
+    poisonNanIslands(world);
     // Some browser constructions (e.g. "string": meshing gears pinned by 99999 N m motors) blow
     // up Box2D 2.3's solver where Box2D 2.0 copes; a NaN body then hangs the next steps' TOI
     // solver. Put such bodies back where they were, at rest.

@@ -86,6 +86,17 @@ cocos2d::Node* flashForegroundLayer();
 void flashPreStep(b2World* world);
 void flashPostStep(b2World* world);
 
+// A non-fixed shape of density NaN is static in Box2D 2.0 (mass NaN, so no inverse mass), but its
+// centre of mass is NaN too, and the contact solver multiplies that NaN into the impulses: every
+// dynamic body that touches it, and every body joined to those through joints or contacts in the
+// same island, gets NaN velocities and positions and is frozen by Box2D 2.0 (out of the world's
+// bounds). Levels use it on purpose: CLICK PARKOUR 3 (10254164) poisons its "hide vehicle"
+// character on the first frames so that Flash's camera, fed a NaN focus, snaps to the top-left
+// corner of the stage where the level's click buttons are. flashPostStep emulates it without
+// putting NaNs into Box2D 2.3: those bodies are stopped and deactivated, and flashNanBody tells
+// StageCamera to treat its focus like Flash's NaN one.
+bool flashNanBody(b2Body* body);
+
 // --- click triggers (triggered by "mouse click", b = 6) ---------------------------------------
 // Installs the touch/mouse listener for the current gameplay session (idempotent).
 void installClickTriggers(LevelB2D* level);
