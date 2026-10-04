@@ -4,6 +4,8 @@
 
 #include "cocos2d.h"
 
+#include "SoundController.h"
+
 USING_NS_CC;
 
 namespace qol {
@@ -17,6 +19,10 @@ const char* const kUnlockAll = "qol_unlock_all_levels";
 const char* const kFullscreen = "qol_fullscreen";
 const char* const kChildGore = "qol_child_gore";
 const char* const kBloodName = "qol:blood";
+const char* const kTextureTier = "qol_texture_tier";
+const char* const kFrameRate = "qol_frame_rate";
+const char* const kEffectsVolume = "qol_effects_volume";
+const char* const kMusicVolume = "qol_music_volume";
 
 std::function<void(bool)>& fullscreenHandler() {
     static std::function<void(bool)> handler;
@@ -85,6 +91,57 @@ bool loadChildGoreSprites() {
 }
 
 void setAssetTier(const std::string& tier) { assetTier() = tier; }
+const std::string& runningAssetTier() { return assetTier(); }
+
+std::string textureTier() {
+    const std::string tier = store()->getStringForKey(kTextureTier, "");
+    return tier == "large" || tier == "medium" || tier == "small" || tier == "tiny" ? tier : std::string();
+}
+void setTextureTier(const std::string& tier) { store()->setStringForKey(kTextureTier, tier); }
+
+void overrideAssetTier(std::string* directory, float* resolutionHeight) {
+    const std::string tier = textureTier();
+    if (tier.empty()) return;
+    // AppDelegate.h tier heights (design 3600 x 2000).
+    const float height = tier == "large" ? 2000.0f : tier == "medium" ? 1000.0f : tier == "small" ? 750.0f : 500.0f;
+    *directory = tier;
+    *resolutionHeight = height;
+}
+
+int frameRate() { return store()->getIntegerForKey(kFrameRate, 60) == 30 ? 30 : 60; }
+void setFrameRate(int fps) {
+    store()->setIntegerForKey(kFrameRate, fps == 30 ? 30 : 60);
+    installFrameRate(frameRate());
+}
+
+void installFrameRate(int fps) {
+    static EventListenerCustom* secondTick = nullptr;
+    Director* director = Director::getInstance();
+    const bool half = fps == 30;
+    director->setAnimationInterval(half ? 1.0f / 30.0f : 1.0f / 60.0f);
+    director->getScheduler()->setTimeScale(half ? 0.5f : 1.0f);
+    if (half && !secondTick) {
+        // Director::drawScene: scheduler update (first half), EVENT_AFTER_UPDATE (second half),
+        // then the scene is drawn once.
+        secondTick = director->getEventDispatcher()->addCustomEventListener(
+            Director::EVENT_AFTER_UPDATE, [](EventCustom*) {
+                Director* d = Director::getInstance();
+                d->getScheduler()->update(d->getDeltaTime());
+            });
+    } else if (!half && secondTick) {
+        director->getEventDispatcher()->removeEventListener(secondTick);
+        secondTick = nullptr;
+    }
+}
+
+float effectsVolume() { return std::max(0.0f, std::min(1.0f, store()->getFloatForKey(kEffectsVolume, 1.0f))); }
+void setEffectsVolume(float volume) { store()->setFloatForKey(kEffectsVolume, std::max(0.0f, std::min(1.0f, volume))); }
+float musicVolume() { return std::max(0.0f, std::min(1.0f, store()->getFloatForKey(kMusicVolume, 1.0f))); }
+void setMusicVolume(float volume) {
+    store()->setFloatForKey(kMusicVolume, std::max(0.0f, std::min(1.0f, volume)));
+    // setMasterVolume re-applies the playing music's volume (hooked to musicVolume()).
+    SoundController::setMasterVolume(SoundController::getMasterVolume());
+}
 
 bool fullscreenSupported() { return (bool)fullscreenHandler(); }
 bool fullscreen() { return fullscreenSupported() && store()->getBoolForKey(kFullscreen, false); }

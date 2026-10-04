@@ -14,6 +14,10 @@
 //   Space       0x10  special          (ejected: grab)
 //   Z           0x80  eject
 //   Esc / P     pause button,   R  reset button (after death)
+//   Shift 0x20, Ctrl 0x40: the restored characters' / user vehicles' extra actions
+//
+// These are the defaults: the keys are remappable on the QoL "controls" page
+// (src/qol/KeyBindings.h).
 
 namespace openwheels {
 namespace pc {

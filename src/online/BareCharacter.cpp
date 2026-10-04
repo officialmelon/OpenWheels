@@ -3,20 +3,26 @@
 // Flash Session.setupCharacter: with Settings.hideVehicle the player is a PlayableCharacterB2D,
 // the selected character's ragdoll without its vehicle, controlled like an ejected rider (arrows
 // pick the four poses, space grabs). PlayableCharacterB2D adds nothing else that matters here
-// (no per-character chest taper, no kid / moped girl), so this is the mobile CharacterB2D built
-// from the character's usual body description, ejected before the first step.
+// (no per-character chest taper, no kid / moped girl, no Irresponsible Mom kids or Santa elves),
+// so this is the mobile CharacterB2D built from the character's usual body description, ejected
+// before the first step. The restored browser characters (src/restored/) come from
+// restored::createBareCharacter: their own body, art, gore and voice (Flash tags).
 #include "online/BareCharacter.h"
 
 #include "cocos2d.h"
 
 #include "CharacterB2D.h"
 #include "LevelB2D.h"
+#include "restored/Restored.h"  // RESTORED (PC addition)
 
 USING_NS_CC;
 
 namespace online {
 
-CharacterB2D* createBareCharacter(float x, float y, int characterId)
+namespace {
+
+// The six mobile characters (any other id: the wheelchair guy).
+CharacterB2D* createMobileCharacter(float x, float y, int characterId, bool showGore)
 {
     std::string name, vehicle, vocals;
     switch (characterId) {
@@ -27,9 +33,22 @@ CharacterB2D* createBareCharacter(float x, float y, int characterId)
     case CharacterIdPogostickGuy: name = "pogo_stick_guy"; vehicle = "pogo_stick"; vocals = "Char12"; break;
     default: name = "wheelchair_guy"; vehicle = "wheelchair"; vocals = "Char1"; break;
     }
-    const bool showGore = !UserDefault::getInstance()->getBoolForKey("gore_disabled");
     CharacterB2D* character = new CharacterB2D();
     character->init(Vec2(x, y), name, vocals, vehicle, -1, showGore, true);
+    return character;
+}
+
+}  // namespace
+
+CharacterB2D* createBareCharacter(float x, float y, int characterId)
+{
+    const bool showGore = !UserDefault::getInstance()->getBoolForKey("gore_disabled");
+    // RESTORED (PC addition): 6 Lawnmower Man, 7 Explorer Guy, 8 Santa, 10 Irresponsible Mom and
+    // 11 Helicopter Man use their own ragdoll when they were generated.
+    CharacterB2D* character = restored::createBareCharacter(x, y, characterId, showGore);
+    if (!character) {
+        character = createMobileCharacter(x, y, characterId, showGore);
+    }
     // Ejected from the start. eject() only announces it for the main character, and the
     // gameplay controls don't exist yet while the level loads: announce it on the next frame.
     character->eject();

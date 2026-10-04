@@ -564,7 +564,12 @@ void TargetAction::actions()
                 _shapeItem->setOpacity(targetOpacity);
             }
             getLevel()->removeFromActions(this);
-            _counter = 0.0f;
+            // ONLINE (PC addition): Flash keeps the counter of levels <= 1.8 at the duration, so
+            // the next activation sets the final opacity at once instead of fading again.
+            if (!(online::flashLevel() && online::flashVersion() <= 1.8f))
+            {
+                _counter = 0.0f;
+            }
             return;
         }
         float opacity = 0.0f;

@@ -48,6 +48,12 @@ bool hasCharacter(int characterId);
 // LevelB2D::createCharacter for the restored ids; nullptr for any other id.
 CharacterB2D* createCharacter(float x, float y, int characterId, int groupIndex, bool showGore);
 
+// A browser level's "hide vehicle" start (info h="t") with a restored character: Flash
+// PlayableCharacterB2D, the character's own ragdoll (body, art, gore, voice) without its vehicle
+// and without Irresponsible Mom's kids or Santa's elves, not yet ejected (the caller ejects it).
+// nullptr for any other id or when the character was not generated.
+CharacterB2D* createBareCharacter(float x, float y, int characterId, bool showGore);
+
 // Adds the <key>_icon(_bw).png frames of the restored characters (character select).
 void loadIconFrames();
 

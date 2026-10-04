@@ -7,6 +7,9 @@
 #include "cocos2d.h"
 
 #include "GameplayBtn.h"
+#include "LevelB2D.h"
+#include "Session.h"
+#include "Settings.h"
 #include "ExplorerGuy.h"
 #include "HelicopterMan.h"
 #include "IrresponsibleMom.h"
@@ -87,6 +90,30 @@ GameplayBtn* button(const std::string& frame, unsigned int bit, float userScale)
     }
     return btn;
 }
+
+// The main character of the running gameplay session, or nullptr.
+CharacterB2D* mainCharacter()
+{
+    Session* session = Settings::getInstance()->getCurrentSession();
+    LevelB2D* level = session ? session->getLevel() : nullptr;
+    return level ? level->getCharacter() : nullptr;
+}
+
+// Flash PlayableCharacterB2D: the ragdoll alone. Only the Explorer needs a change from the
+// riding set-up: PlayableCharacterB2D's helmetedChars (2, 3, 8, 9, 10, 11) leave him out, so his
+// hat never flies off and his head smashes at the usual limit.
+class BareRestoredCharacter : public CharacterB2D
+{
+public:
+    void keepHatOn()
+    {
+        if (_helmetOn && _headFixture)
+        {
+            _helmetOn = false;
+            _contactImpulseDict[_headFixture] = _headSmashLimit;
+        }
+    }
+};
 
 void place(GameplayBtn* btn, const Vec2& position)
 {
@@ -197,6 +224,36 @@ CharacterB2D* createCharacter(float x, float y, int characterId, int groupIndex,
     }
 }
 
+CharacterB2D* createBareCharacter(float x, float y, int characterId, bool showGore)
+{
+    if (!hasCharacter(characterId))
+    {
+        return nullptr;
+    }
+    // Flash PlayableCharacterB2D.tags: the voice of each character index.
+    const char* name = nullptr;
+    const char* vehicle = nullptr;
+    const char* vocals = nullptr;
+    switch (characterId)
+    {
+    case 6: name = "lawnmower_man"; vehicle = "lawnmower"; vocals = "Char11"; break;
+    case 7: name = "explorer_guy"; vehicle = "mine_cart"; vocals = "Char2"; break;
+    case 8: name = "santa_claus"; vehicle = "sleigh"; vocals = "Santa"; break;
+    case 10: name = "irresponsible_mom"; vehicle = "mom_bike"; vocals = "Char4"; break;
+    case 11: name = "helicopter_man"; vehicle = "helicopter"; vocals = "Heli"; break;
+    default: return nullptr;
+    }
+    // The body description is the riding one (<name>_<vehicle>.plist); Flash builds the bare
+    // ragdoll from the same shape guide, at the start point itself (no per-vehicle offset).
+    BareRestoredCharacter* character = new BareRestoredCharacter();
+    character->init(Vec2(x, y), name, vocals, vehicle, -1, showGore, true);
+    if (characterId == 7)
+    {
+        character->keepHatOn();
+    }
+    return character;
+}
+
 void loadIconFrames()
 {
     const std::string sheet = "menus/character_select/restored_icons.plist";
@@ -208,7 +265,13 @@ void loadIconFrames()
 
 bool controlsMeter(int type)
 {
-    return type == ControlsTypeSanta;
+    if (type != ControlsTypeSanta)
+    {
+        return false;
+    }
+    // No sleigh in a "hide vehicle" start (createBareCharacter): no flight meter either.
+    CharacterB2D* character = mainCharacter();
+    return !character || dynamic_cast<SantaClaus*>(character) != nullptr;
 }
 
 bool childGore()
@@ -258,6 +321,19 @@ std::vector<GameplayBtn*> extraControls(int type, bool ejected, float userScale,
                                         float grabHeight, float spacing)
 {
     std::vector<GameplayBtn*> buttons;
+    // A "hide vehicle" start (createBareCharacter) has no kids or elves to let go of, and Flash
+    // PlayableCharacterB2D gives shift / ctrl nothing to do.
+    if (ejected && (type == ControlsTypeIrresponsibleMom || type == ControlsTypeSanta))
+    {
+        CharacterB2D* character = mainCharacter();
+        const bool bare = character && (type == ControlsTypeIrresponsibleMom
+                                            ? dynamic_cast<IrresponsibleMom*>(character) == nullptr
+                                            : dynamic_cast<SantaClaus*>(character) == nullptr);
+        if (bare)
+        {
+            return buttons;
+        }
+    }
     // Two extra buttons (control bits 0x20 = Flash shift, 0x40 = Flash ctrl).
     const char* frames[2] = {nullptr, nullptr};
     switch (type)

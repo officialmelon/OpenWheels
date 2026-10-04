@@ -1,6 +1,7 @@
 #include "qol/QoLMenu.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include "Globals.h"
 #include "HWWindow.h"
@@ -8,6 +9,8 @@
 #include "OptionsMenuItem.h"
 #include "Settings.h"
 #include "qol/QoL.h"
+#include "qol/QoLControlsMenu.h"
+#include "qol/QoLWidgets.h"
 
 USING_NS_CC;
 
@@ -16,6 +19,8 @@ namespace {
 const int kParticleSteps[] = {2000, 4000, 8000};
 const float kZoomSteps[] = {1.0f, 0.8f, 0.65f, 0.5f};
 const char* const kZoomNames[] = {"normal", "far", "farther", "farthest"};
+// "" = auto (the original's choice), then the four asset tiers.
+const char* const kTiers[] = {"", "large", "medium", "small", "tiny"};
 
 int zoomIndex() {
     const float z = qol::cameraZoom();
@@ -27,10 +32,21 @@ int zoomIndex() {
 
 const char* onOff(bool on) { return on ? "on" : "off"; }
 
+std::string percent(float value) { return std::to_string((int)std::lround(value * 100.0f)) + "%"; }
+
 Label* columnHeader(const std::string& text) {
     Label* label = Label::createWithTTF(text, "fonts/ClarendonLTStd-Bold.ttf", 80.0f);
     label->setColor(globals::colors::blue);
     return label;
+}
+
+// The tier the game would pick on its own is not known once a tier is forced: the row shows the
+// running tier, and flags a choice that needs a restart.
+std::string texturesLabel() {
+    const std::string chosen = qol::textureTier();
+    std::string text = "textures: " + (chosen.empty() ? "auto (" + qol::runningAssetTier() + ")" : chosen);
+    if (!chosen.empty() && chosen != qol::runningAssetTier()) text += " - restart";
+    return text;
 }
 
 }  // namespace
@@ -59,10 +75,12 @@ std::string QoLMenu::labelFor(int row) const
     case RowFps: return std::string("fps counter: ") + onOff(qol::showFps());
     case RowFullscreen: return std::string("fullscreen: ") + onOff(qol::fullscreen());
     case RowUnlockLevels: return std::string("unlock all levels: ") + onOff(qol::unlockAllLevels());
-    case RowControls: return "keyboard controls";
+    case RowControls: return "controls";
     case RowChildGore:
         // The sheet is built from the player's browser-game SWF; without it the row says so.
         return std::string("child gore: ") + (qol::childGoreAvailable() ? onOff(qol::childGore()) : "no art");
+    case RowTextures: return texturesLabel();
+    case RowFrameRate: return "frame rate: " + std::to_string(qol::frameRate()) + " fps";
     default: return std::string();
     }
 }
@@ -77,44 +95,52 @@ void QoLMenu::addContent()
 {
     const Size visibleSize = Director::getInstance()->getVisibleSize();
 
-    Menu* visuals = Menu::create(makeRow(RowBlood), makeRow(RowParticles), makeRow(RowCamera), makeRow(RowFps), nullptr);
-    Menu* game = Menu::create(makeRow(RowUnlockLevels), makeRow(RowChildGore), nullptr);
+    Menu* visuals = Menu::create(makeRow(RowBlood), makeRow(RowParticles), makeRow(RowCamera),
+                                 makeRow(RowTextures), makeRow(RowFrameRate), makeRow(RowFps), nullptr);
+    Menu* game = Menu::create();
+    game->addChild(QoLSliderItem::create([](float v) { return "sound effects: " + percent(v); }, qol::effectsVolume,
+                                         qol::setEffectsVolume));
+    game->addChild(QoLSliderItem::create([](float v) { return "music: " + percent(v); }, qol::musicVolume,
+                                         qol::setMusicVolume));
+    game->addChild(makeRow(RowUnlockLevels));
+    game->addChild(makeRow(RowChildGore));
     if (qol::fullscreenSupported())
     {
         game->addChild(makeRow(RowFullscreen));
-        game->addChild(makeRow(RowControls));
+        game->addChild(makeRow(RowControls));  // the keyboard bridge is desktop-only
     }
-    visuals->alignItemsVerticallyWithPadding(35.0f);
-    game->alignItemsVerticallyWithPadding(35.0f);
+    const float padding = 35.0f;
+    visuals->alignItemsVerticallyWithPadding(padding);
+    game->alignItemsVerticallyWithPadding(padding);
 
-    // Two 1500-wide columns; shrink them on narrow (4:3-ish) screens.
-    const float columnWidth = 1500.0f, gap = 160.0f;
-    const float scale = std::min(1.0f, (visibleSize.width - 200.0f) / (2.0f * columnWidth + gap));
+    // Two 1500-wide columns of up to six rows between the title and the back button; shrink them
+    // on narrow (4:3-ish) or short screens.
+    const float columnWidth = 1500.0f, gap = 160.0f, headerGap = 210.0f;
+    const float rowHeight = visuals->getChildren().front()->getContentSize().height;
+    const size_t rows = std::max(visuals->getChildren().size(), game->getChildren().size());
+    const float columnHeight = headerGap + rows * rowHeight + (rows - 1) * padding;
+    const float top = visibleSize.height - 380.0f;  // below the title
+    const float bottom = 420.0f;                     // above the back button
+    const float scale = std::min({1.0f, (visibleSize.width - 200.0f) / (2.0f * columnWidth + gap),
+                                  (top - bottom) / columnHeight});
     const float half = (columnWidth + gap) * 0.5f * scale;
-    const float rowsY = visibleSize.height * 0.5f - 60.0f;
+    // Column origin: the first row's centre sits headerGap + rowHeight / 2 below the header.
+    const float firstRowY = top - (headerGap + 40.0f + rowHeight * 0.5f) * scale;
 
-    Node* left = Node::create();
-    left->setPosition(Vec2(visibleSize.width * 0.5f - half, rowsY));
-    left->setScale(scale);
-    visuals->setPosition(Vec2::ZERO);
-    left->addChild(visuals);
-    Label* leftHeader = columnHeader("visuals");
-    leftHeader->setPosition(Vec2(0.0f, visuals->getChildren().front()->getPositionY() + 210.0f));
-    left->addChild(leftHeader);
-    addChild(left, 100);
-
-    Node* right = Node::create();
-    right->setPosition(Vec2(visibleSize.width * 0.5f + half, rowsY));
-    right->setScale(scale);
-    // Top-align the shorter column with the left one.
-    const float topLeft = visuals->getChildren().front()->getPositionY();
-    const float topRight = game->getChildren().front()->getPositionY();
-    game->setPosition(Vec2(0.0f, topLeft - topRight));
-    right->addChild(game);
-    Label* rightHeader = columnHeader("game");
-    rightHeader->setPosition(Vec2(0.0f, topLeft + 210.0f));
-    right->addChild(rightHeader);
-    addChild(right, 100);
+    auto placeColumn = [&](Menu* menu, const std::string& header, float x) {
+        Node* column = Node::create();
+        column->setScale(scale);
+        const float firstY = menu->getChildren().front()->getPositionY();
+        column->setPosition(Vec2(x, firstRowY));
+        menu->setPosition(Vec2(0.0f, -firstY));
+        column->addChild(menu);
+        Label* label = columnHeader(header);
+        label->setPosition(Vec2(0.0f, headerGap));
+        column->addChild(label);
+        addChild(column, 100);
+    };
+    placeColumn(visuals, "visuals", visibleSize.width * 0.5f - half);
+    placeColumn(game, "game", visibleSize.width * 0.5f + half);
 }
 
 void QoLMenu::rowPressed(Ref* sender)
@@ -145,6 +171,16 @@ void QoLMenu::rowPressed(Ref* sender)
     case RowUnlockLevels:
         qol::setUnlockAllLevels(!qol::unlockAllLevels());
         break;
+    case RowTextures:
+    {
+        int i = 0;
+        while (i < 5 && qol::textureTier() != kTiers[i]) ++i;
+        qol::setTextureTier(kTiers[(i + 1) % 5]);
+        break;
+    }
+    case RowFrameRate:
+        qol::setFrameRate(qol::frameRate() == 60 ? 30 : 60);
+        break;
     case RowChildGore:
         if (!qol::childGoreAvailable())
         {
@@ -159,12 +195,12 @@ void QoLMenu::rowPressed(Ref* sender)
         qol::setChildGore(!qol::childGore());
         break;
     case RowControls:
-        HWWindow::createAlertWindow(
-            "Keyboard controls",
-            "Up / W: accelerate\nDown / S: reverse\nLeft / A: lean back\nRight / D: lean forward\n"
-            "Space: primary action\nShift / Ctrl: extra actions (restored characters)\nZ: eject\nEsc / P: pause\nR: restart level\nF11: fullscreen",
-            "Ok", "", true, false, false);
+    {
+        // Pushed, so the back button returns here.
+        Director::getInstance()->pushScene(
+            TransitionFade::create(globals::ui::menuFadeTime, QoLControlsMenu::createScene(), Color3B(0, 0, 0)));
         return;
+    }
     default:
         return;
     }

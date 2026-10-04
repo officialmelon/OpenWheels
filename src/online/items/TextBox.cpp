@@ -149,7 +149,12 @@ bool TextBox::triggerRepeatActivation(LevelItem* trigger, int action, std::vecto
     // 60 Hz step with seconds. Only act when the Flash frame changes.
     const int frame = (int)std::floor(time * 30.0f + 1e-3f);
     int& last = _lastFrame[action == 1 ? 1 : 0];
-    if (frame == last && time > 0.0f) return false;
+    // Levels <= 1.8 keep TargetActionSpecial's counter at the end (Flash), so a repeated
+    // activation arrives on the frame that was already handled: it must finish at once.
+    const size_t durationIndex = action == 1 ? 0 : 1;
+    const bool atEnd = properties.size() > durationIndex &&
+                       frame >= (int)std::lround(properties[durationIndex] * 30.0f);
+    if (frame == last && time > 0.0f && !atEnd) return false;
     last = frame;
     const bool has0 = properties.size() > 0, has1 = properties.size() > 1, has2 = properties.size() > 2;
     if (action == 0) {  // change opacity: newOpacity (0..100), time (s)

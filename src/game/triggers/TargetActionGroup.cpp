@@ -385,11 +385,17 @@ void TargetActionGroup::actions()
                 _groupItem->setOpacity(targetOpacity);
                 getLevel()->removeFromActions(this);
                 // No return (unlike TargetAction): the counter restarts at one time step.
-                _counter = 0.0f;
                 if (online::flashLevel())
                 {
-                    return;  // ONLINE (PC addition): Flash restarts at 0 (levels > 1.8)
+                    // ONLINE (PC addition): Flash restarts at 0 (levels > 1.8) and keeps the
+                    // counter of older levels at the duration (the next fade is instant).
+                    if (online::flashVersion() > 1.8f)
+                    {
+                        _counter = 0.0f;
+                    }
+                    return;
                 }
+                _counter = 0.0f;
             }
             else
             {

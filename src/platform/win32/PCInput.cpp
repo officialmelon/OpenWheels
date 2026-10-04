@@ -8,6 +8,7 @@
 #include "GameplayBtn.h"
 #include "GameplayControls.h"
 #include "online/vehicles/UserVehicle.h"  // ONLINE (PC addition)
+#include "qol/KeyBindings.h"  // QOL (PC addition)
 
 USING_NS_CC;
 
@@ -22,22 +23,25 @@ struct Binding {
     unsigned int bit;  // state bit for kStateBit
 };
 
-const std::map<EventKeyboard::KeyCode, Binding>& bindings() {
-    using K = EventKeyboard::KeyCode;
-    static const std::map<K, Binding> m = {
-        {K::KEY_UP_ARROW, {kStateBit, 0x01}},    {K::KEY_W, {kStateBit, 0x01}},
-        {K::KEY_DOWN_ARROW, {kStateBit, 0x02}},  {K::KEY_S, {kStateBit, 0x02}},
-        {K::KEY_RIGHT_ARROW, {kStateBit, 0x04}}, {K::KEY_D, {kStateBit, 0x04}},
-        {K::KEY_LEFT_ARROW, {kStateBit, 0x08}},  {K::KEY_A, {kStateBit, 0x08}},
-        {K::KEY_SPACE, {kStateBit, 0x10}},
-        {K::KEY_Z, {kStateBit, 0x80}},
-        // RESTORED (PC addition): the restored characters' extra buttons (Flash shift / ctrl).
-        {K::KEY_LEFT_SHIFT, {kStateBit, 0x20}},  {K::KEY_RIGHT_SHIFT, {kStateBit, 0x20}},
-        {K::KEY_LEFT_CTRL, {kStateBit, 0x40}},   {K::KEY_RIGHT_CTRL, {kStateBit, 0x40}},
-        {K::KEY_ESCAPE, {kPause, 0}},            {K::KEY_P, {kPause, 0}},
-        {K::KEY_R, {kReset, 0}},
-    };
-    return m;
+// QOL (PC addition): the keys come from the remappable bindings (src/qol/KeyBindings.h; the
+// defaults are the original arrows / WASD, space, Z, shift / ctrl, Esc / P and R).
+bool bindingFor(EventKeyboard::KeyCode key, Binding* binding) {
+    qol::KeyAction action;
+    if (!qol::actionForKey(key, &action)) return false;
+    switch (action) {
+    case qol::KeyAction::Accelerate: *binding = {kStateBit, 0x01}; return true;
+    case qol::KeyAction::Reverse: *binding = {kStateBit, 0x02}; return true;
+    case qol::KeyAction::LeanForward: *binding = {kStateBit, 0x04}; return true;
+    case qol::KeyAction::LeanBack: *binding = {kStateBit, 0x08}; return true;
+    case qol::KeyAction::Special: *binding = {kStateBit, 0x10}; return true;
+    // RESTORED (PC addition): the restored characters' extra buttons (Flash shift / ctrl).
+    case qol::KeyAction::Shift: *binding = {kStateBit, 0x20}; return true;
+    case qol::KeyAction::Ctrl: *binding = {kStateBit, 0x40}; return true;
+    case qol::KeyAction::Eject: *binding = {kStateBit, 0x80}; return true;
+    case qol::KeyAction::Pause: *binding = {kPause, 0}; return true;
+    case qol::KeyAction::Restart: *binding = {kReset, 0}; return true;
+    default: return false;  // fullscreen: main.cpp
+    }
 }
 
 // Virtual finger ids: far away from the mouse's id 0.
@@ -111,15 +115,16 @@ void release(EventKeyboard::KeyCode key) {
 // ORs online::pcExtraControlBits() into the control byte): Shift 0x20 / Ctrl 0x40 = the browser
 // game's secondary actions of user vehicles, Z 0x80 = eject from a user vehicle.
 void onlineExtraKey(EventKeyboard::KeyCode key, bool down) {
-    using K = EventKeyboard::KeyCode;
-    switch (key) {
-    case K::KEY_LEFT_SHIFT: case K::KEY_RIGHT_SHIFT:
+    qol::KeyAction action;
+    if (!qol::actionForKey(key, &action)) return;
+    switch (action) {
+    case qol::KeyAction::Shift:
         online::setPcExtraKey(0x20, down);
         break;
-    case K::KEY_LEFT_CTRL: case K::KEY_RIGHT_CTRL:
+    case qol::KeyAction::Ctrl:
         online::setPcExtraKey(0x40, down);
         break;
-    case K::KEY_Z:
+    case qol::KeyAction::Eject:
         online::setPcExtraKey(0x80, down);
         break;
     default:
@@ -133,8 +138,8 @@ void installKeyboardControls() {
     auto listener = EventListenerKeyboard::create();
     listener->onKeyPressed = [](EventKeyboard::KeyCode key, Event*) {
         onlineExtraKey(key, true);  // ONLINE (PC addition)
-        auto it = bindings().find(key);
-        if (it != bindings().end()) press(key, it->second);
+        Binding binding;
+        if (bindingFor(key, &binding)) press(key, binding);
     };
     listener->onKeyReleased = [](EventKeyboard::KeyCode key, Event*) {
         onlineExtraKey(key, false);  // ONLINE (PC addition)

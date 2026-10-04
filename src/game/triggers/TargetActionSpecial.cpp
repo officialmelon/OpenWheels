@@ -86,6 +86,12 @@ void TargetActionSpecial::actions()
             _counter = 0.0f;
             return;
         }
+        // ONLINE (PC addition): levels <= 1.8 keep the counter at the duration (Flash returns
+        // before counting), so the next activation ends the action at once.
+        if (online::flashLevel())
+        {
+            return;
+        }
     }
     _counter += getTimeStep();
 }

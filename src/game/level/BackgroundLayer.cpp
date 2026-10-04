@@ -153,14 +153,11 @@ void BackgroundLayer::create(LevelDataElement* parameters)
         case BackgroundCity:
             if (online::flashLevel())
             {
-                // ONLINE (PC addition): the browser game's city backdrops (online/FlashCity.h);
+                // ONLINE (PC addition): the browser game's city backdrops (online/FlashCity.h),
+                // moved by online::updateCityBackground (they follow the QoL camera zoom);
                 // without the generated art, the night horizon (Android has no city gradient).
                 std::vector<online::CityBackdropPiece> pieces =
                     online::createCityBackground(this, _ptmRatio);
-                for (const online::CityBackdropPiece& piece : pieces)
-                {
-                    _backdrops.push_back(new Backdrop(piece.sprite, piece.origin, piece.multiplier));
-                }
                 if (pieces.empty())
                 {
                     addFillBGWithFile("backgrounds/nightHorizon_1x768.png");
@@ -366,5 +363,9 @@ void BackgroundLayer::update(Vec2 pos)
     for (std::vector<Backdrop*>::iterator it = _backdrops.begin(); it != _backdrops.end(); ++it)
     {
         (*it)->update(pos);
+    }
+    if (online::flashLevel())
+    {
+        online::updateCityBackground(this, pos);  // ONLINE (PC addition): browser city backdrops
     }
 }

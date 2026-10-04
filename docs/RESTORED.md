@@ -41,5 +41,14 @@ Without the generated files nothing changes: the character list stays the origin
 them the five appear in character select, play in any level that lets the player choose, and
 stay forced in converted browser levels that require them (`docs/FLASH_LEVELS.md` 10.4).
 
-Known gap: a browser level's "hide vehicle" start with a restored character still uses the
-wheelchair guy's ragdoll (`src/online/BareCharacter.cpp` knows only the six mobile characters).
+### "Hide vehicle" starts
+
+A browser level that forces a restored character with "hide vehicle" (`<info h="t">`) gets that
+character's own ragdoll without the vehicle, as Flash's `PlayableCharacterB2D`:
+`restored::createBareCharacter` (called by `online::createBareCharacter`) builds a plain
+`CharacterB2D` from the character's body description, sprites, gore and voice (Flash tags: Char11,
+Char2, Santa, Char4, Heli), ejected from the start, controlled with the ejected d-pad and grab.
+`PlayableCharacterB2D` creates nothing else: no vehicle, no Irresponsible Mom kids, no Santa
+elves, and shift / ctrl do nothing (the ejected controls leave out the kid / elf buttons). The
+Explorer is not among Flash's helmeted characters there, so his hat stays on and his head smashes
+at the normal limit.

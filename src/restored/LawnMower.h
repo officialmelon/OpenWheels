@@ -80,6 +80,12 @@ private:
         float massRatio;
         float leftX;   // spray range on the blade (mower local x)
         float rightX;
+        // Flash masks the body's art with a rectangle below the clearance sensor's top edge
+        // (targetMaskHolder), so it disappears gradually into the deck. The art node is moved
+        // into a ClippingNode at its place in the layer while it rises.
+        cocos2d::ClippingNode* clip = nullptr;
+        cocos2d::DrawNode* stencil = nullptr;
+        cocos2d::Node* artParent = nullptr;
     };
     struct Piece
     {
@@ -95,6 +101,9 @@ private:
     CharacterB2D* ownerOf(b2Body* body);
     void handleBladeContacts();
     void finishTarget(const Target& target);
+    void maskTarget(Target& target);
+    void unmaskTarget(const Target& target);
+    void updateMask(const Target& target);
     void mowerSmash();
     void frontSmash();
     void rearSmash();
@@ -159,6 +168,7 @@ private:
     b2Vec2 _bladeCenter;          // mower local
     float _bladeHalfWidth;
     float _bladeBottom;           // mower local y of the blade's lower edge
+    float _clearanceTop = 0.0f;   // mower local y of the clearance sensor's top edge (grind mask)
     float _mowerMass;
     std::vector<BladeContact> _bladeContacts;
     std::vector<Target> _targets;

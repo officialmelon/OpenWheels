@@ -222,6 +222,14 @@ void LawnMower::createBodies()
     addBox(_mowerBody, pad, "alignShape2");
     pad.isSensor = true;
     _clearanceFixture = addBox(_mowerBody, pad, "clearanceShape");
+    {
+        // Flash clearanceShape.m_vertices[0]: the sensor's top edge (y up here).
+        const b2PolygonShape* box = static_cast<b2PolygonShape*>(_clearanceFixture->GetShape());
+        _clearanceTop = box->m_vertices[0].y;
+        for (int i = 1; i < box->m_count; i++) {
+            _clearanceTop = std::max(_clearanceTop, box->m_vertices[i].y);
+        }
+    }
     _mowerBody->ResetMassData();
     _mowerMass = _mowerBody->GetMass();
 
@@ -663,9 +671,15 @@ void LawnMower::paint()
         piece.sprite->setPosition(Vec2(c.x * ptm, c.y * ptm));
         piece.sprite->setRotation(-CC_RADIANS_TO_DEGREES(piece.body->GetAngle()));
     }
-    // What the blade pulls up past its lower edge disappears into the deck (Flash masks it).
+    // What the blade pulls up past the clearance sensor disappears into the deck: Flash masks
+    // the art (maskTarget); art that can't be clipped (inside a batch node) is hidden once its
+    // body passes the blade's lower edge.
     if (_mowerBody) {
         for (const Target& target : _targets) {
+            if (target.clip) {
+                updateMask(target);
+                continue;
+            }
             Node* node = static_cast<Node*>(target.body->GetUserData());
             if (node && _mowerBody->GetLocalPoint(target.body->GetWorldCenter()).y > _bladeBottom) {
                 node->setVisible(false);
@@ -877,6 +891,9 @@ void LawnMower::handleBladeContacts()
             hold.maxMotorTorque = 5.0f;
             hold.Initialize(target.riser, body, c.point);
             world->CreateJoint(&hold);
+            if (mass > 0.1f) {
+                maskTarget(target);  // Flash: only bodies heavier than 0.1 get the mask
+            }
             _addedTargets.push_back(target);
 
             if (!_grindLoop && gameplay()) {
@@ -906,8 +923,64 @@ void LawnMower::handleBladeContacts()
     }
 }
 
+void LawnMower::maskTarget(Target& target)
+{
+    Node* node = static_cast<Node*>(target.body->GetUserData());
+    Node* parent = node ? node->getParent() : nullptr;
+    if (!parent || dynamic_cast<SpriteBatchNode*>(parent)) {
+        return;
+    }
+    DrawNode* stencil = DrawNode::create();
+    ClippingNode* clip = ClippingNode::create(stencil);
+    const int z = node->getLocalZOrder();
+    node->retain();
+    node->removeFromParentAndCleanup(false);
+    clip->addChild(node, z);
+    parent->addChild(clip, z);
+    node->release();
+    target.clip = clip;
+    target.stencil = stencil;
+    target.artParent = parent;
+    updateMask(target);
+}
+
+void LawnMower::updateMask(const Target& target)
+{
+    // Flash: drawRect(-100, top, 200, 100) px in the mower's frame, around its centre of mass,
+    // from the top edge of the clearance sensor downwards (100 px = 100 / 30 Flash m).
+    const float ptm = getPtm();
+    const float reach = 100.0f / 30.0f * kPhys;
+    const b2Vec2 c = _mowerBody->GetLocalCenter();
+    const b2Vec2 local[4] = {b2Vec2(c.x - reach, _clearanceTop), b2Vec2(c.x + reach, _clearanceTop),
+                             b2Vec2(c.x + reach, _clearanceTop - reach),
+                             b2Vec2(c.x - reach, _clearanceTop - reach)};
+    Vec2 points[4];
+    for (int i = 0; i < 4; i++) {
+        b2Vec2 w = _mowerBody->GetWorldPoint(local[i]);
+        points[i] = Vec2(w.x * ptm, w.y * ptm);
+    }
+    target.stencil->clear();
+    target.stencil->drawSolidPoly(points, 4, Color4F::WHITE);
+}
+
+void LawnMower::unmaskTarget(const Target& target)
+{
+    if (!target.clip) {
+        return;
+    }
+    Node* node = static_cast<Node*>(target.body->GetUserData());
+    if (node && node->getParent() == target.clip) {
+        node->retain();
+        node->removeFromParentAndCleanup(false);
+        target.artParent->addChild(node, target.clip->getLocalZOrder());
+        node->release();
+    }
+    target.clip->removeFromParent();
+}
+
 void LawnMower::finishTarget(const Target& target)
 {
+    unmaskTarget(target);
     // Flash: removeBody on the owner (its joints break), then the body is destroyed. Bodies are
     // kept (inactive, hidden) here: the character still holds pointers to its parts.
     getWorld()->DestroyBody(target.riser);

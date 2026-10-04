@@ -11,6 +11,8 @@
 #include "base/CCEventDispatcher.h"
 #include "base/CCEventListenerCustom.h"
 #include "base/ccMacros.h"
+#include "Globals.h"
+#include "online/FlashRuntime.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -373,7 +375,15 @@ void StageCamera::center()
     }
     setBorders();
 
-    const b2Vec2& focusPosition = _focus->GetPosition();
+    b2Vec2 focusPosition = _focus->GetPosition();
+    // ONLINE (PC addition): a browser-level focus body frozen by a NaN-density shape (Box2D 2.0
+    // NaN, online::flashNanBody) reads as Flash's stage origin, its top-left corner: Flash's
+    // StageCamera then pushes the view to the stage's top-left limits (CLICK PARKOUR 3).
+    if (online::flashLevel() &&
+        (online::flashNanBody(_focus) || !std::isfinite(focusPosition.x) || !std::isfinite(focusPosition.y)))
+    {
+        focusPosition.Set(0.0f, globals::flash::stageSizeMeters.height);
+    }
     const Vec2 focusWorld =
         _containerObj->convertToWorldSpace(Vec2(focusPosition.x * _ptmRatio, focusPosition.y * _ptmRatio));
     const float focusX = focusWorld.x * _scale;
@@ -414,6 +424,19 @@ void StageCamera::center()
         {
             y = _bottomLimitPixels;
         }
+    }
+
+    // ONLINE (PC addition): setLimits measures the window in pixels and the stage in points, so
+    // below the large asset tier the view can pass the stage's right and top edges by the
+    // difference. Flash's StageCamera stops exactly at its cameraBounds (the stage): browser
+    // levels clamp to the window size in points as well (CLICK PARKOUR 3 builds its screens
+    // against the stage's top-left corner).
+    if (online::flashLevel())
+    {
+        const Size winSize = Director::getInstance()->getWinSize();
+        const Size winSizeInPixels = Director::getInstance()->getWinSizeInPixels();
+        x = std::fmax(x, _leftLimitPixels + winSize.width * _scale - winSizeInPixels.width);
+        y = std::fmax(y, _bottomLimitPixels + winSize.height * _scale - winSizeInPixels.height);
     }
 
     const Vec2 position(x / _scale, y / _scale);

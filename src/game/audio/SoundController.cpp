@@ -2,6 +2,7 @@
 
 #include "Sound.h"
 #include "SoundList.h"
+#include "qol/QoL.h"  // QOL (PC addition)
 
 #include "audio/include/AudioEngine.h"
 #include "cocos2d.h"
@@ -73,7 +74,7 @@ int SoundController::playBackgroundMusic(std::string name)
         name = "SuperPretzel";
     }
     _musicId = AudioEngine::play2d(name + ".mp3", false, 1.0f);
-    AudioEngine::setVolume(_musicId, _masterVolume * _themeMusicSoundLimiter);
+    AudioEngine::setVolume(_musicId, _masterVolume * _themeMusicSoundLimiter * qol::musicVolume());  // QOL (PC addition): music slider
     return _musicId;
 }
 
@@ -207,7 +208,7 @@ void SoundController::setMasterVolume(float volume)
     _masterVolume = fmaxf(fminf(volume, 1.0f), 0.0f);
     if (_musicId != -1)
     {
-        AudioEngine::setVolume(_musicId, _masterVolume * _themeMusicSoundLimiter);
+        AudioEngine::setVolume(_musicId, _masterVolume * _themeMusicSoundLimiter * qol::musicVolume());  // QOL (PC addition): music slider
     }
 }
 

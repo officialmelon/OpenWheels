@@ -148,7 +148,12 @@ void TargetActionRevJoint::actions()
         const float duration = _properties[1];
         if (_counter >= duration)
         {
-            _counter = 0.0f;
+            // ONLINE (PC addition): Flash keeps the counter of levels <= 1.8 at the duration, so
+            // the next activation sets the speed at once instead of ramping again.
+            if (!(online::flashLevel() && online::flashVersion() <= 1.8f))
+            {
+                _counter = 0.0f;
+            }
             _joint->SetMotorSpeed(targetSpeed);
             getLevel()->removeFromActions(this);
             return;

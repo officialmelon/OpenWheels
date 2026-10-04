@@ -1,6 +1,7 @@
 #pragma once
 // "Quality of Life" options page (PC addition), reached from Options. Built like the original's
-// Advanced Options screen (SecondaryMenu + OptionsMenuItem rows), in two columns.
+// Advanced Options screen (SecondaryMenu + OptionsMenuItem rows), in two columns: "visuals" and
+// "game" (sound and music sliders, gameplay options, and the "controls" page on desktop).
 
 #include "SecondaryMenu.h"
 
@@ -16,7 +17,19 @@ public:
     void backBtnPressed() override;
 
 private:
-    enum Row { RowBlood = 100, RowParticles, RowCamera, RowFps, RowFullscreen, RowUnlockLevels, RowControls, RowChildGore };
+    enum Row
+    {
+        RowBlood = 100,
+        RowParticles,
+        RowCamera,
+        RowFps,
+        RowFullscreen,
+        RowUnlockLevels,
+        RowControls,
+        RowChildGore,
+        RowTextures,
+        RowFrameRate,
+    };
     std::string labelFor(int row) const;
     void rowPressed(cocos2d::Ref* sender);
     OptionsMenuItem* makeRow(int row);

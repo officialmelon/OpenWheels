@@ -14,6 +14,7 @@
 #include "Session.h"
 #include "Settings.h"
 #include "platform/debug/WorldDump.h"
+#include "qol/QoL.h"
 
 USING_NS_CC;
 
@@ -25,6 +26,13 @@ int runWorldDump(const std::string& outPath, const std::string& levelPath, int f
     // Same boot as the original (search paths, design resolution, content scale, first scene).
     auto app = Application::getInstance();
     if (!app->applicationDidFinishLaunching()) return 2;
+    // The game's 1/60 s ticks, whatever the player's QoL frame rate. OW_DUMP_FPS=30 runs the QoL
+    // 30 FPS mode instead (two ticks per mainLoop of 1/30 s): the dump must come out identical.
+    const char* fpsEnv = std::getenv("OW_DUMP_FPS");
+    const int fps = fpsEnv && std::atoi(fpsEnv) == 30 ? 30 : 60;
+    qol::installFrameRate(fps);
+    const int ticksPerLoop = fps == 30 ? 2 : 1;
+    const float loopDt = fps == 30 ? 1.0f / 30.0f : 1.0f / 60.0f;
 
     // Control-byte script -> ReplayData, exactly like the oracle (tools/re/oracle.py play).
     std::vector<std::pair<int, int>> changes;
@@ -71,11 +79,11 @@ int runWorldDump(const std::string& outPath, const std::string& levelPath, int f
                 debug::dumpWorldJson(s->getWorld(), base + "_f" + std::to_string(frame) + ".json", frame);
         }
     };
-    director->mainLoop(1.0f / 60.0f);
+    director->mainLoop(loopDt);
     dumpExtra(0);
-    for (int f = 0; f < frames; ++f) {
-        director->mainLoop(1.0f / 60.0f);
-        dumpExtra(f + 1);
+    for (int f = 0; f < frames; f += ticksPerLoop) {
+        director->mainLoop(loopDt);
+        dumpExtra(f + ticksPerLoop);
     }
 
     Session* session = Settings::getInstance()->getCurrentSession();

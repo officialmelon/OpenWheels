@@ -842,9 +842,12 @@ void NPCharacter::headSmash()
     if (!_broken[kNeck]) {
         _broken[kNeck] = true;  // the joint goes with the head body
         setPartFrame(kChest, _partFrame[kChest] + 1);
-        const float sgn = _reversed ? -1.0f : 1.0f;
-        startFlow(kNeckFlow, 2.5f, 4.0f, 500, _body[kChest],
-                  b2Vec2(sgn * _data->spineRef[0] / kCharacterScale, -_data->spineRef[1] / kCharacterScale), 270.0f);
+        if (!_ground[kChest]) {  // Flash: chestShape.m_userData != GRIND_STATE
+            const float sgn = _reversed ? -1.0f : 1.0f;
+            startFlow(kNeckFlow, 2.5f, 4.0f, 500, _body[kChest],
+                      b2Vec2(sgn * _data->spineRef[0] / kCharacterScale, -_data->spineRef[1] / kCharacterScale),
+                      270.0f);
+        }
     } else {
         stopFlow(kHeadFlow);
     }
@@ -930,7 +933,8 @@ void NPCharacter::torsoBreak(bool blood, bool sound)
     setPartFrame(kPelvis, _partFrame[kPelvis] + 1);
     setFilter(_body[kPelvis], _lowerBodyFilter);
     for (Part p : {kUpperLeg1, kUpperLeg2, kLowerLeg1, kLowerLeg2}) setFilter(_body[p], _lowerBodyFilter);
-    if (blood) startFlow(kStomachFlow, 2.0f, 3.0f, 500, _body[kChest], b2Vec2_zero, 90.0f);
+    // Flash skips the bleeding of a torso part the mower blade is grinding (GRIND_STATE).
+    if (blood && !_ground[kChest]) startFlow(kStomachFlow, 2.0f, 3.0f, 500, _body[kChest], b2Vec2_zero, 90.0f);
     if (sound) playSound("LimbRip1", _body[kPelvis]);
     addVocals("Torso", 5);
 }
@@ -941,9 +945,11 @@ void NPCharacter::neckBreak(bool blood, bool sound)
     destroyJoint(kNeck);
     setPartFrame(kHead, 2);
     setPartFrame(kChest, _partFrame[kChest] + 1);
-    setFilter(_body[kHead], _zeroFilter);
-    startFlow(kHeadFlow, 2.5f, 4.0f, 150, _body[kHead], b2Vec2_zero, 90.0f);
-    if (blood) {
+    if (!_ground[kHead]) {  // Flash: headShape.m_userData != GRIND_STATE
+        setFilter(_body[kHead], _zeroFilter);
+        startFlow(kHeadFlow, 2.5f, 4.0f, 150, _body[kHead], b2Vec2_zero, 90.0f);
+    }
+    if (blood && !_ground[kChest]) {
         const float sgn = _reversed ? -1.0f : 1.0f;
         startFlow(kNeckFlow, 2.5f, 4.0f, 500, _body[kChest],
                   b2Vec2(sgn * _data->spineRef[0] / kCharacterScale, -_data->spineRef[1] / kCharacterScale), 270.0f);
@@ -970,7 +976,7 @@ void NPCharacter::shoulderBreak(int k, bool blood)
     setFilter(_body[lower], _zeroFilter);
     setPartFrame(upper, _partFrame[upper] + 1);
     if (k == 0) setPartFrame(kChest, _partFrame[kChest] + 2);
-    if (blood) {
+    if (blood && !_ground[kChest]) {
         startFlow(k == 0 ? kShoulder1Flow : kShoulder2Flow, 0.0f, 1.0f, 500, _body[kChest], anchorA, 270.0f);
         playSound("LimbRip2", _body[upper]);
     }
@@ -1021,7 +1027,7 @@ void NPCharacter::hipBreak(int k, bool blood)
     setFilter(_body[lower], _zeroFilter);
     setPartFrame(upper, _partFrame[upper] + 1);
     if (k == 0) setPartFrame(kPelvis, _partFrame[kPelvis] + 2);
-    if (blood) {
+    if (blood && !_ground[kPelvis]) {
         startFlow(k == 0 ? kHip1Flow : kHip2Flow, 0.0f, 1.0f, 500, _body[kPelvis], b2Vec2_zero, 90.0f);
         playSound(k == 0 ? "LimbRip3" : "LimbRip4", _body[upper]);
     }

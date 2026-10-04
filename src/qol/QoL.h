@@ -50,6 +50,34 @@ bool loadChildGoreSprites();
 // The asset size tier AppDelegate picked ("large", "medium", "small" or "tiny").
 void setAssetTier(const std::string& tier);
 
+// The asset tier AppDelegate picked for this run.
+const std::string& runningAssetTier();
+
+// Texture resolution (asset tier): "" = auto, the original's choice from the screen height and
+// Options' "graphics: high-res / low-res"; or "large", "medium", "small", "tiny". Read once at
+// start-up (AppDelegate), like the original's graphics option: changes apply on the next start.
+std::string textureTier();
+void setTextureTier(const std::string& tier);
+// AppDelegate hook: replaces the original's tier and its resolution height when overridden.
+void overrideAssetTier(std::string* directory, float* resolutionHeight);
+
+// Display frame rate, after the browser game's 30 / 60 FPS option (v1.94): 60 (original) or 30.
+// The game logic keeps its 1/60 s ticks: at 30 FPS every drawn frame runs two scheduler ticks of
+// half the frame time (Scheduler time scale 0.5 + a second tick after the Director's update), so
+// physics, controls, replays and timers see exactly the same sequence of steps.
+int frameRate();
+void setFrameRate(int fps);  // stores and applies
+// Applies a frame rate (AppDelegate: the stored one; --dump-world: its own).
+void installFrameRate(int fps);
+
+// Sound effect and music volume (browser v1.98.3 sliders), 0..1, default 1. They scale the
+// original's master volume (Options "sound: high / low / off") separately for effects and for
+// the menu music.
+float effectsVolume();
+void setEffectsVolume(float volume);
+float musicVolume();
+void setMusicVolume(float volume);  // also re-applies the playing music's volume
+
 // Fullscreen (desktop builds only; the platform layer installs the handler).
 bool fullscreenSupported();
 bool fullscreen();

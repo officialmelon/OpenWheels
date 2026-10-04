@@ -1,6 +1,7 @@
 #include "Sound.h"
 
 #include "SoundController.h"
+#include "qol/QoL.h"  // QOL (PC addition)
 
 #include "audio/include/AudioEngine.h"
 #include "Box2D/Box2D.h"
@@ -13,7 +14,8 @@ using cocos2d::experimental::AudioEngine;
 int Sound::playSound(std::string name, float volume, float pitch, float pan, bool loop)
 {
     std::string path = getFullPath(name, "ogg");
-    return AudioEngine::play2d(path, loop, SoundController::getMasterVolume() * volume);
+    // QOL (PC addition): the effects volume slider (1 by default).
+    return AudioEngine::play2d(path, loop, SoundController::getMasterVolume() * volume * qol::effectsVolume());
 }
 
 // @00613c70
@@ -75,7 +77,7 @@ bool Sound::play(float volume, bool loop)
     if (_soundId == -1)
     {
         std::string path = getFullPath(_fileName, "ogg");
-        int soundId = AudioEngine::play2d(path, loop, volume);
+        int soundId = AudioEngine::play2d(path, loop, volume * qol::effectsVolume());  // QOL (PC addition)
         _soundId = soundId;
         if (soundId != -1)
         {
@@ -128,7 +130,8 @@ bool Sound::updatePosition(float listenerX, float listenerY, float masterVolume)
 
     float volumeX = (1.0f - dx / 16.0f) * _maxVolume;
     float volumeY = (1.0f - dy / 8.0f) * _maxVolume;
-    AudioEngine::setVolume(_soundId, fminf(volumeX, volumeY) * masterVolume);
+    // QOL (PC addition): the effects volume slider (1 by default).
+    AudioEngine::setVolume(_soundId, fminf(volumeX, volumeY) * masterVolume * qol::effectsVolume());
     return true;
 }
 
