@@ -393,6 +393,9 @@ int WINAPI _tWinMain(HINSTANCE hInstance,
     auto glview = GLViewImpl::createWithRect("OpenWheels", Rect(0.0f, 0.0f, opt.width, opt.height));
     Director::getInstance()->setOpenGLView(glview);
     installFullscreen(glview, opt.dumpWorld.empty());
+    // The original's first-run "accept the Privacy Policy" prompt is Fancy Force's policy for its
+    // ad/analytics SDKs, which OpenWheels doesn't have: pre-accept it (as on Android).
+    UserDefault::getInstance()->setBoolForKey("terms_of_use_accepted", true);
 
 #ifdef OW_WITH_PC_LAYER  // enable once src/game links (PCInput.cpp, WorldDumpRunner.cpp)
     openwheels::pc::installKeyboardControls();
