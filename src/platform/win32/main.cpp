@@ -125,6 +125,9 @@ std::wstring findIOSBundle(const std::wstring& fromArgs)
 {
     if (!fromArgs.empty()) return withSlash(fromArgs);
     std::wstring dir = withSlash(exeDirectory());
+    // Release folder layout: ios/ next to the exe (tools/package_windows.ps1).
+    if (GetFileAttributesW((dir + L"ios/Localizable.strings").c_str()) != INVALID_FILE_ATTRIBUTES)
+        return dir + L"ios/";
     for (int up = 0; up < 8 && !dir.empty(); ++up)
     {
         const std::wstring candidate = dir + L"binary/HappyWheels_iOS/Payload/happywheels.app/";
