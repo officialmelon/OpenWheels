@@ -846,6 +846,10 @@ void RaceSession::giveUp() {
     localStatus(Status::GaveUp);
 }
 
+bool RaceSession::aloneInOwnLobby() const {
+    return _phase == Phase::Lobby && _host && _conns.empty() && _players.size() <= 1;
+}
+
 void RaceSession::leave() {
     if (_phase == Phase::Idle) return;
     if (_host) {
@@ -970,7 +974,9 @@ void RaceSession::incomingMessage(int id, const net::Message& m) {
         in.levelName = m.get("level");
         in.kind = m.get("kind");
         in.players = static_cast<int>(m.getInt("players", 1));
-        if (_phase != Phase::Idle || (_askingIncoming != 0 && _askingIncoming != id)) {
+        // Only a real race in progress makes us busy: a lobby we host with nobody else in it
+        // (e.g. both players tapped Race) still shows the invite; joining closes that lobby.
+        if ((_phase != Phase::Idle && !aloneInOwnLobby()) || (_askingIncoming != 0 && _askingIncoming != id)) {
             in.channel->send(net::Message("answer").set("accept", false).set("reason", "busy"));
             in.channel->close();
             in.channel->clearHandler();
@@ -1034,6 +1040,7 @@ void RaceSession::answerIncoming(bool accept) {
     if (it == _incoming.end()) return;
     IncomingInvite in = it->second;
     _incoming.erase(it);
+    if (accept && aloneInOwnLobby()) leave();  // give up our empty lobby to join theirs
     if (!accept || _phase != Phase::Idle) {
         in.channel->send(net::Message("answer").set("accept", false).set("reason", accept ? "busy" : "declined"));
         in.channel->clearHandler();
@@ -1362,6 +1369,13 @@ void RaceSession::tick(float) {
     const double t = now();
 
     // invites on the guest side
+    if (_inviteWindow && !_inviteWindow->getParent()) {
+        // The alert went away without its callback (scene change): don't stay "busy" forever.
+        _inviteWindow->release();
+        _inviteWindow = nullptr;
+        auto pending = _incoming.find(_askingIncoming);
+        if (pending != _incoming.end()) pending->second.shown = false;
+    }
     if (_askingIncoming != 0 && !_inviteWindow && net::LevelTransfer::canInterruptNow()) showIncoming();
     for (auto it = _incoming.begin(); it != _incoming.end();) {
         if (t > it->second.deadline) {

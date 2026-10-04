@@ -110,6 +110,7 @@ public:
     void pickCharacter(int characterId);
     void setReady(bool ready);
     void giveUp();
+    bool aloneInOwnLobby() const;  // hosting a lobby nobody has joined yet
     void leave();         // guest: leave the race; host: close it for everyone
 
     // ---- state for the UI ----
