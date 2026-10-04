@@ -191,6 +191,7 @@ SPECS = {
     11: dict(
         name='helicopter_man', vehicle='helicopter', key='heli', vehicle_key='hhc',
         title='Helicopter Man', cls='HelicopterMan', vehicle_cls='Helicopter', controls=111,
+        pelvis_under_chest=True,
         special_on_left='0',
         # Flash HelicopterMan: copterMC / copterFrontMC.inner sit on the guide origin (moved by
         # -localCenter, painted at the mass centre). The propeller turns (9 frames), the broken one
@@ -870,6 +871,45 @@ def _glyph_elf(d, s, cx, cy):
     seg((hx, hy + 76 * s), (hx + 18 * s, hy + 108 * s))
 
 
+def _glyph_magnet_shape(d, s, cx, cy, scale=1.0):
+    """A horseshoe magnet opening downwards, centred on (cx, cy)."""
+    k = s * scale
+    r_out, r_in = 62 * k, 30 * k
+    top = cy - 30 * k
+    d.pieslice((cx - r_out, top - r_out, cx + r_out, top + r_out), 180, 360, fill=255)
+    d.rectangle((cx - r_out, top, cx + r_out, cy + 44 * k), fill=255)
+    d.pieslice((cx - r_in, top - r_in, cx + r_in, top + r_in), 180, 360, fill=0)
+    d.rectangle((cx - r_in, top, cx + r_in, cy + 70 * k), fill=0)
+    # the poles' tips: gaps across both legs
+    d.rectangle((cx - r_out - 2 * k, cy + 18 * k, cx - r_in + 2 * k, cy + 26 * k), fill=0)
+    d.rectangle((cx + r_in - 2 * k, cy + 18 * k, cx + r_out + 2 * k, cy + 26 * k), fill=0)
+
+
+def _glyph_magnet(d, s, cx, cy):
+    """Helicopter Man's magnet on / off: a horseshoe magnet with field lines under its poles."""
+    _glyph_magnet_shape(d, s, cx, cy - 22 * s)
+    seg = _stroke(d, s, 14)
+    for side in (-1, 1):
+        x = cx + side * 46 * s
+        seg((x, cy + 44 * s), (x + side * 10 * s, cy + 70 * s))
+        seg((cx + side * 16 * s, cy + 48 * s), (cx + side * 18 * s, cy + 84 * s))
+
+
+def _glyph_rope(d, s, cx, cy, up):
+    """Helicopter Man's winch: the rope with a small magnet, and an arrow up (reel in) or down."""
+    seg = _stroke(d, s, 14)
+    rx = cx - 34 * s
+    seg((rx, cy - 100 * s), (rx, cy + 26 * s))
+    _glyph_magnet_shape(d, s, rx, cy + 58 * s, 0.55)
+    ax = cx + 52 * s
+    if up:
+        d.polygon(((ax, cy - 82 * s), (ax - 44 * s, cy - 26 * s), (ax + 44 * s, cy - 26 * s)), fill=255)
+        d.rectangle((ax - 15 * s, cy - 28 * s, ax + 15 * s, cy + 70 * s), fill=255)
+    else:
+        d.polygon(((ax, cy + 82 * s), (ax - 44 * s, cy + 26 * s), (ax + 44 * s, cy + 26 * s)), fill=255)
+        d.rectangle((ax - 15 * s, cy - 70 * s, ax + 15 * s, cy + 28 * s), fill=255)
+
+
 CONTROL_GLYPHS = {
     'restored_btn_eject_son': lambda d, s, cx, cy: (_glyph_eject_small(d, s, cx, cy),
                                                     _glyph_kid(d, s, cx, cy, False)),
@@ -880,6 +920,9 @@ CONTROL_GLYPHS = {
     'restored_btn_stand': _glyph_stand,
     'restored_btn_crouch': _glyph_crouch,
     'restored_btn_release_elves': _glyph_elf,
+    'restored_btn_magnet': _glyph_magnet,
+    'restored_btn_rope_up': lambda d, s, cx, cy: _glyph_rope(d, s, cx, cy, True),
+    'restored_btn_rope_down': lambda d, s, cx, cy: _glyph_rope(d, s, cx, cy, False),
 }
 
 
@@ -1170,6 +1213,10 @@ def build_character(args, cid, spec, work):
     os.makedirs(os.path.join(out, 'shared', 'vehicles', 'bodies'), exist_ok=True)
     for path, rname in riders:
         cb = character_bodies(tree, resolve_root(tree, path))
+        if not path and spec.get('pelvis_under_chest'):
+            # Flash createMovieClips: pelvisMC moved under chestMC (CharacterB2D's
+            # shirtAbovePants stacking: head, pelvis, chest)
+            cb['shirtAbovePants'] = True
         with open(os.path.join(out, 'shared', 'characters', 'bodies', '%s_%s.plist' % (rname, veh)), 'wb') as f:
             plistlib.dump(cb, f)
     guides = [(0, '')] + [(resolve_root(tree, path), prefix)

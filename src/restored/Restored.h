@@ -1,7 +1,8 @@
 #pragma once
 
 // RESTORED (PC addition): the browser game's player characters the mobile port left out
-// (Lawnmower Man, Irresponsible Mom), rebuilt from the player's own browser-game SWFs by
+// (Lawnmower Man, Explorer Guy, Santa Claus, Irresponsible Mom,
+// Helicopter Man), rebuilt from the player's own browser-game SWFs by
 // tools/assets/extract_character.py into generated/restored/ next to the exe (Win32) or in the
 // APK's assets (Android):
 //   generated/restored/shared/   Characters_restored.plist, characters/ and vehicles/ bodies
@@ -28,6 +29,7 @@ enum ControlsType
     ControlsTypeExplorer = 107,          // special = rail clamp; + stand / crouch (bits 0x20, 0x40)
     ControlsTypeSanta = 108,             // special = flight (+ boost meter); + release elves
     ControlsTypeIrresponsibleMom = 110,  // special = brake; + son / daughter eject (bits 0x20, 0x40)
+    ControlsTypeHelicopter = 111,        // special = magnet; + rope in / out (bits 0x20, 0x40)
 };
 
 // Appends generated/restored/{shared,<tier>,sounds} to the search paths (after the original

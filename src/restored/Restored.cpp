@@ -8,6 +8,7 @@
 
 #include "GameplayBtn.h"
 #include "ExplorerGuy.h"
+#include "HelicopterMan.h"
 #include "IrresponsibleMom.h"
 #include "LawnMowerMan.h"
 #include "SantaClaus.h"
@@ -31,6 +32,8 @@ std::string listPath()
     }
     std::vector<std::string> paths = fileUtils->getSearchPaths();
     paths.push_back(fileUtils->getDefaultResourceRootPath());
+    // Win32: the resource root is <exe dir>/Resources/, generated/ sits next to the exe.
+    paths.push_back(fileUtils->getDefaultResourceRootPath() + "../");
     paths.push_back("");
     for (const std::string& path : paths) {
         std::string candidate = path + kRoot + "shared/" + kList;
@@ -177,6 +180,12 @@ CharacterB2D* createCharacter(float x, float y, int characterId, int groupIndex,
         character->init(Vec2(x, y), "santa_claus", "sleigh", groupIndex, showGore);
         return character;
     }
+    case 11:
+    {
+        HelicopterMan* character = new HelicopterMan();
+        character->init(Vec2(x, y), "helicopter_man", "helicopter", groupIndex, showGore);
+        return character;
+    }
     case 10:
     {
         IrresponsibleMom* character = new IrresponsibleMom();
@@ -233,6 +242,12 @@ void controlsSpecial(int type, int overrideSpecialPosition, std::string* frame, 
             *frame = "restored_btn_rail.png";
         }
         break;
+    case ControlsTypeHelicopter:
+        if (hasFrame("restored_btn_magnet.png"))
+        {
+            *frame = "restored_btn_magnet.png";
+        }
+        break;
     default:
         break;
     }
@@ -258,6 +273,14 @@ std::vector<GameplayBtn*> extraControls(int type, bool ejected, float userScale,
         }
         frames[0] = "restored_btn_stand.png";   // shift: stand up in the cart
         frames[1] = "restored_btn_crouch.png";  // ctrl: duck
+        break;
+    case ControlsTypeHelicopter:
+        if (ejected)
+        {
+            return buttons;  // (the rope is the copter's: nothing to reel once he is out)
+        }
+        frames[0] = "restored_btn_rope_up.png";    // shift: reel the magnet in
+        frames[1] = "restored_btn_rope_down.png";  // ctrl: let it down
         break;
     case ControlsTypeSanta:
     {
