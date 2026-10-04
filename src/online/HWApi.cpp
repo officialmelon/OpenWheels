@@ -32,7 +32,7 @@ double now() {
     return duration<double>(steady_clock::now().time_since_epoch()).count();
 }
 
-std::string urlEncode(const std::string& s) {
+std::string urlEncodeImpl(const std::string& s) {
     static const char* hex = "0123456789ABCDEF";
     std::string out;
     for (unsigned char c : s) {
@@ -55,7 +55,7 @@ std::string form(std::initializer_list<std::pair<const char*, std::string>> fiel
         if (!body.empty()) body += '&';
         body += f.first;
         body += '=';
-        body += urlEncode(f.second);
+        body += urlEncodeImpl(f.second);
     }
     return body;
 }
@@ -132,7 +132,40 @@ struct HWApi::Pending {
     std::string endpoint;
     std::string body;
     std::function<void(bool, const std::string&, const std::string&)> done;
+    // ONLINE (PC addition): raw requests (account / replay modules)
+    bool get = false;
+    RawCallback raw;
 };
+
+// ONLINE (PC addition)
+std::string HWApi::siteUrl() {
+    static std::string base;
+    if (base.empty()) {
+        const char* env = std::getenv("OW_TJF_BASE");
+        base = (env && *env) ? env : kSite;
+        if (base.back() != '/') base += '/';
+    }
+    return base;
+}
+
+std::string HWApi::urlEncode(const std::string& s) { return urlEncodeImpl(s); }
+
+bool HWApi::isServerError(const std::string& body, std::string* error) { return serverError(body, error); }
+
+RequestId HWApi::request(const std::string& endpoint, const std::string& body, bool get, RawCallback callback) {
+    const RequestId id = nextId();
+    auto* p = new Pending();
+    p->endpoint = endpoint;
+    p->body = body;
+    p->get = get;
+    p->raw = [this, id, callback](const RawResponse& r) {
+        if (std::find(_cancelled.begin(), _cancelled.end(), id) != _cancelled.end()) return;
+        callback(r);
+    };
+    _queue.push_back(p);
+    pump();
+    return id;
+}
 
 HWApi* HWApi::getInstance() {
     static HWApi* instance = new HWApi();
@@ -159,7 +192,11 @@ void HWApi::cancelAll() {
 
 void HWApi::post(const std::string& endpoint, const std::string& body,
                  std::function<void(bool, const std::string&, const std::string&)> done) {
-    _queue.push_back(new Pending{endpoint, body, std::move(done)});
+    auto* p = new Pending();
+    p->endpoint = endpoint;
+    p->body = body;
+    p->done = std::move(done);
+    _queue.push_back(p);
     pump();
 }
 
@@ -176,26 +213,43 @@ void HWApi::pump() {
     _busy = true;
 
     auto* request = new network::HttpRequest();
-    request->setUrl(std::string(kSite) + p->endpoint);
-    request->setRequestType(network::HttpRequest::Type::POST);
-    request->setHeaders({kUserAgent, "Content-Type: application/x-www-form-urlencoded",
-                         std::string("Referer: ") + kSite + "happy_wheels.tjf"});
-    request->setRequestData(p->body.data(), p->body.size());
+    // ONLINE (PC addition): OW_TJF_BASE, GET requests and the session cookie (account module).
+    const std::string site = siteUrl();
+    request->setUrl(site + p->endpoint);
+    request->setRequestType(p->get ? network::HttpRequest::Type::GET : network::HttpRequest::Type::POST);
+    std::vector<std::string> headers = {kUserAgent, std::string("Referer: ") + site + "happy_wheels.tjf"};
+    if (!p->get) headers.push_back("Content-Type: application/x-www-form-urlencoded");
+    if (_cookieProvider) {
+        const std::string cookie = _cookieProvider();
+        if (!cookie.empty()) headers.push_back("Cookie: " + cookie);
+    }
+    request->setHeaders(headers);
+    if (!p->get) request->setRequestData(p->body.data(), p->body.size());
+    // The body may hold a password (login): don't keep it around longer than the request.
+    std::fill(p->body.begin(), p->body.end(), '\0');
+    p->body.clear();
     request->setResponseCallback([this, p](network::HttpClient*, network::HttpResponse* response) {
         _busy = false;
         _lastRequestTime = now();
-        std::string data;
+        RawResponse r;
         if (response && response->getResponseData())
-            data.assign(response->getResponseData()->begin(), response->getResponseData()->end());
-        if (!response || !response->isSucceed()) {
-            std::string err = "network error";
+            r.body.assign(response->getResponseData()->begin(), response->getResponseData()->end());
+        if (response && response->getResponseHeader())
+            r.headers.assign(response->getResponseHeader()->begin(), response->getResponseHeader()->end());
+        if (response) r.status = response->getResponseCode();
+        if (_headerObserver && !r.headers.empty()) _headerObserver(r.headers);
+        r.ok = response && response->isSucceed();
+        if (!r.ok) {
+            r.error = "network error";
             if (response && response->getErrorBuffer() && response->getErrorBuffer()[0])
-                err += std::string(": ") + response->getErrorBuffer();
+                r.error += std::string(": ") + response->getErrorBuffer();
             else if (response)
-                err += " (HTTP " + std::to_string(response->getResponseCode()) + ")";
-            p->done(false, err, data);
+                r.error += " (HTTP " + std::to_string(response->getResponseCode()) + ")";
+        }
+        if (p->raw) {
+            p->raw(r);
         } else {
-            p->done(true, std::string(), data);
+            p->done(r.ok, r.error, r.body);
         }
         delete p;
         pump();
@@ -210,6 +264,12 @@ bool HWApi::parseLevelList(const std::string& body, std::vector<OnlineLevelInfo>
                            int* perPage, std::string* error) {
     levels.clear();
     if (serverError(body, error)) return false;
+    // ONLINE (PC addition): the site answers some searches (several words) with an empty body.
+    if (body.find_first_not_of(" \t\r\n") == std::string::npos) {
+        if (page) *page = 1;
+        if (perPage) *perPage = 0;
+        return true;
+    }
     tinyxml2::XMLDocument doc;
     if (doc.Parse(body.c_str()) != tinyxml2::XML_SUCCESS) {
         if (error) *error = "unreadable level list";

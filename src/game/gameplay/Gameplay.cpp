@@ -30,6 +30,7 @@
 #include "LevelSession.h"  // EDITOR (iOS port): user levels (src/editor/persistence)
 #include "online/FlashRuntime.h"           // ONLINE (PC addition)
 #include "online/vehicles/UserVehicle.h"  // ONLINE (PC addition)
+#include "online/replays/ReplayRuntime.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -367,6 +368,12 @@ void Gameplay::update(float dt)
     if (_isReplay)
     {
         state = _replayData->getEntry();
+        // ONLINE (PC addition): browser replays pick their byte per physics step
+        // (online/replays/ReplayRuntime.h).
+        if (online::flashLevel())
+        {
+            online::replays::gameplayState(_replayData, true, &state);
+        }
         _controls->setState(state);
     }
     else
@@ -377,6 +384,7 @@ void Gameplay::update(float dt)
         if (online::flashLevel())
         {
             state |= online::pcExtraControlBits();
+            online::replays::gameplayState(_replayData, false, &state);  // records browser replays
         }
         _replayData->addEntry(state);
     }

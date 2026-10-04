@@ -16,6 +16,7 @@
 #include "StageCamera.h"
 #include "TerrainNode.h"
 #include "online/FlashRuntime.h"  // ONLINE (PC addition)
+#include "online/replays/ReplayRuntime.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -526,6 +527,7 @@ void Session::update(float dt)
 
     if (online::flashLevel())
     {
+        online::replays::physicsStep();  // ONLINE (PC addition): browser replays, per world step
         online::flashPreStep(_world);  // ONLINE (PC addition): Flash Box2D 2.0 contact rules
     }
     _world->Step(timeStep, 8, 3);

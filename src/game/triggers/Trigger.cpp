@@ -11,6 +11,7 @@
 #include "Session.h"
 #include "Settings.h"
 #include "SoundController.h"
+#include "online/replays/ReplayRuntime.h"  // ONLINE (PC addition)
 #include "TargetAction.h"
 #include "TargetActionGroup.h"
 #include "TargetActionPrisJoint.h"
@@ -1031,6 +1032,7 @@ bool Trigger::onlineInButton(const b2Vec2& worldPoint)
 // Flash mouseUpHandler.
 void Trigger::onlineMouseClick()
 {
+    online::replays::noteClick(this);  // browser replays record clicks (Flash addMouseEntry)
     LevelB2D* level = getLevel();
     if (_repeatType > TriggerRepeatTypeEachTime)
     {
@@ -1065,6 +1067,7 @@ void Trigger::onlineMouseMove(const b2Vec2& worldPoint)
         return;
     }
     _onlineClickHover = false;
+    online::replays::noteRollOut(this);  // browser replays record roll-outs
     if (_triggeringBody == getLevelBody())
     {
         _triggeringBody = nullptr;

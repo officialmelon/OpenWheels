@@ -34,6 +34,7 @@ import argparse
 import collections
 import os
 import random
+import re
 import sys
 import time
 import urllib.parse
@@ -123,6 +124,18 @@ def post(endpoint: str, fields: dict) -> bytes:
         _last_request = time.monotonic()
 
 
+def parse_xml(raw: bytes) -> ET.Element:
+    """ET.fromstring, tolerating the server's stray Latin-1 bytes in names (the responses claim
+    UTF-8, but e.g. Polish level titles arrive as single 0xD3 bytes) and control characters."""
+    try:
+        return ET.fromstring(raw)
+    except ET.ParseError:
+        text = raw.decode("utf-8", "surrogateescape")
+        text = "".join(chr(ord(c) - 0xDC00) if 0xDC80 <= ord(c) <= 0xDCFF else c for c in text)
+        text = re.sub("[\x00-\x08\x0b\x0c\x0e-\x1f]", "", text)
+        return ET.fromstring(text.encode("utf-8"))
+
+
 def check_failure(data: bytes) -> None:
     head = data[:8]
     if b"<html>" in head:
@@ -134,7 +147,7 @@ def check_failure(data: bytes) -> None:
 def get_meta(level_id: int) -> tuple[bytes, ET.Element | None]:
     raw = post("get_level.hw", {"level_id": level_id, "action": "get_level"})
     check_failure(raw)
-    lv = ET.fromstring(raw).find("lv")
+    lv = parse_xml(raw).find("lv")
     return raw, lv
 
 
@@ -157,7 +170,7 @@ def cmd_list(a) -> None:
     check_failure(raw)
     if a.save:
         Path(a.save).write_bytes(raw)
-    root = ET.fromstring(raw)
+    root = parse_xml(raw)
     print(f"page {root.get('pg')}  per-page {root.get('pp')}  results {len(root.findall('lv'))}")
     for lv in root.findall("lv")[: a.limit]:
         print(f"{lv.get('id'):>9}  ui={lv.get('ui'):>9}  char={lv.get('pc'):>2}  "
@@ -185,7 +198,7 @@ def _author_from_sidecar(path: Path) -> str | None:
     stem = path.name.split(".")[0]
     meta = path.with_name(stem + ".meta.xml")
     if meta.exists():
-        lv = ET.fromstring(meta.read_bytes()).find("lv")
+        lv = parse_xml(meta.read_bytes()).find("lv")
         if lv is not None:
             return lv.get("ui")
     return None
@@ -205,7 +218,7 @@ def cmd_decode(a) -> None:
 
 
 def _load(path: str) -> ET.Element:
-    return ET.fromstring(Path(path).read_bytes())
+    return parse_xml(Path(path).read_bytes())
 
 
 def cmd_info(a) -> None:
@@ -276,6 +289,59 @@ def _natkey(s):
     return [int(x) if x.isdigit() else x for x in re.split(r"(\d+)", str(s))]
 
 
+# --------------------------------------------------------------------------- replays (read-only)
+# replay.hw (Flash ReplayBrowser / RecordLoader): see docs/FLASH_LEVELS.md section 11.
+# A replay is input only: one key byte per 30 Hz frame (MSB first: left right up down space shift
+# ctrl z), optionally 0xFF + 4-byte mouse entries (uint16 iteration | 0x8000 roll-out, uint16
+# trigger index). get_cmb_records = int32 BE n + n replay bytes + the level record.
+
+KEY_NAMES = ["left", "right", "up", "down", "space", "shift", "ctrl", "z"]
+
+
+def split_replay(data: bytes) -> tuple[bytes, list[tuple[int, int, bool]]]:
+    sep = data.find(b"\xff")
+    if sep <= 0:  # ReplayData.parseByteArray: a 0xFF at index 0 is not a separator
+        return data, []
+    keys, rest = data[:sep], data[sep + 1:]
+    mouse = []
+    for i in range(0, len(rest) - 3, 4):
+        a, b = int.from_bytes(rest[i:i + 2], "big"), int.from_bytes(rest[i + 2:i + 4], "big")
+        mouse.append((a & 0x7FFF, b, a > 32767))
+    return keys, mouse
+
+
+def cmd_replays(a) -> None:
+    raw = post("replay.hw", {"action": "get_all_by_level", "page": a.page, "level_id": a.level_id,
+                             "sortby": a.sortby})
+    check_failure(raw)
+    out = Path(a.out) / "replays"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / f"{a.level_id}.list.xml").write_bytes(raw)
+    root = parse_xml(raw) if raw.strip() else ET.Element("rps")
+    rps = root.findall("rp")
+    print(f"level {a.level_id}: {len(rps)} replays (per page {root.get('pp')})")
+    for rp in rps[: a.limit]:
+        ct = int(rp.get("ct") or 0)
+        t = f"{ct / 30:7.2f}s" if ct < 6000 else "    DNF "
+        print(f"{rp.get('id'):>9} {t} pc={rp.get('pc'):>2} rg={float(rp.get('rg') or 0):.2f} vs={rp.get('vs'):>5} "
+              f"vw={rp.get('vw'):>6} {rp.get('dc')} ar={rp.get('ar')} vr={rp.get('vr')} by {rp.get('un')!r}")
+
+
+def cmd_replay(a) -> None:
+    """get_cmb_records (counts one view on the site, like watching it in the browser)."""
+    raw = post("replay.hw", {"action": "get_cmb_records", "replay_id": a.replay_id, "level_id": a.level_id})
+    check_failure(raw)
+    out = Path(a.out) / "replays"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / f"{a.replay_id}.cmb.bin").write_bytes(raw)
+    n = int.from_bytes(raw[:4], "big")
+    keys, mouse = split_replay(raw[4:4 + n])
+    counts = [sum(1 for k in keys if k & (0x80 >> i)) for i in range(8)]
+    print(f"replay {a.replay_id}: {n} bytes, {len(keys)} frames ({len(keys) / 30:.2f} s), "
+          f"{len(mouse)} mouse entries, level record {len(raw) - 4 - n} B")
+    print("frames with key down: " + ", ".join(f"{k} {c}" for k, c in zip(KEY_NAMES, counts)))
+
+
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -297,6 +363,20 @@ def main(argv=None) -> None:
     p = sub.add_parser("decode", help="record.bin -> level XML")
     p.add_argument("record"); p.add_argument("--author"); p.add_argument("-o")
     p.set_defaults(fn=cmd_decode)
+
+    p = sub.add_parser("replays", help="a level's replay list (1 request)")
+    p.add_argument("level_id", type=int)
+    p.add_argument("--sortby", default="completion_time", choices=["newest", "oldest", "rating", "completion_time"])
+    p.add_argument("--page", type=int, default=1)
+    p.add_argument("--limit", type=int, default=20)
+    p.add_argument("--out", default=str(DEFAULT_OUT))
+    p.set_defaults(fn=cmd_replays)
+
+    p = sub.add_parser("replay", help="one replay + its level (get_cmb_records, 1 request)")
+    p.add_argument("replay_id", type=int)
+    p.add_argument("level_id", type=int)
+    p.add_argument("--out", default=str(DEFAULT_OUT))
+    p.set_defaults(fn=cmd_replay)
 
     p = sub.add_parser("info", help="summary of a level XML")
     p.add_argument("xml"); p.set_defaults(fn=cmd_info)

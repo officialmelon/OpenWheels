@@ -22,4 +22,11 @@ bool startConvertedLevel(const std::string& flashXml, ConversionReport* report, 
 // PC entry point (--play-online <id>): metadata, then playOnlineLevel. Errors go to the log.
 void playOnlineLevelById(int levelId);
 
+// EDITOR (browser features, PC addition): "open in editor" for a downloaded level. The level
+// editor (src/editor/) registers the handler at startup; without it (editor-less builds) the
+// browser shows no editor button.
+using OpenInEditorHandler = std::function<void(const std::string& flashXml, const OnlineLevelInfo& level)>;
+void setOpenInEditorHandler(OpenInEditorHandler handler);
+const OpenInEditorHandler& openInEditorHandler();
+
 }  // namespace online

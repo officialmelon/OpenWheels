@@ -55,6 +55,34 @@ public:
     void cancel(RequestId id);
     void cancelAll();
 
+    // ONLINE (PC addition): hooks for the account and replay modules (src/online/account,
+    // src/online/replays). Every request, these included, goes through the same serial queue.
+    //
+    // Site root, "https://totaljerkface.com/" unless the environment variable OW_TJF_BASE points
+    // somewhere else (e.g. http://127.0.0.1:8765/ for tools/online/mock_tjf.py).
+    static std::string siteUrl();
+    struct RawResponse {
+        bool ok = false;           // transport succeeded (HTTP 2xx)
+        std::string error;         // transport error
+        std::string body;
+        std::string headers;       // raw response headers (Set-Cookie...)
+        long status = 0;
+    };
+    using RawCallback = std::function<void(const RawResponse& response)>;
+    // POST (form body) or GET `endpoint` (relative to siteUrl()). The callback is dropped after
+    // cancel(id).
+    RequestId request(const std::string& endpoint, const std::string& body, bool get, RawCallback callback);
+    // The Cookie header sent with every request ("" = none) and an observer that sees every
+    // response's headers (the account module keeps the site's session cookie that way).
+    void setCookieProvider(std::function<std::string()> provider) { _cookieProvider = std::move(provider); }
+    void setHeaderObserver(std::function<void(const std::string& headers)> observer) {
+        _headerObserver = std::move(observer);
+    }
+    // Form helpers shared with the account/replay modules.
+    static std::string urlEncode(const std::string& s);
+    // "failure:<reason>" or an HTML page instead of data.
+    static bool isServerError(const std::string& body, std::string* error);
+
     // Blowfish-CBC (key "eatshit"+authorId, IV "abcd1234", PKCS#5) + zlib -> UTF-8 XML.
     static bool decryptRecord(const std::string& record, int authorId, std::string& xml, std::string* error);
     // Parses a <lvs> response.
@@ -75,6 +103,8 @@ private:
     RequestId _nextId = 1;
     std::vector<RequestId> _cancelled;
     std::string _fixtures;  // OW_ONLINE_FIXTURES
+    std::function<std::string()> _cookieProvider;                 // ONLINE (PC addition)
+    std::function<void(const std::string&)> _headerObserver;     // ONLINE (PC addition)
 };
 
 }  // namespace online

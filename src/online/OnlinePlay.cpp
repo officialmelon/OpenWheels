@@ -4,6 +4,7 @@
 #include "LevelSession.h"
 #include "LevelStore.h"
 #include "online/HWApi.h"
+#include "online/replays/ReplayRuntime.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -30,7 +31,7 @@ bool startConvertedLevel(const std::string& flashXml, ConversionReport* report, 
 
 void playOnlineLevel(const OnlineLevelInfo& level, bool countPlay,
                      std::function<void(bool, const std::string&, const ConversionReport&)> done) {
-    HWApi::getInstance()->downloadLevel(level, countPlay, [done](bool ok, const std::string& err, const std::string& xml) {
+    HWApi::getInstance()->downloadLevel(level, countPlay, [done, level](bool ok, const std::string& err, const std::string& xml) {
         ConversionReport report;
         if (!ok) {
             if (done) done(false, err, report);
@@ -44,7 +45,7 @@ void playOnlineLevel(const OnlineLevelInfo& level, bool countPlay,
             return;
         }
         if (done) done(true, std::string(), report);
-        startConvertedLevel(xml, &report, &error);
+        if (startConvertedLevel(xml, &report, &error)) replays::beginOnlineRun(level);  // record runs as replays
     });
 }
 
@@ -61,5 +62,15 @@ void playOnlineLevelById(int levelId) {
         });
     });
 }
+
+namespace {
+OpenInEditorHandler& editorHandler() {
+    static OpenInEditorHandler handler;
+    return handler;
+}
+}  // namespace
+
+void setOpenInEditorHandler(OpenInEditorHandler handler) { editorHandler() = std::move(handler); }
+const OpenInEditorHandler& openInEditorHandler() { return editorHandler(); }
 
 }  // namespace online
