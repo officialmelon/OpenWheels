@@ -1,26 +1,45 @@
 # Level editor port (iOS 1.2.7 → OpenWheels)
 
 The Android build never shipped the level editor; the iOS build (the original Objective-C
-codebase on cocos2d-iphone + UIKit) did. This phase ports it into OpenWheels as C++ on
-cocos2d-x 3.17.2, on top of the Android-derived reconstruction in `src/game/`.
+codebase on cocos2d-iphone + UIKit) did. OpenWheels ports it to C++ on cocos2d-x 3.17.2, on
+top of the Android-derived reconstruction in `src/game/`. Status: done, in `src/editor/`; the
+per-part work notes are `docs/editor/E1.md`-`E5.md`.
 
 Unlike `src/game/` (a 1:1 decompilation of the Android C++), this is a **port**: the iOS
 editor's *behaviour* is reproduced faithfully, but it is expressed against our engine API and
 game classes, and its UIKit screens are rebuilt with cocos2d-x UI.
 
+## Using it
+
+The editor needs the player's own iOS 1.2.7 app bundle (`happywheels.app`) for its art and
+text. It is found automatically at `binary/HappyWheels_iOS/Payload/happywheels.app` (searched
+upwards from the exe) or given with `--ios-app <dir>`; the Android build packs it from
+`OW_IOS_APP` (`docs/ANDROID.md`). When the bundle's editor atlases load, the main menu shows two
+extra buttons: the editor (new level) and the user-level list. Options → advanced options gets
+an "import levels" row. A `.happywheels` file can be opened with `--open <file>`, passed as a
+plain command-line argument, or dropped on the exe (Windows).
+
+User levels are stored as `<writable path>/levels/<id>.xml` (imported ones under
+`levels/imported/`) plus an `index.plist` with names and dates, replacing iOS Core Data
+(`LevelMO`). Sharing writes `levels/shared/<name>.happywheels` and `<name>.xml`.
+
 ## Ground truth
 
 * `python tools/re/iosre.py classes|methods|fn|ivars|senders ...` — iOS per-class decompilation
-  (Ghidra exports of the iOS binary) and ObjC ivar metadata.
+  (Ghidra exports of the iOS binary, folder in `OW_IOS_EXPORTS`) and ObjC ivar metadata.
 * The editor writes the **same level XML** the game reads: `<levelXML><info v x y c f h bg bgc
   e="1" fm …/><shapes><sh t i p0 …/></shapes><specials><sp t p0 …/></specials>…` (see
-  `-[EditorLayer levelData]`). Our `LevelB2D` loads it unchanged, so editor levels play in the
-  reconstructed game, and the same path serves custom levels / future level importers.
-* Text: the iOS editor gets its strings from `Localizable.strings` (e.g. `EDITOR INTRO MESSAGE`,
-  `EDITORBTN 0..12`, `LEVEL EDITOR`, `EXIT EDITOR`). The port reads the same keys at runtime from
-  the player's iOS app bundle through `Localization::get("KEY")` — never hard-code that text.
+  `-[EditorLayer levelData]`). `LevelB2D` loads it unchanged, so editor levels play in the
+  reconstructed game. (Editor levels are y-up metres; `LevelB2D` flips y only for `r="1"`
+  levels, which all shipped levels are.)
+* Text: the iOS editor gets its strings from `Localizable.strings` (keys such as
+  `EDITOR INTRO MESSAGE`, `EDITORBTN 0..12`, `LEVEL EDITOR`, `EXIT EDITOR`). The port reads the
+  same keys at runtime from the player's iOS app bundle through `Localization::get("KEY")`;
+  long hard-coded iOS strings use `OW_IOSTEXT(key, addr)`, extracted from the player's iOS binary
+  at build time. Never hard-code that text.
 * Art: `editorui-{hd,ipad,ipadhd}.plist/.png` and `levelEditorObjects1-{…}` in the player's iOS
-  app bundle, loaded at runtime via `EditorAssets` (suffix picked from the asset tier).
+  app bundle, loaded at runtime via `EditorAssets` (suffix picked from the asset tier). The
+  bundle's binary plists and CgBI PNGs are read by `BinaryPlist` and `AppleImage`.
 
 ## Rules
 
@@ -34,16 +53,17 @@ game classes, and its UIKit screens are rebuilt with cocos2d-x UI.
    carries the iOS address tag: `// @ios 100005e48`.
 3. **ObjC → C++ mapping.** `NSArray/NSMutableArray` of objects → `cocos2d::Vector<T*>`;
    `NSDictionary` properties → `cocos2d::ValueMap`; `NSNumber`/`NSString` → `cocos2d::Value` /
-   `std::string`; `CGPoint/CGRect` (double) → `cocos2d::Vec2/Rect` (keep the double
-   arithmetic where it changes results); `NSUndoManager` → `EditorUndoManager` (C++ command
-   stack with grouping); delegates/notifications → interfaces / `EventCustom`; `UIAlertView` →
-   the game's own `HWWindow`; popovers/view controllers → modal cocos2d-x panels.
+   `std::string`; `CGPoint/CGRect` (double) → `cg::Point/cg::Rect` where the double arithmetic
+   changes results; `NSUndoManager` → `EditorUndoManager` (C++ command stack with grouping);
+   delegates/notifications → interfaces / `uikit::NotificationCenter`; `UIAlertView` → the
+   game's own `HWWindow`; popovers/view controllers → modal cocos2d-x panels (`UIKitCompat`).
 4. **iOS game-class calls map to the Android reconstruction**: `Session::sharedSession()` /
    iOS `Settings` → our `Settings`/`Session`; `HWSoundController` → `SoundController`;
    `GameplayLayer` test play → `Gameplay::createScene(xml, nullptr)` with
    `GameplayControls::setMode(ControlsModeTesting)` (mode 1 already exists in the Android code
-   for exactly this purpose). Changes needed inside `src/game/` must be minimal, marked
-   `// EDITOR (iOS port):`, and must not alter behaviour when the editor is not involved.
+   for exactly this purpose; pause returns to the editor, reset restarts the test). Changes
+   inside `src/game/` are minimal, marked `// EDITOR (iOS port):`, and do not alter behaviour
+   when the editor is not involved.
 5. **No game content in the repo** — same rules as `docs/RECONSTRUCTION.md` (no text, art,
    levels or decompiler output in `src/`).
 
@@ -51,23 +71,27 @@ game classes, and its UIKit screens are rebuilt with cocos2d-x UI.
 
 ```
 src/editor/model/        Special, RefShape (+Circle/Rectangle/TriangleRefShape), CharacterRef,
-                         DecorationRef, the per-item *Ref classes
-src/editor/core/         EditorLayer, EditorSpriteBatchNode, EditorLayerButton, EditorUndoManager
+                         DecorationRef, EditorSettings (item catalog), the per-item *Ref classes
+src/editor/core/         EditorLayer, EditorSpriteBatchNode, EditorLayerButton, EditorUndoManager,
+                         CCLayerPanZoom, EditorLevelXMLParser, ButtonWithBatchedSprite, EditorGeometry
 src/editor/ui/           EditorUIView, AddSpecialItemUIView, SelectBackgroundUIView,
                          EditParametersView, AlignRefsView, InputObject family,
-                         EditorMenuViewController/TableViewController, EditorViewController
-src/editor/persistence/  LevelMO (file-backed), LoadLevelViewController, SaveLevelViewController,
-                         SBSaveLevelViewController, UserLevelSelectUIView
-src/platform/common/     Localization, EditorAssets (shared runtime helpers)
+                         EditorMenuViewController, EditorViewController, UIKitCompat
+src/editor/persistence/  LevelSession, LevelStore, LevelMO (file-backed), LoadLevelViewController,
+                         SaveLevelViewController, SBSaveLevelViewController,
+                         UserLevelSelectUIView, LevelListView, LevelTextView, ShareAction
+src/platform/common/     Localization, EditorAssets, IOSBundle, BinaryPlist, AppleImage
 ```
 
-User levels are stored as `<writable path>/levels/<id>.xml` plus a small index (name, dates),
-replacing iOS Core Data (`LevelMO`).
+Not ported: `EditorMenuTableViewController` and `SettingsInputObject`/`SettingsSlider`, which
+nothing in iOS 1.2.7 reaches (`docs/editor/E4.md`).
+
+`cmake -DOW_WITH_EDITOR=OFF` builds without `src/editor/` (`tools/parity/EditorlessStubs.cpp`
+supplies the few symbols the menus reference); used for the parity build tree.
 
 ## Verification
 
-* Every `src/editor/*.cpp` passes the MSVC build.
-* Round trip: loading any shipped level's XML into the editor and writing it back with
-  `levelData()` yields the same shapes/specials (attribute-for-attribute, within the iOS
-  number formatting) for every item type the iOS editor supports.
+* Every `src/editor/*.cpp` passes `tools/check_tu.sh` and the MSVC and Android builds.
 * Editor-made levels load in `LevelB2D` and play; test-play returns to the editor.
+* Intended but not recorded as done systematically: a round trip of every shipped level's XML
+  through the editor (`levelData()` attribute-for-attribute, within the iOS number formatting).

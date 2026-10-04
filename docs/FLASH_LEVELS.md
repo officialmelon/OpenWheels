@@ -2,8 +2,14 @@
 
 How OpenWheels loads user levels from the browser game at totaljerkface.com. Status:
 **implemented** - `src/online/` (HWApi client + record decryption, FlashLevelConverter, the
-in-game browser OnlineLevelBrowser); all 38 test levels convert and load. Sections 6 and 9 keep the
-original plan and the ToS notes.
+in-game browser OnlineLevelBrowser); all 38 test levels convert and load. Section 6 keeps the
+original converter plan; section 10 describes what was built on top of it.
+
+In game: the blue globe button on the main menu opens the level browser (search by name or
+author, sort, period, featured). `OpenWheels.exe --play-online <level id>` starts a level directly.
+Records are downloaded one request at a time (at most one per second), cached under
+`<writable path>/online/`, and a download counts as a play only when the player starts the level.
+All browser-level behaviour is gated to converted levels, so the campaign is unaffected.
 
 Tool: `tools/levels/hwflash.py` (`list`, `fetch`, `decode`, `info`, `schema`; needs
 `pip install pycryptodome`). Everything downloaded (clients, decompiler output, sample levels)
@@ -218,8 +224,7 @@ unknown.
 * The site's Terms of Use say the user "may not modify, translate, reverse-engineer,
   reverse-compile or decompile" Fancy Force software. The Flash analysis above decompiled (and
   first decrypted) the archived SWF; it was done for interoperability research and nothing from it
-  is committed beyond protocol facts and short identifiers. The coordinator should decide whether
-  that is acceptable for the project before building on it.
+  is committed beyond protocol facts and short identifiers.
 * User levels are their authors' work (the ToS grants Fancy Force, not third parties, rights in
   them). Do not redistribute fetched levels; any importer should fetch on the player's behalf at
   play time, at human rates, with `ip_tracking` even unless the player is genuinely playing.

@@ -1,14 +1,22 @@
 # Module ownership
 
-> Layout note: since the reconstruction was completed, the files live in subsystem folders
-> (`src/game/{app,audio,services,session,render,level,items,triggers,characters,vehicles,gameplay,menus,debug}/`).
-> Every folder is on the include path, so includes stay flat (`#include "LevelB2D.h"`).
-> The module table below records who reconstructed what.
+The reconstruction of `src/game/` was split into ten modules (M1-M10), each done by one agent
+following `docs/RECONSTRUCTION.md`. The level editor port was split the same way into E1-E5
+(`docs/EDITOR_PORT.md`). This page records the split and the shared base-class layouts.
 
-Each module owns `src/game/<Class>.h/.cpp` for the classes listed. Only edit files you own.
-If you need something from another module's class, use its public methods (declared from the
-original symbols). If a header you need does not exist yet, forward-declare and move on; if a
-base/shared header is wrong, note it in your report instead of editing it.
+**Work notes.** `docs/modules/M*.md` and `docs/editor/E*.md` are the modules' reconstruction
+work logs, kept for the facts they record (field layouts, address-level findings, quirks kept
+on purpose, parity explanations). They are historical: all modules are complete. In them,
+*Phase H* means writing and verifying the headers (layouts, vtables) and *Phase I* means
+implementing every function; "coordinator" and "integrator" refer to the agent that merged the
+modules. Scripts they mention under `build/tmp/` were throwaway helpers and are not in the repo.
+iOS export paths are written as `$OW_IOS_EXPORTS/ns_<Class>.c` (see `tools/re/iosre.py`).
+
+Files live in subsystem folders
+(`src/game/{app,audio,services,session,render,level,items,triggers,characters,vehicles,gameplay,menus,debug}/`).
+Every folder is on the include path, so includes stay flat (`#include "LevelB2D.h"`).
+While the work was in progress each module owned the files of its classes and edited no
+others; cross-module needs went through public methods or were reported.
 
 Approximate arm64 code size in instructions is given to show where the weight is.
 

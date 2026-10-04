@@ -1,6 +1,9 @@
 # Physics parity log (original vs reconstruction)
 
-Running log of the per-level parity work: what differed, root cause, fix, verification.
+Log of the per-level parity work: what differed, root cause, fix, verification. The campaign
+(73 levels) is compared against the original game running in the arm64 emulation oracle
+(`docs/RECONSTRUCTION.md` section 5). Every later feature (online levels, restored characters,
+QoL) is gated so this comparison stays unchanged.
 Tools: `tools/re/compare_play.py` (batch; results in `reports/compare/<level>.{oracle,ours}_f<N>.json`,
 `reports/compare/summary_f<N>.txt`), `tools/re/oracle.py play`, `OpenWheels.exe --dump-world`,
 `tools/re/worlddiff.py`. World dumps list bodies in b2World order (= reverse creation order).
@@ -22,7 +25,7 @@ Tools: `tools/re/compare_play.py` (batch; results in `reports/compare/<level>.{o
 | | 3 frames, `0:00` | 180 frames, `0:01,90:05,150:10` |
 |---|---|---|
 | baseline (before this work) | 35/73 | 9/73 |
-| now (MSVC, build_parity) | 73/73 | 18/73 |
+| after this work (MSVC, build_parity) | 73/73 | 18/73 |
 | experiment: level+characters+vehicles TUs built by clang-cl with FMA (see below) | - | 47/57 runnable (14 crash, see below) |
 
 Bit-exact (`--tol 0`) for all 180 frames with the MSVC build: 01_10 pink_nightmare,
@@ -60,9 +63,9 @@ frames with the clang-built TUs.
   (out-of-line copies of `b2Dot`/`b2Cross`, ~280 x87 arithmetic instructions across 83 game
   functions, see recommendation below). Only a compiler change removes those systematically.
 
-### Private verification build tree (`build_parity/`)
-* The shared `build/` tree is used by the editor agent and currently fails in `src/editor/`.
-  `CMakeLists.txt` got `option(OW_WITH_EDITOR ... ON)`; with OFF, `src/editor/` is excluded and
+### Separate verification build tree (`build_parity/`)
+* Made while the editor port was still in progress in the shared `build/` tree.
+  `CMakeLists.txt` has `option(OW_WITH_EDITOR ... ON)`; with OFF, `src/editor/` is excluded and
   `tools/parity/EditorlessStubs.cpp` provides the few LevelSession/EditorLayer symbols the menus
   reference (never used by --dump-world). Configure once with
   `cmake -S . -B build_parity -G "Visual Studio 17 2022" -A Win32 -T v143 -DOW_WITH_EDITOR=OFF`
@@ -102,8 +105,9 @@ Remaining drift is dominated by compiler floating-point semantics, not reconstru
 
 Experiment (evidence): all 126 src/game TUs compiled with the NDK's clang-cl 18
 (`--target=i686-pc-windows-msvc -mfma -mavx2 -ffp-contract=on`, otherwise the exact MSVC flags) and
-linked into the MSVC build (scripts: tools/parity/clangify.py + mklink.py, hard-coded local paths; objects in
-build_parity/clangobj_all). Mixing all of them crashes (clang 18 against MSVC STL 14.44 needs
+linked into the MSVC build (scripts: tools/parity/clangify.py + mklink.py, which read the MSVC
+command logs of `build_parity/`; set `OW_PARITY_BUILD`, `OW_CLANG_CL` or `ANDROID_NDK` as described
+in their headers; objects in build_parity/clangobj_all). Mixing all of them crashes (clang 18 against MSVC STL 14.44 needs
 `_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH`, and TerrainNode alone crashes), but with only
 level/ (minus TerrainNode), characters/ and vehicles/ clang-built: 47 of the 57 levels that run are
 identical at 180 frames (MSVC: 17-18/73), bicycle_motorcross bit-exact for 180 frames. The runs are
@@ -117,7 +121,7 @@ LLVM lowers fmuladd to separate mul+add and the benefit is lost). Contraction is
 clang front end per source expression (llvm.fmuladd), so the same source gives the same fused ops as
 the original. Keep the prebuilt Box2D (it has ~0 fused ops, like the original's clang-5 Box2D) and
 keep `owb2::jointAngle/jointSpeed` for its x87-returning getters. The std::fma edits made here stay
-correct under clang (identical results). Not done here (build overhaul is the coordinator's call).
+correct under clang (identical results). Not adopted yet: the default build is still MSVC.
 
 ## Remaining differences (180 frames, MSVC build)
 * Body-count mismatches at 180 frames only (02_13 black_and_orange 141/139, 04_08 city 100/101,
