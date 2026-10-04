@@ -63,6 +63,22 @@ if (!new File(engineDir, 'cocos/cocos2d.h').exists()) {
     throw new GradleException("cocos2d-x 3.17.2 not found in ${engineDir}: run tools/fetch_engine.ps1 first.")
 }
 
+// Release signing: a properties file outside the repo (never commit keys), given by the
+// OW_KEYSTORE_PROPERTIES environment variable or -PowKeystoreProperties=<file>, with
+// storeFile, storePassword, keyAlias and keyPassword.
+def releaseSigning = null
+def signingPropsPath = project.findProperty('owKeystoreProperties') ?: System.getenv('OW_KEYSTORE_PROPERTIES')
+if (signingPropsPath) {
+    def f = new File(signingPropsPath.toString())
+    if (f.isFile()) {
+        def p = new Properties()
+        f.withInputStream { p.load(it) }
+        releaseSigning = p
+    } else {
+        logger.warn("OpenWheels: keystore properties ${f} not found - release is signed with the debug key")
+    }
+}
+
 android {
     namespace = 'org.openwheels.game'
     compileSdk = 35
@@ -135,14 +151,26 @@ android {
         }
     }
 
+    signingConfigs {
+        if (releaseSigning != null) {
+            release {
+                storeFile = file(releaseSigning['storeFile'])
+                storePassword = releaseSigning['storePassword']
+                keyAlias = releaseSigning['keyAlias']
+                keyPassword = releaseSigning['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         debug {
             jniDebuggable = true
         }
         release {
             minifyEnabled = false
-            // No release keystore is configured: sign with the debug key so the APK installs.
-            signingConfig = signingConfigs.debug
+            // Release keystore from outside the repo (see releaseSigning above); without one the
+            // APK is signed with the debug key so it still installs.
+            signingConfig = releaseSigning != null ? signingConfigs.release : signingConfigs.debug
         }
     }
 
