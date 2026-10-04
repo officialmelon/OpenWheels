@@ -33,3 +33,18 @@ android/.kotlin/
 android/local.properties
 android/app/.cxx/
 *.apk
+
+# Windows release packaging (tools/package_windows.ps1)
+dist/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# local reverse-engineering agent / Ghidra bridge config and scratch files
+re-agent*.json*
+re-agent.yaml
+ghidra-bridge.yaml
+recreated_test.exe
+tests/
+src/.gitkeep
