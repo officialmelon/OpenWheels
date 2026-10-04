@@ -37,6 +37,12 @@ public:
     void paint() override;                                // @00647d18  vptr+0x28
     void actions() override;                              // @00647e9c  vptr+0x30  motor reversal
 
+    // ONLINE (PC addition): browser levels' trigger hooks (Flash WreckingBall.prepareForTrigger /
+    // triggerSingleActivation: a targeted ball waits frozen and non-colliding until triggered).
+    // No-ops for mobile levels, which never target a wrecking ball.
+    void prepareForTrigger() override;
+    void triggerSingleActivation(LevelItem* trigger, int action, std::vector<float> properties) override;
+
     // LevelItemsDrawNodeWreckingBallDelegate (primary vptr+0x110/+0x118; thunks @00647db8/@00647e2c)
     cocos2d::Vec2 getPointA() override;                   // @00647db0
     cocos2d::Vec2 getPointB() override;                   // @00647dc0

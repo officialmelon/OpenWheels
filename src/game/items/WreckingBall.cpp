@@ -1,3 +1,4 @@
+#include "online/FlashRuntime.h"  // ONLINE (PC addition)
 #include "WreckingBall.h"
 
 #include <string>
@@ -215,4 +216,47 @@ void WreckingBall::actions()
             createBodySound("BallSwing", _body, 1.0f, false);
         }
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// ONLINE (PC addition): trigger hooks of browser levels (Flash WreckingBall).
+
+void WreckingBall::prepareForTrigger()
+{
+    if (!online::flashLevel())
+    {
+        LevelItem::prepareForTrigger();
+        return;
+    }
+    // Flash: out of the actions, joint limits 0..0 (held where it starts), asleep, sensors.
+    removeFromActions();
+    _joint->SetLimits(0.0f, 0.0f);
+    _joint->EnableMotor(false);
+    for (b2Fixture* f = _body->GetFixtureList(); f; f = f->GetNext())
+    {
+        f->SetSensor(true);  // (wakes the body in Box2D 2.3: put it to sleep after)
+    }
+    _body->SetAwake(false);
+}
+
+void WreckingBall::triggerSingleActivation(LevelItem* trigger, int action, std::vector<float> properties)
+{
+    if (!online::flashLevel())
+    {
+        LevelItem::triggerSingleActivation(trigger, action, properties);
+        return;
+    }
+    if (_triggered)
+    {
+        return;
+    }
+    _triggered = true;
+    _body->SetAwake(true);
+    _joint->SetLimits(_ballLowerAngle, _ballUpperAngle);
+    for (b2Fixture* f = _body->GetFixtureList(); f; f = f->GetNext())
+    {
+        f->SetSensor(false);
+        f->Refilter();
+    }
+    getLevel()->addToActions(this);
 }

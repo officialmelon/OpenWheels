@@ -466,9 +466,9 @@ bool Converter::convertInfo(const XMLElement* info) {
     _info.setBool("h", flag(info, "h", false));
     int background = inum(info, "bg", 0);
     if (background < 0 || background > 2) background = 0;
-    // Android 1.1.3 ships no city gradient (BackgroundLayer would crash on the missing file):
-    // the dusky night horizon is the closest backdrop it has.
-    if (background == 2) background = 4000;
+    // bg 2 (city) stays 2: BackgroundLayer draws the browser game's city backdrops for browser
+    // levels (online/FlashCity.h), or the night horizon without the generated art (Android 1.1.3
+    // ships no city gradient).
     _info.setInt("bg", background);
     _info.setInt("bgc", inum(info, "bgc", 16777215) & 0xffffff);
     if (const char* e = attr(info, "e")) _info.set("e", e);

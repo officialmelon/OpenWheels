@@ -160,7 +160,7 @@ void Token::beginContact(b2Fixture* fixture, b2Fixture* otherFixture, b2Contact*
     if (static_cast<CharacterB2D*>(item)->getDead()) return;
     _collected = true;  // the listener is removed in singleAction (not while dispatching)
     const b2Vec2 p = _body->GetPosition();
-    const char* sound = FileUtils::getInstance()->isFileExist("sounds/Bleep3.ogg") ? "Bleep3" : "HomingMineBeep";
+    const char* sound = FileUtils::getInstance()->isFileExist("Bleep3.ogg") ? "Bleep3" : "HomingMineBeep";
     createPositionSound(sound, Vec2(p.x, p.y), 1.0f, false);
     getLevel()->addToSingleActions(this);
 }

@@ -56,6 +56,7 @@ def stagedRes    = new File(stageRoot, 'res')      // launcher icon from the pla
 def stagedGen    = new File(stageRoot, 'kidgore')  // generated/<tier>/characters/ (QOL)
 def stagedRestored = new File(stageRoot, 'restored')  // generated/restored/ (RESTORED)
 def stagedItems  = new File(stageRoot, 'flashitems')  // generated/ browser-level item art (ONLINE)
+def stagedSounds = new File(stageRoot, 'flashsounds') // generated/flash/sounds (ONLINE)
 def iconRes      = gameRes.isDirectory() ? stagedRes : file('res-icon-fallback')
 
 if (!new File(engineDir, 'cocos/cocos2d.h').exists()) {
@@ -113,7 +114,7 @@ android {
             java.srcDirs = [new File(repoRoot, 'src/platform/android/java'), new File(cocosJava, 'src')]
             aidl.srcDirs = [new File(cocosJava, 'src')]
             res.srcDirs = ['res', iconRes]
-            assets.srcDirs = [stagedAssets, stagedData, stagedGen, stagedRestored, stagedItems]
+            assets.srcDirs = [stagedAssets, stagedData, stagedGen, stagedRestored, stagedItems, stagedSounds]
         }
     }
 
@@ -266,6 +267,22 @@ def genItems = tasks.register('owGenerateFlashItems', Exec) {
                 '--out', new File(stagedItems, 'generated').path
 }
 
+// ONLINE (PC addition): browser-game sounds the Android build lacks (as on Win32); skips the ones
+// the restored characters already export.
+def soundsScript = new File(repoRoot, 'tools/assets/extract_flash_sounds.py')
+def genSounds = tasks.register('owGenerateFlashSounds', Exec) {
+    description = 'Exports the browser-level sounds (tools/assets/extract_flash_sounds.py).'
+    dependsOn genRestored
+    inputs.file(soundsScript)
+    inputs.files(flashSounds)
+    outputs.dir(stagedSounds)
+    doFirst { stagedSounds.mkdirs() }
+    commandLine python, soundsScript.path, '--optional',
+                '--sounds-swf', flashSounds.path, '--ffdec', ffdecDir.path, '--assets', gameAssets.path,
+                '--skip-dir', new File(stagedRestored, 'generated/restored/sounds').path,
+                '--out', new File(stagedSounds, 'generated').path
+}
+
 def stageIcon = tasks.register('owStageIcon', Sync) {
     description = "Copies the original launcher icon from the player's copy into build/ow/res."
     from(gameRes) {
@@ -276,5 +293,6 @@ def stageIcon = tasks.register('owStageIcon', Sync) {
 
 tasks.named('preBuild') {
     dependsOn stageGameAssets, genSoundList, genGameText, genKidGore, genRestored, genItems
+    dependsOn genSounds  // ONLINE (PC addition)
     if (iconRes == stagedRes) dependsOn stageIcon
 }

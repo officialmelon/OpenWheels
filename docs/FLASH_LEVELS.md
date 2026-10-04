@@ -254,8 +254,7 @@ characters and sounds as separate SWFs from swf.totaljerkface.com, which we don'
   `tools/assets/flash_items/*.txt` (one manifest per item family; `clip:<id>` addresses nested
   clips) with `FlashPartRender.java`, and exports the text-box fonts, into
   `<exe dir>/generated/flash/` (`index.tsv` holds the registration points). Nothing is committed;
-  without the SWF the items draw plain shapes. The CMake/Gradle post-build hook for it still has
-  to be added (10.6).
+  without the SWF the items draw plain shapes. See 10.6 for the build steps.
 
 ### 10.2 Findings and fixes, by how many popular levels they affect
 
@@ -314,20 +313,28 @@ knows only the six mobile characters).
 
 ### 10.5 Remaining gaps (by levels affected in the sample)
 
-* 56 browser sounds don't exist in the Android build (Santa, elves, girl and helicopter voices,
-  BoomboxHit): those sound triggers are silent (11 levels).
-* Not ported: the city background (bg 2: Flash CityBackDrop; the night horizon is shown), HTML5-only
-  item ids > 35 (none in the sample), trigger hooks of the wrecking ball, NPC grind art states.
+* Fixed since: the 69 sound-table entries without an Android file (Santa, elves, Helicopter Man,
+  both kids, BoomboxHit...) are exported from the player's `happy_sounds_v1_72.swf` by
+  `tools/assets/extract_flash_sounds.py` into `generated/flash/sounds/` (those the restored
+  characters already export in `generated/restored/sounds/` are skipped); the folder is on the
+  search path only while a browser level runs, so names resolve exactly as soundlist.tsv lists
+  them. The city background (bg 2) is the browser one (`online/FlashCity.*`, art by
+  `tools/assets/flash_city.py`: sky, CityBackDrop2 at 0.25 and CityBackDrop1 at 0.5 parallax,
+  buildings tiled downwards and drawn twice as in Flash, Flash's blur). Wrecking balls targeted by
+  a trigger wait frozen (limits 0, asleep, non-colliding) until triggered (Flash
+  prepareForTrigger / triggerSingleActivation).
+* Not ported: HTML5-only item ids > 35 (none in the sample), NPC grind art states.
 * Approximations: no Flash reference run was possible; Box2D 2.0 vs 2.3 solver differences remain
   (stacking, joint stiffness); props use the mobile particle systems; trigger counters of levels
-  <= 1.8 restart where Flash doesn't; restored characters in hide-vehicle starts.
+  <= 1.8 restart where Flash doesn't; restored characters in hide-vehicle starts; the city
+  backdrops ignore the QoL camera zoom (they follow the container position like the mobile hills).
 * CLICK PARKOUR 3's intro relies on a camera position we couldn't verify.
 
 ### 10.6 Build and test notes
 
-* `tools/assets/extract_flash_items.py --optional --swf <swf> --ffdec <ffdec> --out <exe dir>/generated`
-  has to run after the build (like `extract_kid_gore.py`); the CMakeLists.txt / Android Gradle hook
-  is not added yet.
+* Post-build steps (CMakeLists.txt; Gradle `owGenerateFlashItems`, `owGenerateFlashSounds`):
+  `extract_flash_items.py` (item art, fonts, city background) and `extract_flash_sounds.py`
+  (needs ffmpeg), both skipped quietly when the SWFs, FFDec, Java or ffmpeg are missing.
 * Tests: `OpenWheels.exe --convert-flash in.xml out.xml`, then `--dump-world` / `--play-level`.
   Build trees outside the repo need an `assets` junction next to the exe (the exe finds the
   Android assets by walking up from its folder). Debug switches for the physics changes:

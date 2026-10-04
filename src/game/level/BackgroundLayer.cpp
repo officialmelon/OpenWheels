@@ -6,6 +6,8 @@
 #include "2d/CCSpriteFrameCache.h"
 #include "Backdrop.h"
 #include "LevelDataElement.h"
+#include "online/FlashCity.h"     // ONLINE (PC addition)
+#include "online/FlashRuntime.h"  // ONLINE (PC addition)
 #include "base/CCDirector.h"
 #include "renderer/CCGLProgram.h"
 #include "renderer/CCGLProgramCache.h"
@@ -149,6 +151,22 @@ void BackgroundLayer::create(LevelDataElement* parameters)
             break;
         }
         case BackgroundCity:
+            if (online::flashLevel())
+            {
+                // ONLINE (PC addition): the browser game's city backdrops (online/FlashCity.h);
+                // without the generated art, the night horizon (Android has no city gradient).
+                std::vector<online::CityBackdropPiece> pieces =
+                    online::createCityBackground(this, _ptmRatio);
+                for (const online::CityBackdropPiece& piece : pieces)
+                {
+                    _backdrops.push_back(new Backdrop(piece.sprite, piece.origin, piece.multiplier));
+                }
+                if (pieces.empty())
+                {
+                    addFillBGWithFile("backgrounds/nightHorizon_1x768.png");
+                }
+                break;
+            }
             addFillBGWithFile("backgrounds/cityGradient_1x768.png");
             break;
         case BackgroundLab:

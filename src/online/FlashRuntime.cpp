@@ -88,8 +88,46 @@ b2Vec2 screenToWorld(const Vec2& screen)
 bool flashLevel() { return g_flashLevel; }
 float flashVersion() { return g_flashVersion; }
 
+namespace {
+// generated/flash/sounds (tools/assets/extract_flash_sounds.py): browser sounds the Android build
+// lacks. On the search path only while a browser level runs, so mobile levels keep exactly the
+// sounds they had (e.g. the kid's "Kid1..." voices stay silent there, as on Android).
+std::string g_soundPath;
+
+void setFlashSoundPath(bool on)
+{
+    FileUtils* fu = FileUtils::getInstance();
+    if (on && g_soundPath.empty()) {
+        std::vector<std::string> paths = fu->getSearchPaths();
+        paths.push_back(fu->getDefaultResourceRootPath());
+        paths.push_back("");
+        for (const std::string& path : paths) {
+            const std::string candidate = path + "generated/flash/sounds/";
+            if (fu->isFileExist(candidate + "index.txt")) {
+                g_soundPath = candidate;
+                break;
+            }
+        }
+        if (!g_soundPath.empty()) {
+            fu->addSearchPath(g_soundPath);  // after the original sounds
+            log("online: browser sounds from %s (BoomboxHit -> %s)", g_soundPath.c_str(),
+                fu->fullPathForFilename("BoomboxHit.ogg").c_str());
+        }
+    } else if (!on && !g_soundPath.empty()) {
+        std::vector<std::string> paths = fu->getSearchPaths();
+        std::vector<std::string> kept;
+        for (const std::string& p : paths) {
+            if (p.find("generated/flash/sounds") == std::string::npos) kept.push_back(p);
+        }
+        fu->setSearchPaths(kept);
+        g_soundPath.clear();
+    }
+}
+}  // namespace
+
 void setFlashLevel(bool on, float browserVersion)
 {
+    setFlashSoundPath(on);  // ONLINE (PC addition)
     g_flashLevel = on;
     g_flashVersion = on ? browserVersion : 0.0f;
 }

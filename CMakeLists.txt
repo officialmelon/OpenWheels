@@ -241,6 +241,20 @@ if(Python3_FOUND)
         COMMENT "Building the browser-level item art from ${OW_FLASH_SWF} (skipped if missing)")
 endif()
 
+# ONLINE (PC addition): browser-game sounds the Android build lacks (Santa, elves, Helicopter Man,
+# the kids, BoomboxHit...), exported from the player's own sound SWF with FFDec + ffmpeg by
+# tools/assets/extract_flash_sounds.py into <exe dir>/generated/flash/sounds/ (used by browser
+# levels only). Runs after extract_character.py, whose sounds it doesn't duplicate.
+if(Python3_FOUND)
+    add_custom_command(TARGET ${APP_NAME} POST_BUILD
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/assets/extract_flash_sounds.py
+                --optional --sounds-swf "${OW_FLASH_SOUNDS}" --ffdec "${OW_FFDEC_DIR}"
+                --assets "${OW_ANDROID_ASSETS}"
+                --skip-dir "$<TARGET_FILE_DIR:${APP_NAME}>/generated/restored/sounds"
+                --out "$<TARGET_FILE_DIR:${APP_NAME}>/generated"
+        COMMENT "Exporting the browser-level sounds from ${OW_FLASH_SOUNDS} (skipped if missing)")
+endif()
+
 # Copy the runtime DLLs of every imported engine dependency next to the exe
 # (glew32, libcurl, websockets, sqlite3, libmpg123, OpenAL32, libogg/vorbis,
 # zlib1, iconv, libcrypto/libssl ...), like the template's post-build step.
