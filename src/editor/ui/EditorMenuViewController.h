@@ -153,4 +153,8 @@ protected:
     uikit::Switch* _snapRotSwitch;                    // +0x90
     cocos2d::ui::Button* _centerToCharBtn;                    // +0x98
     cocos2d::ui::Text* _menuNameLabel;                        // +0xa0
+
+    // NET (PC addition): "Send Nearby" beside SHARE LEVEL (src/net/NearbySendUIView.h).
+    cocos2d::ui::Button* _sendNearbyBtn = nullptr;
+    void sendNearbyBtnPressed(cocos2d::Ref* sender);
 };

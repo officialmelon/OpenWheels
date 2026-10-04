@@ -43,8 +43,10 @@ class UserLevelSelectUIView : public EditorUIView,
 {
 public:
     static UserLevelSelectUIView* create(const cocos2d::Rect& frame);
-    // Port: a Scene with the main-menu background holding this panel full-window, for the
-    // out-of-editor entry point. Closing it (closeView) returns to MainMenu.
+    // Port: the out-of-editor entry point (main menu). UI (PC addition): restyled - returns
+    // UserLevelsScreen::createScene(), the modern user-level screen built on the online browser's
+    // widgets (same play / edit / delete / new flows). This panel itself is unchanged and still
+    // usable (create()).
     static cocos2d::Scene* scene();
 
     bool initWithFrame(const cocos2d::Rect& frame) override;                // @ios 100106bb8

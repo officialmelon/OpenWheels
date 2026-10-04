@@ -12,6 +12,7 @@
 #include "LevelUIHelpers.h"
 #include "MainMenu.h"
 #include "platform/common/Localization.h"
+#include "UserLevelsScreen.h"  // UI (PC addition): restyled
 
 USING_NS_CC;
 
@@ -43,22 +44,8 @@ UserLevelSelectUIView* UserLevelSelectUIView::create(const Rect& frame)
 
 Scene* UserLevelSelectUIView::scene()
 {
-    // Port entry point outside the editor: the panel fills uikit::window() over the game's blue
-    // background; its CLOSE button ("editor_view_closed") returns to the main menu.
-    Scene* scene = Scene::create();
-    scene->addChild(LayerColor::create(Color4B(globals::colors::blue, 255)));
-    scene->setonEnterTransitionDidFinishCallback([scene]() {
-        Size win = uikit::windowSize();
-        UserLevelSelectUIView* panel = UserLevelSelectUIView::create(Rect(0.0f, 0.0f, win.width, win.height));
-        uikit::window()->addSubview(panel);
-        uikit::NotificationCenter::addObserver(scene, uikit::notification::kEditorViewClosed, panel,
-                                               [](void*, void*) {
-                                                   Director::getInstance()->replaceScene(
-                                                       MainMenu::createScene(MenuModeMain, nullptr));
-                                               });
-    });
-    scene->setOnExitCallback([scene]() { uikit::NotificationCenter::removeObserver(scene); });
-    return scene;
+    // UI (PC addition): restyled - the modern screen replaces this panel as the main menu's entry.
+    return UserLevelsScreen::createScene();
 }
 
 UserLevelSelectUIView::UserLevelSelectUIView()

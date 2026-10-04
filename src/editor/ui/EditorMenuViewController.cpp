@@ -10,6 +10,7 @@
 #include "MainMenu.h"
 #include "SaveLevelViewController.h"
 #include "ShareAction.h"
+#include "net/NearbyPanels.h"  // NET (PC addition)
 #include "Special.h"
 #include "platform/common/Localization.h"
 
@@ -110,6 +111,9 @@ void EditorMenuViewController::loadNibLayout()
     container->addSubview(_loadBtn, Rect(9, 104, 160, 40));
     _shareBtn = makeButton([this](Ref* s) { shareBtnPressed(s); });
     container->addSubview(_shareBtn, Rect(9, 152, 160, 40));
+    // NET (PC addition): SEND NEARBY in the free middle column, level with SHARE LEVEL.
+    _sendNearbyBtn = makeButton([this](Ref* s) { sendNearbyBtnPressed(s); });
+    container->addSubview(_sendNearbyBtn, Rect(177, 152, cw - 12.0f - 160.0f - 8.0f - 177.0f, 40));
     _mainMenuBtn = makeButton([this](Ref* s) { exitEditorBtnPressed(s); });
     container->addSubview(_mainMenuBtn, Rect(9, 201, 160, 38));
 
@@ -172,6 +176,8 @@ void EditorMenuViewController::viewWillAppear(bool animated)
         skinButton(s.button, s.style);
         s.button->setTitleText(capitalizedKey(s.key));
     }
+    skinButton(_sendNearbyBtn, 1);  // NET (PC addition)
+    _sendNearbyBtn->setTitleText(capitalizedKey("SEND NEARBY"));
     const ssize_t lockedCount = editorLayer()->lockedRefs().size();
     skinButton(lockBtn(), 1);
     lockBtn()->setTitleText(capitalizedKey("LOCK SELECTION"));
@@ -413,6 +419,19 @@ void EditorMenuViewController::shareBtnPressed(Ref* /*sender*/)
     ShareAction::shareLevelDataFile(editorLayer()->levelData(), editorLayer()->characterIndex(),
                                     editorLayer()->forceCharacter(), levelMO ? levelMO->name() : std::string(),
                                     std::string(), levelMO ? levelMO->comments() : std::string(), this);
+}
+
+// NET (PC addition): sends the level as it is in the editor, with the same data as SHARE LEVEL.
+void EditorMenuViewController::sendNearbyBtnPressed(Ref* /*sender*/)
+{
+    LevelMO* levelMO = editorLayer()->levelMO();
+    net::LevelPackage level;
+    level.data = editorLayer()->levelData();
+    level.playableCharacter = static_cast<int>(editorLayer()->characterIndex());
+    level.forceCharacter = editorLayer()->forceCharacter();
+    level.name = levelMO ? levelMO->name() : std::string("Untitled");
+    level.comments = levelMO ? levelMO->comments() : std::string();
+    net::showSendToNearby(level);
 }
 
 // @ios 10010cbc4

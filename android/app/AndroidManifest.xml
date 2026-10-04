@@ -2,8 +2,8 @@
 <!--
   OpenWheels. Compared with the original Happy Wheels 1.1.3 manifest: no ad / billing / analytics
   SDKs, activities, services, receivers or permissions (no AD_ID, no BILLING, no network-state
-  checks). INTERNET is only used by the optional online level browser (src/online); the game
-  itself never needs a connection.
+  checks). INTERNET is only used by the optional online level browser (src/online) and the
+  LAN level transfer (src/net, "Send to Nearby"); the game itself never needs a connection.
 
   Screens: landscape on any aspect ratio (sensorLandscape), resizeable for split screen,
   foldables and desktop windows; configChanges keeps the activity and its GL context alive across
@@ -13,6 +13,10 @@
     android:installLocation="auto">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- NET (PC addition): "Send to Nearby" (src/net/) - Wi-Fi multicast lock while looking for
+         players (AppActivity.setMulticastLock) and the network state for the local addresses. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <uses-feature android:glEsVersion="0x00020000" android:required="true" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />

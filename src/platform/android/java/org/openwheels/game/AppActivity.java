@@ -22,6 +22,7 @@ package org.openwheels.game;
 
 import android.content.Context;
 import android.graphics.Color;
+import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.DisplayCutout;
@@ -46,6 +47,31 @@ public class AppActivity extends Cocos2dxActivity {
     private static native void nativeSurfaceResized(int width, int height);
 
     private GameFrame mGameFrame;
+
+    // NET (PC addition): Wi-Fi drivers drop broadcast / multicast datagrams unless an app holds a
+    // MulticastLock. src/net/LanDiscovery holds it only while a "Send to Nearby" list is open
+    // (net::setMulticastLock -> JNI, any thread).
+    private static WifiManager.MulticastLock sMulticastLock;
+
+    public static synchronized void setMulticastLock(boolean held) {
+        try {
+            if (held) {
+                if (sMulticastLock == null) {
+                    Context context = getContext();
+                    if (context == null) return;
+                    WifiManager wifi = (WifiManager) context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+                    if (wifi == null) return;
+                    sMulticastLock = wifi.createMulticastLock("OpenWheelsLan");
+                    sMulticastLock.setReferenceCounted(false);
+                }
+                if (!sMulticastLock.isHeld()) sMulticastLock.acquire();
+            } else if (sMulticastLock != null && sMulticastLock.isHeld()) {
+                sMulticastLock.release();
+            }
+        } catch (RuntimeException e) {
+            // no Wi-Fi service / permission: discovery falls back to whatever the driver delivers
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
