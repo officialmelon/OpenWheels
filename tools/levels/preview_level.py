@@ -355,6 +355,17 @@ class Model:
             if lim and (fnum(e, 'p2', 100) > lim[0] or fnum(e, 'p3', 100) > lim[1]):
                 out.append('ERROR shape %d (t=%d) is %gx%g: the converter clamps it to %dx%d' % (
                     i, t, fnum(e, 'p2', 100), fnum(e, 'p3', 100), lim[0], lim[1]))
+        for i, e in enumerate(self.specials):
+            t = int(fnum(e, 't', -1))
+            if t in (9, 13, 14, 16, 23, 27, 33, 35, 7):    # flush/static/anchor/decor items
+                continue
+            x, y = fnum(e, 'p0'), fnum(e, 'p1')
+            if t == 6:                                       # spikes: centre of the spike row
+                rot = math.radians(fnum(e, 'p2'))
+                x, y = x + math.sin(rot) * 5, y - math.cos(rot) * 5
+            hit = self.solid_at(x, y, static_only=True)
+            if hit and not hit.startswith('special %d ' % i):
+                out.append('WARN special %d (%s) at %d,%d is buried in %s' % (i, self.special_name(e), x, y, hit))
         finishes = [e for e in self.specials if int(fnum(e, 't', -1)) == 9]
         victories = [t for t in self.triggers if int(fnum(t, 't', 1)) == 3]
         if not finishes and not victories:

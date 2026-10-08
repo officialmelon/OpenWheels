@@ -238,14 +238,14 @@ def lm_01():
     L.ground([(900, G), (2600, G)], bottom=G + 600, color=GRASS)
     L.ground(hill_profile(2600, 4400, G, 150, 1.0, 200), bottom=G + 600, color=GRASS)
     # kiddie pool: a shallow dip with sloped sides and water art
-    L.ground([(4400, G), (4520, G + 70), (4880, G + 70), (5000, G)], bottom=G + 600, color=GRASS)
-    L.box(4470, G + 18, 4930, G + 70, color=WATER, opacity=60, inter=False)
+    L.ground([(4300, G), (4460, G + 40), (4840, G + 40), (5000, G)], bottom=G + 600, color=GRASS)
+    L.box(4400, G + 12, 4900, G + 40, color=WATER, opacity=60, inter=False)
     L.ground([(5000, G), (7600, G)], bottom=G + 600, color=GRASS)
     L.box(7600, G - 400, 7700, G + 600, color=HEDGE)                # end wall (hedge)
     # Grass tufts along the lawn (the "tall grass" you are here to mow)
     for k in range(18):
         x = 1000 + k * 360
-        if 4380 < x < 5020:
+        if 4280 < x < 5020:
             continue
         L.roof(x + 10, G, 20, 28, color=GRASS_LIGHT)
         L.roof(x + 28, G, 20, 20, color=GRASS_LIGHT)
@@ -260,10 +260,10 @@ def lm_01():
     L.chair(3640, G - 148, reverse=True)
     L.token(3500, G - 420, 1)
     # see-saw after the pool: a plank pinned to a static wedge
-    L.tri(5600, G - 30, 110, 90, color=WOOD_DARK)
-    g = L.group()
-    g.rect(5600, G - 102, 520, 22, color=WOOD_LIGHT, fixed=False, density=2)
-    L.pin(5600, G - 102, g, LEVEL, limit=True, upper=20, lower=-20)
+    L.tri(5600, G - 15, 70, 46, color=WOOD_DARK)
+    g = L.group()        # starts tipped, near end on the grass (the ground limits it both ways)
+    g.rect(5600, G - 55, 520, 20, rot=-10, color=WOOD_LIGHT, outline=WOOD_DARK, fixed=False, density=2)
+    L.pin(5600, G - 55, g, LEVEL)
     # Mrs. Henderson guards her prize begonias; her complaint pops in when you arrive
     L.sign(6450, G, kind=3)
     L.npc(6700, G, char=12, sleep=True, hold=True, pose=(0, -150, -40, -60, 0, 0, 0, 0, 0))
@@ -320,30 +320,30 @@ def lm_02():
     L.table(4100, G)
     for x in (4070, 4130):
         L.food(x, G - 78, kind=1 + (x // 40) % 3)
-    # pool: a pit with water, a boost panel on the deck to clear it
+    # pool: a boost panel on the deck to jump it; fall in and the shallow end has a gentle ramp
+    # out (the mower climbs about 15 degrees at most)
     L.box(5800, G, 6150, G + 600, color=CONCRETE)                       # pool deck
-    L.boost(5975, G, panels=1, power=25)
-    L.box(6150, G + 260, 6950, G + 600, color=rgb('7fb8d8'))             # pool floor
-    L.box(6150, G - 0, 6170, G + 260, color=CONCRETE, inter=False)
-    L.box(6150, G + 20, 6950, G + 260, color=WATER, opacity=65, inter=False)
-    L.ground([(6420, G + 260), (6950, G)], bottom=G + 260, color=CONCRETE)   # pool ramp out
-    L.box(6950, G, 7300, G + 600, color=CONCRETE)
-    L.log(6550, G + 200, 220, 40)                                       # a floating pool noodle
+    L.boost(5975, G, panels=1, power=40)
+    L.box(6150, G + 150, 6600, G + 600, color=rgb('7fb8d8'))             # deep end floor
+    L.box(6150, G + 20, 7300, G + 150, color=WATER, opacity=65, inter=False)
+    L.ground([(6600, G + 150), (7300, G)], bottom=G + 600, color=rgb('7fb8d8'))   # shallow end
+    L.log(6400, G + 120, 200, 40)                                       # a floating pool noodle
+    L.box(7300, G, 7500, G + 600, color=CONCRETE)
     # front lawn with a rose bed (spikes) in a dip: a ramp and a boost panel clear it
-    L.ground([(7300, G), (7700, G), (8050, G - 110)], bottom=G + 600, color=GRASS)
+    L.ground([(7500, G), (7600, G), (8050, G - 110)], bottom=G + 600, color=GRASS)
     L.box(8050, G - 110, 8070, G + 600, color=GRASS)
     L.box(8070, G + 60, 8430, G + 600, color=DIRT)
     L.spikes_on(8250, G + 60, count=22)
     for k in range(7):
         L.circle(8100 + k * 50, G + 30, 34, color=rgb('c2185b'), inter=False, opacity=80)
-    L.boost(7880, G - 55, panels=1, power=30, rot=-17)
+    L.boost(7830, G - 55, panels=1, power=40, rot=-14)
     L.text(8100, 4700, 'Prize roses', size=14, color=BLACK)
     L.ground([(8430, G), (8900, G)], bottom=G + 600, color=GRASS)
     # driveway with a hedge: drive up the ramp, over the hedge top and down the other side
     L.box(8900, G, 10000, G + 600, color=CONCRETE)
-    L.slab(9150, G, 9450, G - 120, thick=40, color=CONCRETE)
-    L.box(9450, G - 120, 9700, G, color=HEDGE, outline=HEDGE_DARK)
-    L.slab(9700, G - 120, 9950, G, thick=40, color=CONCRETE)
+    L.ground([(9000, G), (9450, G - 75)], bottom=G, color=CONCRETE)
+    L.box(9450, G - 75, 9700, G, color=HEDGE, outline=HEDGE_DARK)
+    L.ground([(9700, G - 75), (9990, G)], bottom=G, color=CONCRETE)
     L.ground([(10000, G), (11800, G)], bottom=G + 600, color=GRASS)
     for x in (10300, 10450, 10600):
         L.token(x, G - 60, 2)
@@ -370,14 +370,15 @@ def lm_03():
     L.box(0, G, 1000, G + 700, color=GRASS_LIGHT)
     L.sign(850, G, kind=7)
     # fairway 1: rolling hills with golfers
-    L.ground(hill_profile(1000, 3600, G, 180, 2.0, 200), bottom=G + 700, color=GRASS)
+    L.ground(hill_profile(1000, 3500, G, 70, 2.0, 200), bottom=G + 700, color=GRASS)
     for x, c in [(1650, 8), (2900, 10)]:
-        L.npc(x, G - 2, char=c, sleep=True, hold=True, pose=(0, -120, -100, -40, -40, 0, 0, 0, 0))
+        L.npc(x, G - 70 * math.sin(math.pi * 2.0 * (x - 1000) / 2500.0) ** 2, char=c, sleep=True, hold=True,
+              pose=(0, -120, -100, -40, -40, 0, 0, 0, 0))
     for k in range(8):
         L.soccer(1400 + k * 260, G - 300)
     # sand bunker: a dip filled with sand (art) and a little lip
-    L.ground([(3600, G), (3750, G + 120), (4250, G + 120), (4400, G)], bottom=G + 700, color=SAND)
-    L.ground([(4400, G), (5000, G), (5300, G - 120)], bottom=G + 700, color=GRASS)
+    L.ground([(3500, G), (3800, G + 30), (4200, G + 30), (4500, G)], bottom=G + 700, color=SAND)
+    L.ground([(4500, G), (4700, G), (5300, G - 120)], bottom=G + 700, color=GRASS)
     L.npc(4700, G, char=13, sleep=True, hold=True, pose=(10, -170, -20, -30, -20, 0, 0, 0, 0))
     L.text(4450, G - 300, 'FORE!', size=40, color=RED_DARK, font=5)
     # water hazard: a pond spanned by a hanging plank bridge (planks pinned end to end)
@@ -396,7 +397,7 @@ def lm_03():
         L.pin(x1 + 2, top + 10, g, prev)
         prev = g
     L.pin(pond_r - 2, top + 10, prev, LEVEL)
-    L.ground([(6500, top), (7400, top), (7700, G)], bottom=G + 700, color=GRASS)
+    L.ground([(6500, top), (7100, top), (7700, G)], bottom=G + 700, color=GRASS)
     # crosswind on the open fairway: fans tilted to blow along the path
     L.ground([(7700, G), (9300, G)], bottom=G + 700, color=GRASS)
     L.fan(8100, G, rot=0)
@@ -539,10 +540,13 @@ def lm_05():
     L.text(3500, G - 330, 'PIE-EATING CONTEST\n(the pies are eating back)', size=16, color=RED_DARK)
     # human cannonball: a clown waits on a ledge over the cannon's mouth until you ride past
     cx = 4700
-    L.cannon(cx, G, rot=0, start=-30, fire=45, delay=1, muzzle=3, power=6)
-    L.box(cx - 120, G - 330, cx - 40, G - 300, color=WOOD)
-    clown = L.npc(cx - 70, G - 300, char=16, sleep=True)
-    L.text(cx - 260, G - 390, 'THE GREAT ZAMBINI\nhuman cannonball', size=16, color=PURPLE)
+    L.box(cx - 220, G - 330, cx + 220, G - 300, color=WOOD, outline=WOOD_DARK)       # stage over the path
+    L.box(cx - 220, G - 300, cx - 200, G, color=WOOD_DARK, inter=False)
+    L.box(cx + 200, G - 300, cx + 220, G, color=WOOD_DARK, inter=False)
+    L.cannon(cx, G - 330, rot=0, start=-30, fire=45, delay=1, muzzle=3, power=6)
+    L.box(cx - 140, G - 660, cx - 40, G - 630, color=WOOD)
+    clown = L.npc(cx - 90, G - 630, char=16, sleep=True)
+    L.text(cx + 240, G - 330, 'THE GREAT ZAMBINI\nhuman cannonball', size=16, color=PURPLE)
     L.trigger(cx + 150, G - 100, 150, 200, [(clown, [(0,), (1, 3, 0, 0)])])
     # the rollers of regret: a trench of motorised rollers spinning against you
     rx1, rx2 = 5800, 7000
@@ -554,9 +558,9 @@ def lm_05():
     L.text(rx1, G - 330, 'THE ROLLERS OF REGRET\nkeep going. they believe in you less than you do.', size=16,
            color=RED_DARK)
     # strongman: paddle launcher onto the high striker platform (optional shortcut + tokens)
-    L.ground([(7280, G), (7420, G - 40)], bottom=G, color=rgb('9b7b4a'))
+    L.ground([(7100, G), (7420, G - 40)], bottom=G, color=rgb('9b7b4a'))
     L.paddle(7600, G - 40, delay=0.3, angle=50, speed=8)
-    L.ground([(7780, G - 40), (7920, G)], bottom=G, color=rgb('9b7b4a'))
+    L.ground([(7780, G - 40), (8100, G)], bottom=G, color=rgb('9b7b4a'))
     L.box(8200, G - 450, 8700, G - 400, color=WOOD)
     L.box(8640, G - 750, 8700, G - 450, color=RED, inter=False)
     for x in (8300, 8420, 8540):
@@ -1066,9 +1070,14 @@ def night_sky(L, x1, x2, y1, y2, moon=None):
         L.circle(moon[0] + 70, moon[1] - 40, 220, color=NIGHT, inter=False)
 
 
-def flat_house(L, x1, x2, top, bottom, wall=BRICK, lights=True, chimney=None):
-    """A house seen from the side whose flat snowy roof is part of the course."""
-    L.box(x1, top, x2, bottom, color=wall, outline=rgb('5a2a14'))
+def flat_house(L, x1, x2, top, bottom, wall=BRICK, lights=True, chimney=None, solid_walls=True):
+    """A house seen from the side whose flat snowy roof is part of the course. With
+    solid_walls=False only the roof slab is solid (a street can run past in front of it)."""
+    if solid_walls:
+        L.box(x1, top, x2, bottom, color=wall, outline=rgb('5a2a14'))
+    else:
+        L.box(x1, top + 40, x2, bottom, color=wall, outline=rgb('5a2a14'), inter=False)
+        L.box(x1, top, x2, top + 40, color=wall, outline=rgb('5a2a14'))
     L.box(x1 - 10, top - 14, x2 + 10, top + 6, color=SNOW, inter=False)
     w = x2 - x1
     for k in range(int(w // 220)):
@@ -1112,12 +1121,12 @@ def sn_01():
     roofs = [(1300, 2300), (2500, 3500), (3750, 4600), (5200, 6200), (6400, 7300)]
     walls = [BRICK, rgb('6b8fb0'), rgb('8a5a9a'), BRICK, rgb('4f7a55')]
     for (x1, x2), w in zip(roofs, walls):
-        flat_house(L, x1, x2, R, S, wall=w, chimney=(x1 + x2) / 2 + 150)
+        flat_house(L, x1, x2, R, S, wall=w, chimney=(x1 + x2) / 2 + 150, solid_walls=False)
     L.text(4250, R - 330, 'Big gap ahead! Hold SPACE before\nthe edge and keep holding.', size=16, color=YELLOW)
     for x in (2400, 3620, 4750, 4900, 5050, 6300):
         L.token(x, R - 90, 2)
     # last roof slopes down to the street, finish at the tree
-    L.ground([(7300, R), (8100, S)], bottom=S + 400, color=SNOW, outline=ICE)
+    L.slab(7300, R, 8100, S, thick=40, color=SNOW, outline=ICE)                # slide down to the street
     pine(L, 9000, S, 520, snow=True)
     L.finish(8700, S)
     thanks = L.text(5300, R - 300, 'Ho ho ho! Chimney #4: delivered.\n(It was socks again.)', size=16,
@@ -1163,30 +1172,30 @@ def sn_02():
     # living room 1
     L.box(2500, F - 200, 2700, F, color=rgb('6b3b2b'), inter=False)        # fireplace
     L.box(2540, F - 120, 2660, F, color=ORANGE, inter=False, opacity=80)
-    L.chair(3000, F)
-    L.npc(3000, F, char=6, sleep=True, hold=True, pose=(10, -40, -40, -60, -60, -90, -90, 90, 90), y=F - 80)
+    # the furniture is decoration (non-interactive): a sleigh shoving a sofa goes nowhere
+    L.chair(3000, F, inter=False)
+    L.npc(3000, F, char=6, sleep=True, hold=True, inter=False, pose=(10, -40, -40, -60, -60, -90, -90, 90, 90),
+          y=F - 80)
     L.text(2800, F - 330, 'Dad is "waiting up for Santa".\nDad is asleep.', size=15)
-    L.table(3500, F)
-    L.food(3480, F - 78, kind=3)
-    L.bottle(3540, F - 72, 4)
+    L.table(3500, F, inter=False)
+    L.food(3480, F - 78, kind=3, inter=False)
+    L.bottle(3540, F - 72, 4, inter=False)
     pine(L, 3950, F, 360)
     for x, y in ((3900, F - 160), (3990, F - 230), (3950, F - 110)):
         L.circle(x, y, 22, color=RED, inter=False)
     # front yard, snowdrift ramp up to the roof of house 2
-    L.box(4300, F, 6000, F + 300, color=SNOW, outline=ICE)
-    L.ground([(4450, F), (5600, R + 140)], bottom=F, color=SNOW, outline=ICE)
-    L.box(5600, R + 140, 5620, F, color=ICE)
-    L.spring_box(5810, F)
-    L.text(4300, F - 330, 'Up the drift and FLY\nonto the next roof.', size=16, color=YELLOW)
-    L.text(5640, F - 260, 'Missed? Trampoline.\nNo judgement.', size=13, color=WHITE)
+    L.box(4300, F, 4450, F + 300, color=SNOW, outline=ICE)
+    L.ground([(4450, F), (7000, R)], bottom=F + 300, color=SNOW, outline=ICE)
+    L.text(4500, F - 330, 'Up the big snowdrift to the next roof.\nSPACE makes climbing easier.', size=16,
+           color=YELLOW)
     snowman(L, 4380, F)
     # house 2 with a narrower chimney
-    chimney_house(6000, 9600, 7000, 7450, rgb('6b8fb0'))
-    pine(L, 9000, F, 380)
-    L.tv(8300, F - 20)
-    L.finish(8700, F)
-    L.text(8100, F - 330, 'Presents delivered.\nCookies confiscated.', size=16)
-    L.box(9600, R - 400, 9700, F + 300, color=BRICK)
+    chimney_house(7000, 10600, 8000, 8450, rgb('6b8fb0'))
+    pine(L, 10000, F, 380)
+    L.tv(9300, F - 20, inter=False)
+    L.finish(9700, F)
+    L.text(9100, F - 330, 'Presents delivered.\nCookies confiscated.', size=16)
+    L.box(10600, R - 400, 10700, F + 300, color=BRICK)
     return L
 
 
@@ -1216,20 +1225,19 @@ def sn_03():
         present(L, x, F, 60, color=[RED, GREEN, BLUE][x % 3], sleep=False)
     L.text(1250, F - 330, 'Conveyor of Joy. Mind your fingers.\nElves count theirs every morning.', size=15,
            color=rgb('ffe9b0'))
-    # elves at the benches
+    # elves at their benches (the benches are scenery; one elf is in the way)
     for k, x in enumerate((3000, 3400, 3800)):
-        L.table(x, F)
-        L.npc(x + 90, F, char=[2, 8, 14][k], sleep=True)
-    L.tv(3000, F - 76)
-    L.boombox(3400, F - 70)
-    L.soccer(3780, F - 70)
-    L.soccer(3820, F - 70)
-    # toy rocket: a crate with a jet pinned under it, lit when you pass
-    crate = L.rect(4500, F - 40, 120, 80, color=RED, outline=YELLOW, fixed=False, density=1)
-    jet = L.jet(4500, F - 95, rot=-90, power=6, fire_time=30, sleep=True)
-    L.pin(4500, F - 82, jet, crate)
-    L.trigger(4250, F - 100, 60, 200, [(jet, [(0,)]), (crate, [(0,)])])
-    L.text(4300, F - 330, 'Quality control: the rocket.\nIt passed. Upwards.', size=15, color=rgb('ffe9b0'))
+        L.table(x, F, inter=False)
+        L.npc(x + 90, F, char=[2, 8, 14][k], sleep=True, inter=(k == 1))
+    L.tv(3000, F - 76, inter=False)
+    L.boombox(3400, F - 70, inter=False)
+    # toy rocket: a crate with a jet pinned under it on a shelf, lit as you pass below
+    L.box(4350, F - 330, 4650, F - 300, color=WOOD_DARK)
+    crate = L.rect(4500, F - 370, 120, 80, color=RED, outline=YELLOW, fixed=False, density=1)
+    jet = L.jet(4500, F - 425, rot=-90, power=6, fire_time=30, sleep=True)
+    L.pin(4500, F - 412, jet, crate)
+    L.trigger(4450, F - 100, 60, 200, [(jet, [(0,)]), (crate, [(0,)])])
+    L.text(3900, F - 330, 'Quality control: the rocket.\nIt passed. Upwards.', size=15, color=rgb('ffe9b0'))
     # stamping press: a heavy block on a vertical slider; slams then lifts
     px = 5600
     press = L.group()
@@ -1273,13 +1281,20 @@ def sn_04():
              color=SNOW, outline=ICE)
     for x in (1900, 2500, 3200):
         snowman(L, x, G - 260 * math.sin(math.pi * (x - 1500) / 2000.0) ** 2)
-    # polar wind: fans blowing back (left) on an uphill ramp
-    L.ground([(3500, G), (4300, G), (5200, G - 300), (5800, G - 300)], bottom=G + 800, color=SNOW, outline=ICE)
-    for x, y in ((4600, G - 100), (5000, G - 233)):
-        L.fan(x, y + 25, rot=-70)
-    L.text(3700, G - 330, 'Polar wind. Lean forward and\nhold SPACE if it gets personal.', size=15, color=WHITE)
+    # polar updraft: a crevasse with fans blowing up out of it; hold SPACE and float across
+    L.ground([(3500, G), (4300, G)], bottom=G + 800, color=SNOW, outline=ICE)
+    L.box(4300, G + 700, 5100, G + 800, color=rgb('9cc9e6'))
+    L.box(4300, G, 4330, G + 800, color=ICE)
+    L.box(5070, G, 5100, G + 800, color=ICE)
+    for x in (4500, 4900):
+        L.box(x - 160, G + 450, x + 160, G + 700, color=ICE)
+        L.fan(x, G + 450)
+    L.spikes_on(4700, G + 450, count=20)
+    L.text(3700, G - 330, 'Polar updraft. Hold SPACE over\nthe crevasse and let it carry you.', size=15,
+           color=WHITE)
+    L.ground([(5100, G), (5800, G - 120), (6300, G - 120)], bottom=G + 800, color=SNOW, outline=ICE)
     # icicle cave
-    L.ground([(5800, G - 300), (6300, G - 300), (6600, G)], bottom=G + 800, color=SNOW, outline=ICE)
+    L.ground([(6300, G - 120), (6600, G)], bottom=G + 800, color=SNOW, outline=ICE)
     L.box(6400, G - 900, 8400, G - 480, color=rgb('9cc9e6'), outline=WHITE)
     L.ground([(6600, G), (8400, G)], bottom=G + 800, color=ICE, outline=WHITE)
     icicles = [L.tri(x, G - 430, 50, 150, rot=180, color=rgb('dff4ff'), outline=WHITE, fixed=False, sleep=True,
@@ -1310,53 +1325,51 @@ def sn_04():
 
 
 def sn_05():
-    """Naughty List (hard-ish): coal deliveries to three naughty houses. Fly through the glowing
-    zone over each chimney: the third delivery opens the gate to the finish. The naughty kids have
-    prepared: mines on the roofs, harpoon guns in the windows, a homing drone, a spiked fence, and a
-    wrecking-ball swing set."""
-    R, S = G, G + 520
+    """Naughty List (hard-ish): coal deliveries to three naughty houses. Sleigh up the long snow
+    ramps onto each roof and fly through the glowing zone over the chimney: the third delivery
+    opens the gate to the finish. The naughty kids have prepared: mines on a roof, harpoon guns
+    on another, a homing drone, and a wrecking-ball swing set by the gate."""
+    S = G + 520
+    R = S - 260                    # low houses: the sleigh climbs about 15 degrees, not more
     L = Level('08_santa_claus/05_naughty_list.xml', 'Naughty List', 8, (450, S - RIDE), bg=0, bgc=NIGHT)
-    night_sky(L, 0, 12000, 3600, 4600, moon=(2200, 3900))
+    night_sky(L, 0, 12000, 3800, 4800, moon=(2200, 4100))
     title(L, 160, S, 'NAUGHTY LIST', 'Three houses. Three lumps of coal.\n'
           'Fly through the glow over each chimney.\nThe kids saw you coming.', color=WHITE)
     L.ground([(0, S), (12000, S)], bottom=S + 400, color=SNOW, outline=ICE)
-    gate = None
     deliveries = []
-    houses = [(1800, 3000), (4600, 5800), (7600, 8800)]
+    houses = [(1500, 2600), (4600, 5700), (7700, 8800)]
     for n, (x1, x2) in enumerate(houses):
-        # a ramp up to the roof
-        L.ground([(x1 - 700, S), (x1, R)], bottom=S, color=SNOW, outline=ICE)
+        L.ground([(x1 - 900, S), (x1, R)], bottom=S, color=SNOW, outline=ICE)       # ramp up
         flat_house(L, x1, x2, R, S, wall=[rgb('5a4a6b'), rgb('4a5a4a'), rgb('6b3b3b')][n], chimney=(x1 + x2) / 2)
-        L.ground([(x2, R), (x2 + 500, S)], bottom=S, color=SNOW, outline=ICE)
-        glow = L.box((x1 + x2) / 2 - 90, R - 420, (x1 + x2) / 2 + 90, R - 170, color=YELLOW, inter=False, opacity=25)
-        done = L.text((x1 + x2) / 2 - 120, R - 380, 'COAL #%d DELIVERED' % (n + 1), size=18, color=YELLOW, font=3,
+        L.ground([(x2, R), (x2 + 900, S)], bottom=S, color=SNOW, outline=ICE)       # ramp down
+        cx = (x1 + x2) / 2
+        glow = L.box(cx - 90, R - 430, cx + 90, R - 170, color=YELLOW, inter=False, opacity=25)
+        done = L.text(cx - 120, R - 330, 'COAL #%d DELIVERED' % (n + 1), size=18, color=YELLOW, font=3,
                       opacity=0)
-        deliveries.append((glow, done, ((x1 + x2) / 2, R - 295)))
+        deliveries.append((glow, done, (cx, R - 300)))
     # traps
-    L.mine(2200, R)
-    L.mine(2600, R)
-    L.harpoon(5000, R + 150, rot=0, anchor=False)
-    L.harpoon(5400, R + 150, rot=0, anchor=False)
-    L.homing_mine(6500, S - 400, speed=2, delay=1)
-    L.text(6200, S - 330, 'Little Timmy built a drone.\nIt has a mine. Little Timmy is 8.', size=15, color=WHITE)
-    L.box(3700, S - 80, 4000, S, color=rgb('4a4a4a'), inter=False)
-    L.spikes_on(3850, S, count=20)
-    L.text(3500, S - 330, 'Spiked fence: jump it.\nTimmy got a welder for his birthday.', size=15, color=WHITE)
-    L.box(9500, S - 640, 10500, S - 610, color=METAL_DARK)
-    L.box(9500, S - 610, 9530, S, color=METAL_DARK, inter=False)
-    L.box(10470, S - 610, 10500, S, color=METAL_DARK, inter=False)
-    swings = [L.wrecking_ball(x, S - 610, rope=420) for x in (9800, 10200)]
-    L.trigger(9300, S - 100, 60, 200, [(w, []) for w in swings])
+    L.mine(1850, R)
+    L.mine(2350, R)
+    L.harpoon(4800, R - 20, rot=0, anchor=True)
+    L.harpoon(5500, R - 20, rot=0, anchor=True)
+    L.homing_mine(6700, S - 400, speed=2, delay=1)
+    L.text(6300, S - 330, 'Little Timmy built a drone.\nIt has a mine. Little Timmy is 8.', size=15, color=WHITE)
+    L.text(3550, S - 330, 'Mines on the roof. Timmy got\na chemistry set for Christmas.', size=15, color=WHITE)
+    L.box(9900, S - 640, 10900, S - 610, color=METAL_DARK)
+    L.box(9900, S - 610, 9930, S, color=METAL_DARK, inter=False)
+    L.box(10870, S - 610, 10900, S, color=METAL_DARK, inter=False)
+    swings = [L.wrecking_ball(x, S - 610, rope=420) for x in (10200, 10600)]
+    L.trigger(9800, S - 100, 60, 200, [(w, []) for w in swings])
     L.boombox(8200, R - 14)
     # the gate before the finish opens after the third delivery
-    gate = L.box(10900, S - 400, 10960, S, color=METAL_DARK, outline=BLACK)
+    gate_ref = L.box(11100, S - 400, 11160, S, color=METAL_DARK, outline=BLACK)
     for n, (glow, done, (gx, gy)) in enumerate(deliveries):
         targets = [show_text(done, 0.3), (glow, [(3, 70, 0.3)])]
         if n == 2:
-            targets.append(open_gate(gate))
-        L.trigger(gx, gy, 180, 250, targets)
-    L.text(10450, S - 330, 'Gate opens after\nthe third delivery.', size=14, color=WHITE)
-    L.finish(11500, S)
+            targets.append(open_gate(gate_ref))
+        L.trigger(gx, gy, 180, 260, targets)
+    L.text(10950, S - 330, 'Gate opens after\nthe third delivery.', size=14, color=WHITE)
+    L.finish(11600, S)
     L.box(12000, S - 600, 12100, S + 400, color=ICE)
     return L
 
@@ -1626,11 +1639,11 @@ def mo_04():
     L.text(1300, G - 450, 'The Big Slide. Wheeee-\noh no.', size=15)
     # see-saws
     for sx in (3300, 3900):
-        L.tri(sx, G - 30, 80, 90, color=METAL_DARK)
+        L.tri(sx, G - 17, 70, 52, color=METAL_DARK)
         g = L.group()
         # starts tipped with its near end on the ground; the ground stops it either way
-        g.rect(sx, G - 100, 480, 20, rot=-21, color=[BLUE, GREEN][sx % 2], outline=BLACK, fixed=False, density=2)
-        L.pin(sx, G - 100, g, LEVEL)
+        g.rect(sx, G - 62, 420, 20, rot=-14, color=[BLUE, GREEN][sx % 2], outline=BLACK, fixed=False, density=2)
+        L.pin(sx, G - 62, g, LEVEL)
     # swings: seats on rigid arms hanging from the frame, pushed when you arrive
     L.box(4500, G - 520, 5600, G - 490, color=METAL_DARK)
     L.box(4500, G - 490, 4520, G, color=METAL_DARK, inter=False)
@@ -1668,13 +1681,15 @@ def mo_04():
 
 
 def mo_05():
-    """Traffic Jam (hard-ish): rush hour. Ride the roofs of a jammed lane (plank ramps), dodge
-    oncoming cars set loose by triggers (motorised wheel pins), weave a construction zone (I-beams,
-    rebar spikes, a crane wrecking ball), climb the overpass and drop to the off-ramp finish."""
+    """Traffic Jam (hard-ish): rush hour. Ride the roofs of a jammed lane (plank ramps) with a
+    tailgater on your back wheel (a car whose motorised wheel pins a trigger switches on), jump
+    the construction zone's rebar pit, dodge the crane's wrecking ball, climb the overpass and
+    drop to the off-ramp finish."""
     L = Level('10_irresponsible_mom/05_traffic_jam.xml', 'Traffic Jam', 10, (900, G - RIDE), bg=2, bgc=rgb('ffd8a8'))
     title(L, 160, G, 'TRAFFIC JAM', 'Rush hour. Bike lane: theoretical.\n'
-          'Cars coming the other way are a "you" problem.')
-    L.box(0, G, 14000, G + 500, color=ASPHALT)
+          'The car behind you is a "you" problem.')
+    L.box(0, G, 7700, G + 500, color=ASPHALT)
+    L.box(8100, G, 14000, G + 500, color=ASPHALT)
     for x in range(0, 14000, 300):
         L.box(x, G - 2, x + 150, G, color=YELLOW, inter=False)
     # jammed lane: parked cars to ride over on planks
@@ -1682,26 +1697,21 @@ def mo_05():
     for k, x in enumerate((1800, 2150, 2500)):
         L.box(x - 160, G - 130, x + 160, G - 60, color=[RED, BLUE, GREEN][k], outline=BLACK)
         L.box(x - 110, G - 190, x + 90, G - 130, color=[RED, BLUE, GREEN][k], outline=BLACK, inter=False)
-        L.circle(x - 100, G - 40, 80, color=rgb('222222'))
-        L.circle(x + 100, G - 40, 80, color=rgb('222222'))
+        L.circle(x - 100, G - 40, 80, color=rgb('222222'), inter=False)
+        L.circle(x + 100, G - 40, 80, color=rgb('222222'), inter=False)
     L.slab(2660, G - 130, 2960, G, thick=24, color=WOOD)
     L.text(1250, G - 330, 'Traffic. Go over it.\nAs a family.', size=15)
     # merging traffic: cars waiting on an on-ramp roll out behind you and give chase
-    L.box(3000, G - 300, 3700, G - 270, color=CONCRETE, outline=METAL_DARK)          # on-ramp deck
-    L.slab(3700, G - 300, 4300, G, thick=30, color=CONCRETE, outline=METAL_DARK)
-    for x in (3050, 3350, 3650):
-        L.box(x - 10, G - 270, x + 10, G, color=METAL_DARK, inter=False)
-    c1, p1 = car(L, 3200, G - 300, color=rgb('8e44ad'))
     c2, p2 = car(L, 250, G, color=rgb('d35400'))
-    L.trigger(4500, G - 100, 60, 200, [(pp, [(1, 16, 0.3)]) for pp in p1])
     L.trigger(1300, G - 100, 60, 200, [(pp, [(1, 16, 0.3)]) for pp in p2])
-    L.text(3300, G - 520, 'MERGING TRAFFIC.\nThey merge. Into you.', size=16, color=RED_DARK)
+    L.text(3300, G - 330, 'TAILGATER.\nHe has places to be.', size=16, color=RED_DARK)
+    for x in (3500, 4200, 4900):
+        L.tri(x, G - 20, 40, 60, color=ORANGE, fixed=False, density=0.3)
     # construction zone
     L.box(6400, G - 6, 8200, G, color=ORANGE, inter=False, opacity=60)
     L.ibeam(6700, G - 15, 400, 30)
     L.ibeam(7300, G - 50, 300, 30, rot=-12)
     L.box(7700, G + 120, 8100, G + 500, color=DIRT_DARK)
-    L.box(7660, G, 7700, G + 500, color=ASPHALT)
     L.spikes_on(7900, G + 120, count=24)
     L.ground([(7400, G), (7650, G - 90), (7700, G - 90)], bottom=G, color=CONCRETE)
     L.box(8100, G, 8140, G + 500, color=ASPHALT)
