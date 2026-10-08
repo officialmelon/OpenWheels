@@ -287,6 +287,16 @@ def genRestored = tasks.register('owGenerateRestoredCharacters', Exec) {
                 '--work', new File(stageRoot, 'restored-work').path
 }
 
+// RESTORED (PC addition): main-menu portraits the step above could not draw, from the generated
+// sprites (tools/assets/restored_portraits.py; only missing ones, skipped quietly without inputs).
+def portraitsScript = new File(repoRoot, 'tools/assets/restored_portraits.py')
+def genPortraits = tasks.register('owGenerateRestoredPortraits', Exec) {
+    description = 'Draws missing restored-character portraits (tools/assets/restored_portraits.py).'
+    dependsOn genRestored
+    commandLine python, portraitsScript.path, '--optional',
+                '--out', new File(stagedRestored, 'generated/restored').path
+}
+
 // ONLINE (PC addition): art for the browser-level items the mobile game lacks (as on Win32).
 def itemsScript = new File(repoRoot, 'tools/assets/extract_flash_items.py')
 def genItems = tasks.register('owGenerateFlashItems', Exec) {
@@ -335,6 +345,6 @@ def stageIcon = tasks.register('owStageIcon', Sync) {
 tasks.named('preBuild') {
     dependsOn stageGameAssets, genSoundList, genGameText, genKidGore, genRestored, genItems
     dependsOn genSounds  // ONLINE (PC addition)
-    dependsOn stageCampaign  // RESTORED (PC addition)
+    dependsOn stageCampaign, genPortraits  // RESTORED (PC addition)
     if (iconRes == stagedRes) dependsOn stageIcon
 }

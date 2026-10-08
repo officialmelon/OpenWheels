@@ -1,0 +1,168 @@
+diff --git a/cmake/Modules/CocosConfigDepend.cmake b/cmake/Modules/CocosConfigDepend.cmake
+index 2850686..ff0983a 100644
+--- a/cmake/Modules/CocosConfigDepend.cmake
++++ b/cmake/Modules/CocosConfigDepend.cmake
+@@ -7,6 +7,8 @@ macro(cocos2dx_depend)
+     elseif(LINUX)
+         # need review those libs: X11 Xi Xrandr Xxf86vm Xinerama Xcursor rt m
+         list(APPEND PLATFORM_SPECIFIC_LIBS dl X11 Xi Xrandr Xxf86vm Xinerama Xcursor rt m)
++        # OpenWheels: OpenAL audio backend (cocos/audio/win32) instead of FMOD
++        list(APPEND PLATFORM_SPECIFIC_LIBS openal vorbisfile vorbis ogg mpg123)
+         # use older cmake style on below linux libs
+         cocos_find_package(Fontconfig FONTCONFIG REQUIRED)	
+         cocos_find_package(GTK3 GTK3 REQUIRED)
+diff --git a/cocos/audio/AudioEngine.cpp b/cocos/audio/AudioEngine.cpp
+index f4f7d98..4e81f75 100644
+--- a/cocos/audio/AudioEngine.cpp
++++ b/cocos/audio/AudioEngine.cpp
+@@ -40,7 +40,7 @@
+ #elif CC_TARGET_PLATFORM == CC_PLATFORM_WINRT
+ #include "audio/winrt/AudioEngine-winrt.h"
+ #elif CC_TARGET_PLATFORM == CC_PLATFORM_LINUX
+-#include "audio/linux/AudioEngine-linux.h"
++#include "audio/win32/AudioEngine-win32.h"
+ #elif CC_TARGET_PLATFORM == CC_PLATFORM_TIZEN
+ #include "audio/tizen/AudioEngine-tizen.h"
+ #endif
+diff --git a/cocos/audio/CMakeLists.txt b/cocos/audio/CMakeLists.txt
+index ae58b43..f26faa9 100644
+--- a/cocos/audio/CMakeLists.txt
++++ b/cocos/audio/CMakeLists.txt
+@@ -110,14 +110,27 @@ elseif(ANDROID)
+         )
+ 
+ elseif(LINUX)
++    # OpenWheels: the OpenAL backend of win32 (portable C++11 + OpenAL), as cocos2d-x 4 does.
+     set(COCOS_AUDIO_PLATFORM_HEADER
+-        audio/linux/AudioEngine-linux.h
++        audio/win32/AudioDecoderManager.h
++        audio/win32/AudioDecoder.h
++        audio/win32/AudioPlayer.h
++        audio/win32/AudioDecoderOgg.h
++        audio/win32/AudioMacros.h
++        audio/win32/AudioEngine-win32.h
++        audio/win32/AudioDecoderMp3.h
++        audio/win32/AudioCache.h
+         )
+ 
+     set(COCOS_AUDIO_PLATFORM_SRC
+         audio/linux/SimpleAudioEngine.cpp
+-        audio/linux/AudioEngine-linux.h
+-        audio/linux/AudioEngine-linux.cpp
++        audio/win32/AudioEngine-win32.cpp
++        audio/win32/AudioCache.cpp
++        audio/win32/AudioPlayer.cpp
++        audio/win32/AudioDecoder.cpp
++        audio/win32/AudioDecoderManager.cpp
++        audio/win32/AudioDecoderMp3.cpp
++        audio/win32/AudioDecoderOgg.cpp
+         )
+ 
+ elseif(APPLE)
+diff --git a/cocos/audio/win32/AudioCache.cpp b/cocos/audio/win32/AudioCache.cpp
+index 34ba49c..d0d2e9e 100644
+--- a/cocos/audio/win32/AudioCache.cpp
++++ b/cocos/audio/win32/AudioCache.cpp
+@@ -27,7 +27,7 @@
+ 
+ #include "platform/CCPlatformConfig.h"
+ 
+-#if CC_TARGET_PLATFORM == CC_PLATFORM_WIN32
++#if CC_TARGET_PLATFORM == CC_PLATFORM_WIN32 || CC_TARGET_PLATFORM == CC_PLATFORM_LINUX
+ 
+ #include "audio/win32/AudioCache.h"
+ #include <thread>
+diff --git a/cocos/audio/win32/AudioCache.h b/cocos/audio/win32/AudioCache.h
+index b3c58f1..c781af0 100644
+--- a/cocos/audio/win32/AudioCache.h
++++ b/cocos/audio/win32/AudioCache.h
+@@ -27,7 +27,7 @@
+ 
+ #include "platform/CCPlatformConfig.h"
+ 
+-#if CC_TARGET_PLATFORM == CC_PLATFORM_WIN32
++#if CC_TARGET_PLATFORM == CC_PLATFORM_WIN32 || CC_TARGET_PLATFORM == CC_PLATFORM_LINUX
+ 
+ #include <functional>
+ #include <memory>
+diff --git a/cocos/audio/win32/AudioEngine-win32.cpp b/cocos/audio/win32/AudioEngine-win32.cpp
+index 3fb0ffc..5760d66 100644
+--- a/cocos/audio/win32/AudioEngine-win32.cpp
++++ b/cocos/audio/win32/AudioEngine-win32.cpp
+@@ -26,7 +26,7 @@
+ 
+ #include "platform/CCPlatformConfig.h"
+ 
+-#if CC_TARGET_PLATFORM == CC_PLATFORM_WIN32
++#if CC_TARGET_PLATFORM == CC_PLATFORM_WIN32 || CC_TARGET_PLATFORM == CC_PLATFORM_LINUX
+ 
+ #include "audio/win32/AudioEngine-win32.h"
+ 
+@@ -43,7 +43,9 @@
+ #include "platform/CCFileUtils.h"
+ #include "audio/win32/AudioDecoderManager.h"
+ 
++#ifdef _WIN32
+ #include <windows.h>
++#endif
+ 
+ // log, CCLOG aren't threadsafe, since we uses sub threads for parsing pcm data, threadsafe log output
+ // is needed. Define the following macros (ALOGV, ALOGD, ALOGI, ALOGW, ALOGE) for threadsafe log output.
+diff --git a/cocos/audio/win32/AudioEngine-win32.h b/cocos/audio/win32/AudioEngine-win32.h
+index 132c662..212d3f7 100644
+--- a/cocos/audio/win32/AudioEngine-win32.h
++++ b/cocos/audio/win32/AudioEngine-win32.h
+@@ -24,7 +24,7 @@
+  ****************************************************************************/
+ #include "platform/CCPlatformConfig.h"
+ 
+-#if CC_TARGET_PLATFORM == CC_PLATFORM_WIN32
++#if CC_TARGET_PLATFORM == CC_PLATFORM_WIN32 || CC_TARGET_PLATFORM == CC_PLATFORM_LINUX
+ 
+ #ifndef __AUDIO_ENGINE_INL_H_
+ #define __AUDIO_ENGINE_INL_H_
+diff --git a/cocos/audio/win32/AudioPlayer.cpp b/cocos/audio/win32/AudioPlayer.cpp
+index 4c3e512..b6ffd5b 100644
+--- a/cocos/audio/win32/AudioPlayer.cpp
++++ b/cocos/audio/win32/AudioPlayer.cpp
+@@ -27,7 +27,7 @@
+ 
+ #include "platform/CCPlatformConfig.h"
+ 
+-#if CC_TARGET_PLATFORM == CC_PLATFORM_WIN32
++#if CC_TARGET_PLATFORM == CC_PLATFORM_WIN32 || CC_TARGET_PLATFORM == CC_PLATFORM_LINUX
+ #include "audio/win32/AudioPlayer.h"
+ #include "audio/win32/AudioCache.h"
+ #include "platform/CCFileUtils.h"
+diff --git a/cocos/audio/win32/AudioPlayer.h b/cocos/audio/win32/AudioPlayer.h
+index a7f8a57..2c5ae28 100644
+--- a/cocos/audio/win32/AudioPlayer.h
++++ b/cocos/audio/win32/AudioPlayer.h
+@@ -27,7 +27,7 @@
+ 
+ #include "platform/CCPlatformConfig.h"
+ 
+-#if CC_TARGET_PLATFORM == CC_PLATFORM_WIN32
++#if CC_TARGET_PLATFORM == CC_PLATFORM_WIN32 || CC_TARGET_PLATFORM == CC_PLATFORM_LINUX
+ 
+ #include <condition_variable>
+ #include <functional>
+diff --git a/external/CMakeLists.txt b/external/CMakeLists.txt
+index afb8201..4ff49d6 100644
+--- a/external/CMakeLists.txt
++++ b/external/CMakeLists.txt
+@@ -71,12 +71,8 @@ if(NOT LINUX)
+     )
+ endif(NOT LINUX)
+     
+-if(LINUX)
+-    add_subdirectory(linux-specific/fmod)
+-    target_link_libraries(external 
+-        ext_fmod
+-    )
+-endif()
++# OpenWheels: Linux plays audio through the OpenAL backend (cocos/audio/win32, system OpenAL Soft,
++# libvorbisfile, libmpg123) instead of FMOD, whose 3.17 AudioEngine-linux leaks and spins.
+ 
+ if(ANDROID)
+     add_subdirectory(android-specific/cpufeatures)
