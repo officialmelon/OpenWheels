@@ -374,8 +374,6 @@ def lm_03():
     for x, c in [(1650, 8), (2900, 10)]:
         L.npc(x, G - 70 * math.sin(math.pi * 2.0 * (x - 1000) / 2500.0) ** 2, char=c, sleep=True, hold=True,
               pose=(0, -120, -100, -40, -40, 0, 0, 0, 0))
-    for k in range(8):
-        L.soccer(1400 + k * 260, G - 300)
     # sand bunker: a dip filled with sand (art) and a little lip
     L.ground([(3500, G), (3800, G + 30), (4200, G + 30), (4500, G)], bottom=G + 700, color=SAND)
     L.ground([(4500, G), (4700, G), (5300, G - 120)], bottom=G + 700, color=GRASS)
@@ -1722,8 +1720,8 @@ def mo_05():
         L.tri(x, G - 20, 40, 60, color=ORANGE, fixed=False, density=0.3)
     # construction zone
     L.box(6400, G - 6, 8200, G, color=ORANGE, inter=False, opacity=60)
-    L.ibeam(6700, G - 15, 400, 30)
-    L.ibeam(7300, G - 50, 300, 30, rot=-12)
+    L.box(6500, G - 40, 6900, G - 10, color=METAL_DARK, inter=False)          # stacked girders (scenery)
+    L.box(6550, G - 70, 6850, G - 40, color=METAL_DARK, inter=False)
     L.box(7700, G + 120, 8100, G + 500, color=DIRT_DARK)
     L.spikes_on(7900, G + 120, count=24)
     L.ground([(7400, G), (7650, G - 90), (7700, G - 90)], bottom=G, color=CONCRETE)
@@ -1776,10 +1774,11 @@ def mo_06():
     L.text(4600, G - 330, 'Fishermen. Fishing for\nmoms, apparently.', size=15)
     # airport
     L.ground([(6200, G), (9000, G)], bottom=G + 900, color=CONCRETE)
+    L.box(6300, G - 330, 7500, G - 300, color=METAL_DARK)                     # overhead baggage belt
     for k, x in enumerate((6600, 7200)):
-        cart = L.rect(x, G - 40, 160, 60, color=METAL, outline=METAL_DARK, fixed=False, density=1)
-        jt = L.jet(x - 90, G - 40, rot=180, power=5, fire_time=15, sleep=True)
-        L.pin(x - 80, G - 40, jt, cart)
+        cart = L.rect(x, G - 360, 160, 60, color=METAL, outline=METAL_DARK, fixed=False, density=1)
+        jt = L.jet(x - 90, G - 360, rot=180, power=5, fire_time=15, sleep=True)
+        L.pin(x - 80, G - 360, jt, cart)
         L.trigger(x - 500, G - 100, 60, 200, [(jt, [(0,)]), (cart, [(0,)])])
     L.box(7700, G - 360, 7740, G, color=METAL_DARK, inter=False)
     L.box(8040, G - 360, 8080, G, color=METAL_DARK, inter=False)
