@@ -287,7 +287,11 @@ int run(int argc, char** argv)
     openwheels::pc::installCrashHandler(logDirectory());
 
     if (!opt.convertIn.empty())
+    {
+        // generated/restored/ (which restored characters exist) sits next to the executable.
+        FileUtils::getInstance()->addSearchPath(exeDirectory(), false);
         return convertFlashLevel(opt.convertIn, opt.convertOut);
+    }
 
     const std::string assets = findAssets(opt.assets);
     if (assets.empty())
