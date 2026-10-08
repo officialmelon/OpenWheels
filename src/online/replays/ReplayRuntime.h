@@ -33,7 +33,8 @@ namespace replays {
 struct RunRecord {
     OnlineLevelInfo level;
     int character = 1;                 // browser character id
-    std::vector<uint8_t> steps;        // mobile control byte per 1/60 s step
+    std::vector<uint8_t> steps;        // mobile control byte per world step
+    int stepsPerFrame = 2;             // world steps per 30 Hz frame (online/FlashPhysics.h)
     std::vector<MouseEntry> mouse;     // Flash iterations
     bool completed = false;
     int completeStep = 0;              // steps done when the finish line was reached
@@ -42,7 +43,7 @@ struct RunRecord {
     SavedRun saved;                    // filled once saved / uploaded (file, uploadedId)
 
     int frames() const;                // 30 Hz frames of the replay
-    ReplayInput toInput() const;       // Flash bytes (frame f = the step 2f byte)
+    ReplayInput toInput() const;       // Flash bytes (frame f = the step f*stepsPerFrame byte)
     SavedRun toSavedRun() const;
 };
 

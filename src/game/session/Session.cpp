@@ -17,6 +17,7 @@
 #include "TerrainNode.h"
 #include "online/FlashRuntime.h"  // ONLINE (PC addition)
 #include "online/replays/ReplayRuntime.h"  // ONLINE (PC addition)
+#include "online/FlashPhysics.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -389,6 +390,7 @@ void Session::setupLevelForCharacterSelect()
 void Session::setupLevel(std::string levelFile, bool characterSelect)
 {
     _level = new LevelB2D();
+    online::resetLevelTimeStep(this);  // ONLINE (PC addition): a browser level may have left 1/30
     if (!characterSelect)
     {
         _level->init(levelFile);
@@ -530,7 +532,14 @@ void Session::update(float dt)
         online::replays::physicsStep();  // ONLINE (PC addition): browser replays, per world step
         online::flashPreStep(_world);  // ONLINE (PC addition): Flash Box2D 2.0 contact rules
     }
-    _world->Step(timeStep, 8, 3);
+    if (online::flashLevel())
+    {
+        online::flashWorldStep(_world, timeStep);  // ONLINE (PC addition): browser profile, FlashPhysics.h
+    }
+    else
+    {
+        _world->Step(timeStep, 8, 3);
+    }
     if (online::flashLevel())
     {
         online::flashPostStep(_world);  // ONLINE (PC addition)

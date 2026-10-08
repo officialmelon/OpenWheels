@@ -1,6 +1,6 @@
 // bionic rand()/srand() == NetBSD random()/srandom() with the default TYPE_3 state
 // (degree 31, separation 3). See BionicRand.h.
-#if defined(_WIN32)
+#if !defined(__ANDROID__)
 #include <cstdint>
 
 namespace {

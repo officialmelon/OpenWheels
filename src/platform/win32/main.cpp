@@ -65,10 +65,12 @@
 #include "net/LevelTransfer.h"        // NET (PC addition)
 #include "net/race/RaceSession.h"     // NET (PC addition)
 
+#include "platform/desktop/DesktopWindow.h"
+
 #ifdef OW_WITH_PC_LAYER  // enable once src/game links (PCInput.cpp, WorldDumpRunner.cpp)
 #include "platform/win32/CrashHandler.h"
-#include "platform/win32/PCInput.h"
-#include "platform/win32/WorldDumpRunner.h"
+#include "platform/desktop/PCInput.h"
+#include "platform/desktop/WorldDumpRunner.h"
 #endif
 
 USING_NS_CC;
@@ -159,6 +161,7 @@ struct Options
     std::wstring editFile;   // --edit <level.xml>: open a level in the editor (EDITOR, PC addition)
     float width = 1600.0f;
     float height = 900.0f;
+    bool explicitSize = false;  // --width / --height given: keep that window size (else maximized)
     bool console = false;
     std::wstring dumpWorld;
     std::string level = "levels/01_business_guy/01_business_guy_tutorial_level.xml";
@@ -205,10 +208,13 @@ Options parseOptions()
         else if (a == L"--player-name") o.playerName = narrow(next());
     }
     LocalFree(argv);
+    o.explicitSize = explicitSize;
     if (!explicitSize)
     {
         // Default: the largest 16:9 frame up to 1600x900 that fits ~90% of the monitor's work
         // area (Windows silently shrinks bigger windows, which would desync cocos2d's frame size).
+        // This is the restored ("windowed") size: the window then starts maximized
+        // (platform/desktop/DesktopWindow.cpp).
         SetProcessDPIAware();  // physical pixels, like GLFW will use
         RECT work = {0, 0, 1600, 900};
         SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
@@ -278,55 +284,6 @@ int convertFlashLevel(const std::wstring& in, const std::wstring& out)
     fwrite(mobile.data(), 1, mobile.size(), f);
     fclose(f);
     return 0;
-}
-
-// QOL page "fullscreen" (and F11): exclusive fullscreen on the window's monitor, restoring the
-// windowed position and size afterwards. Applies the saved choice and the FPS counter at start-up.
-void installFullscreen(GLViewImpl* glview, bool interactive)
-{
-    static int windowed[4] = {0, 0, 0, 0};
-    qol::setFullscreenHandler([glview](bool on) {
-        GLFWwindow* window = glview->getWindow();
-        if (!window) return;
-        const bool isFullscreen = glfwGetWindowMonitor(window) != nullptr;
-        if (on == isFullscreen) return;
-        if (on)
-        {
-            glfwGetWindowPos(window, &windowed[0], &windowed[1]);
-            glfwGetWindowSize(window, &windowed[2], &windowed[3]);
-            GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-            int count = 0;
-            GLFWmonitor** monitors = glfwGetMonitors(&count);
-            const int cx = windowed[0] + windowed[2] / 2, cy = windowed[1] + windowed[3] / 2;
-            for (int i = 0; i < count; ++i)
-            {
-                int mx, my;
-                glfwGetMonitorPos(monitors[i], &mx, &my);
-                const GLFWvidmode* m = glfwGetVideoMode(monitors[i]);
-                if (cx >= mx && cx < mx + m->width && cy >= my && cy < my + m->height) monitor = monitors[i];
-            }
-            const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-            glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
-        }
-        else
-        {
-            glfwSetWindowMonitor(window, nullptr, windowed[0], windowed[1], windowed[2], windowed[3], 0);
-        }
-    });
-    if (!interactive) return;
-    auto keys = EventListenerKeyboard::create();
-    keys->onKeyPressed = [](EventKeyboard::KeyCode key, Event*) {
-        // QOL (PC addition): F11 by default, remappable (src/qol/KeyBindings.h).
-        if (qol::keyIs(key, qol::KeyAction::Fullscreen)) qol::setFullscreen(!qol::fullscreen());
-    };
-    Director::getInstance()->getEventDispatcher()->addEventListenerWithFixedPriority(keys, 2);
-    static int s_applyTarget = 0;
-    Director::getInstance()->getScheduler()->schedule(
-        [](float) {
-            qol::applyDisplaySettings();
-            if (qol::fullscreen()) qol::setFullscreen(true);
-        },
-        &s_applyTarget, 0.0f, 0, 0.5f, false, "ow_apply_display");
 }
 
 // Runs `action` once the main menu is the running scene (after the splash / consent screens),
@@ -411,9 +368,13 @@ int WINAPI _tWinMain(HINSTANCE hInstance,
     // Android asks the app for its GL context attributes before the surface
     // exists; run() calls initGLContextAttrs() again, which is harmless.
     Application::getInstance()->initGLContextAttrs();
-    auto glview = GLViewImpl::createWithRect("OpenWheels", Rect(0.0f, 0.0f, opt.width, opt.height));
+    // Resizable window, maximized unless --width/--height (or --dump-world) ask for a fixed size;
+    // fullscreen from the QOL page / F11 (platform/desktop/DesktopWindow.cpp).
+    const bool verification = !opt.dumpWorld.empty();
+    auto glview = GLViewImpl::createWithRect("OpenWheels", Rect(0.0f, 0.0f, opt.width, opt.height), 1.0f,
+                                             !verification);
     Director::getInstance()->setOpenGLView(glview);
-    installFullscreen(glview, opt.dumpWorld.empty());
+    openwheels::desktop::installWindowManagement(glview, !opt.explicitSize && !verification, !verification);
     // The original's first-run "accept the Privacy Policy" prompt is Fancy Force's policy for its
     // ad/analytics SDKs, which OpenWheels doesn't have: pre-accept it (as on Android).
     UserDefault::getInstance()->setBoolForKey("terms_of_use_accepted", true);

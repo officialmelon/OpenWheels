@@ -1,12 +1,12 @@
 #pragma once
-// Android (bionic) libc random numbers on Windows. The original game calls rand()/srand() directly
+// Android (bionic) libc random numbers on Windows, Linux, macOS and iOS. The original game calls rand()/srand() directly
 // (blood, sparks, voices, camera shake, ...). bionic's rand() is BSD random() (additive feedback,
 // x^31 + x^3 + 1, RAND_MAX 2^31-1, unseeded state == srandom(1)); MSVC's is a 15-bit LCG. This
-// header is force-included into the game's translation units on Windows (see CMakeLists.txt) so
+// header is force-included into the game's translation units off Android (see CMakeLists.txt) so
 // the reconstructed code gets the same generator, range and sequences as on a device.
 // On Android builds (tools/check_tu.sh) it does nothing.
 
-#if defined(_WIN32)
+#if !defined(__ANDROID__)
 #include <cstdlib>
 
 extern "C" int ow_bionic_rand(void);

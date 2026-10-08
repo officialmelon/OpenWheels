@@ -1,0 +1,12 @@
+diff --git a/cocos/base/allocator/CCAllocatorBase.h b/cocos/base/allocator/CCAllocatorBase.h
+index 4b8736a..ba8158b 100644
+--- a/cocos/base/allocator/CCAllocatorBase.h
++++ b/cocos/base/allocator/CCAllocatorBase.h
+@@ -28,6 +28,7 @@
+ #define CC_ALLOCATOR_BASE_H
+ /// @cond DO_NOT_SHOW
+ 
++#include <cstdint>
+ #include <string>
+ 
+ #include "platform/CCPlatformMacros.h"

@@ -60,7 +60,7 @@ file(GLOB_RECURSE GAME_SOURCES CONFIGURE_DEPENDS
      ${OW_ROOT}/src/*.cpp
      ${OW_ROOT}/src/*.c
      )
-foreach(foreign_os win32 ios mac linux winrt tizen emscripten)
+foreach(foreign_os win32 desktop unix ios mac linux winrt tizen emscripten)
     list(FILTER GAME_SOURCES EXCLUDE REGEX "/src/platform/${foreign_os}/")
 endforeach()
 

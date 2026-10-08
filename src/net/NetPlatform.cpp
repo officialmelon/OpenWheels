@@ -25,6 +25,9 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#if defined(__APPLE__)
+#include <ifaddrs.h>
+#endif
 #endif
 
 #if defined(__ANDROID__)
@@ -117,6 +120,20 @@ std::vector<Interface> ipv4Interfaces() {
         }
     }
     closesocket(s);
+#elif defined(__APPLE__)
+    // macOS / iOS (PC addition): BSD's SIOCGIFCONF records are variable-length; use getifaddrs.
+    struct ifaddrs* list = nullptr;
+    if (getifaddrs(&list) != 0) return result;
+    for (struct ifaddrs* a = list; a; a = a->ifa_next) {
+        if (!a->ifa_addr || a->ifa_addr->sa_family != AF_INET || !(a->ifa_flags & IFF_UP)) continue;
+        Interface itf;
+        itf.name = a->ifa_name ? a->ifa_name : "";
+        itf.address = ntohl(reinterpret_cast<sockaddr_in*>(a->ifa_addr)->sin_addr.s_addr);
+        if (a->ifa_netmask) itf.netmask = ntohl(reinterpret_cast<sockaddr_in*>(a->ifa_netmask)->sin_addr.s_addr);
+        itf.loopback = (a->ifa_flags & IFF_LOOPBACK) != 0 || (itf.address >> 24) == 127;
+        if (itf.address != 0) result.push_back(itf);
+    }
+    freeifaddrs(list);
 #else
     int s = socket(AF_INET, SOCK_DGRAM, 0);
     if (s < 0) return result;

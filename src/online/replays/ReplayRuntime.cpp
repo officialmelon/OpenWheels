@@ -14,8 +14,10 @@
 #include "Settings.h"
 #include "Trigger.h"
 #include "online/FlashLevelConverter.h"
+#include "online/FlashPhysics.h"
 #include "online/FlashRuntime.h"
 #include "online/OnlineUi.h"
+#include "qol/CharacterChoice.h"  // QOL (PC addition)
 #include "restored/Restored.h"
 
 USING_NS_CC;
@@ -25,7 +27,6 @@ namespace replays {
 
 namespace {
 
-const int kMaxSteps = kMaxReplayFrames * 2;   // 200 s
 const size_t kKeptRuns = 6;
 
 enum class Mode { None, Record, Watch };
@@ -84,7 +85,7 @@ void installCompletionListener() {
             g_recording->completeStep = g_steps;
         } else if (g_mode == Mode::Watch && !g_finished) {
             g_finished = true;
-            if (g_overlayState) g_overlayState->setString("FINISHED IN " + formatTime((g_steps + 1) / 2));
+            if (g_overlayState) g_overlayState->setString("FINISHED IN " + formatTime((g_steps + stepsPerFlashFrame() - 1) / stepsPerFlashFrame()));
         }
     });
 }
@@ -162,7 +163,7 @@ void buildOverlay() {
 void updateOverlay() {
     if (!g_overlay || !g_overlay->getParent()) return;
     const int total = std::max<int>(1, (int)g_watch.input.keys.size());
-    const int frame = std::min(total, g_steps / 2);
+    const int frame = std::min(total, g_steps / stepsPerFlashFrame());
     g_progress->setScaleX(std::max(1.0f, g_progressWidth * frame / (float)total));
     if (!g_finished && frame >= total)
         g_overlayState->setString(g_watch.replay.completed() ? "END OF REPLAY" : "END (DID NOT FINISH)");
@@ -190,6 +191,7 @@ void startSession(ReplayData* data, bool isReplay) {
     run->level = g_current;
     run->character = Settings::getInstance()->getSelectedCharacterId();
     run->serial = ++g_serial;
+    run->stepsPerFrame = stepsPerFlashFrame();
     g_runs.push_back(run);
     g_recording = run;
     // Keep the last few runs (saved ones live on disk anyway).
@@ -224,7 +226,7 @@ void noteMouse(Trigger* trigger, bool rollOut) {
     if (index < 0) return;
     MouseEntry e;
     // Between frames: the click lands on the next Flash frame boundary.
-    e.iteration = (g_steps + 1) / 2;
+    e.iteration = (g_steps + stepsPerFlashFrame() - 1) / stepsPerFlashFrame();
     e.triggerIndex = index;
     e.rollOut = rollOut;
     g_recording->mouse.push_back(e);
@@ -236,7 +238,7 @@ void noteMouse(Trigger* trigger, bool rollOut) {
 
 int RunRecord::frames() const {
     const int steps = completed ? completeStep : (int)this->steps.size();
-    return std::min(kMaxReplayFrames, (steps + 1) / 2);
+    return std::min(kMaxReplayFrames, (steps + stepsPerFrame - 1) / stepsPerFrame);
 }
 
 ReplayInput RunRecord::toInput() const {
@@ -244,7 +246,7 @@ ReplayInput RunRecord::toInput() const {
     const int n = frames();
     in.keys.reserve(n);
     for (int f = 0; f < n; ++f) {
-        const size_t s = (size_t)f * 2;
+        const size_t s = (size_t)f * stepsPerFrame;
         in.keys.push_back(mobileToFlash(s < steps.size() ? steps[s] : 0));
     }
     for (const MouseEntry& e : mouse)
@@ -269,8 +271,9 @@ SavedRun RunRecord::toSavedRun() const {
 void gameplayState(ReplayData* data, bool isReplay, unsigned char* state) {
     if (!g_token.matches(session())) startSession(data, isReplay);
     if (g_mode == Mode::Watch) {
-        // The byte of the Flash frame the next world step belongs to.
-        const size_t frame = (size_t)g_steps / 2;
+        // The byte of the Flash frame the next world step belongs to (one step per frame with
+        // the browser physics profile, two on the mobile one).
+        const size_t frame = (size_t)(g_steps / stepsPerFlashFrame());
         *state = frame < g_watch.input.keys.size() ? flashToMobile(g_watch.input.keys[frame]) : 0;
         updateOverlay();
     } else if (g_mode == Mode::Record) {
@@ -287,8 +290,8 @@ void physicsStep() {
     }
     if (g_mode == Mode::Watch) {
         // SessionReplay.run: the mouse entries of iteration i fire before frame i's input.
-        if (g_steps % 2 == 0) {
-            const int iteration = g_steps / 2;
+        if (g_steps % stepsPerFlashFrame() == 0) {
+            const int iteration = g_steps / stepsPerFlashFrame();
             const auto& mouse = g_watch.input.mouse;
             while (g_mouseNext < mouse.size() && mouse[g_mouseNext].iteration < iteration) ++g_mouseNext;
             while (g_mouseNext < mouse.size() && mouse[g_mouseNext].iteration == iteration) {
@@ -300,7 +303,7 @@ void physicsStep() {
             }
         }
     } else if (g_mode == Mode::Record && g_recording && !g_recording->completed && !g_recording->tooLong) {
-        if ((int)g_recording->steps.size() >= kMaxSteps) {
+        if ((int)g_recording->steps.size() >= kMaxReplayFrames * g_recording->stepsPerFrame) {
             g_recording->tooLong = true;
         } else {
             g_recording->steps.push_back(g_frameState);
@@ -369,6 +372,9 @@ bool watch(const OnlineLevelInfo& level, const ReplayInfo& replay, const ReplayI
     ls->setCharacterIndex(character);
     ls->setVehicleIndex(0);
     ls->applyToSettings();
+    // QOL (PC addition): the replay's character even where the level forces another one (a run
+    // recorded with "any character", qol/CharacterChoice.h).
+    qol::setCharacterOverride(character);
 
     if (!g_watchData) g_watchData = new ReplayData();
     g_watchData->reset();

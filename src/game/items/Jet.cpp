@@ -64,7 +64,9 @@ bool Jet::init(LevelDataElement* element, b2Body* groupBody, b2Vec2 groupOffset)
 
     createBody(b2Vec2(x, y), angle, sleeping, fixedRotation ? 1.0f : 0.0f, power);
 
-    static int fps = (int)roundf(1.0f / LevelItem::s_timeStep);
+    // ONLINE (PC addition): computed per jet, not once per program run (static in the original):
+    // browser levels step at 1/30 (online/FlashPhysics.h), the campaign at 1/60.
+    const int fps = (int)roundf(1.0f / LevelItem::s_timeStep);
 
     _power = power;
     float accelScaler = 1.0f;
