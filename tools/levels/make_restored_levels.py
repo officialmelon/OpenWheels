@@ -206,6 +206,7 @@ def title(L, x, ground, name, lines, color=BLACK, size=16):
     in-game camera shows roughly 1000 x 560 px of the level around the rider)."""
     n = lines.count('\n') + 1
     top = ground - 120 - n * (size + 4) - 50
+    x = max(20, L.start[0] - 240)          # the camera keeps the rider about a third in from the left
     L.text(x, top, name, size=36, color=color, font=5)
     L.text(x, top + 46, lines, size=size, color=color, font=2)
 

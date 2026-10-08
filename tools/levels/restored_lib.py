@@ -112,9 +112,25 @@ class _ShapeOwner:
         return s + '><v%s/></sh>' % attrs(vp), None
 
     # shapes -------------------------------------------------------------------------------
+    MAX_RECT = 4990.0   # the converter clamps rectangle sides to 5000 px (Flash RefShape scale 50)
+
     def rect(self, x, y, w, h, color=0x7f7f7f, rot=0, fixed=True, sleep=False, density=1.0,
              outline=-1, opacity=100, collision=1, inter=True):
-        """Rectangle centred on x, y."""
+        """Rectangle centred on x, y. Sides over 5000 px (clamped by the converter) are built from
+        several rectangles (axis-aligned only); the first piece's handle is returned."""
+        if (w > self.MAX_RECT or h > self.MAX_RECT) and rot == 0:
+            nx = int(math.ceil(w / self.MAX_RECT))
+            ny = int(math.ceil(h / self.MAX_RECT))
+            first = None
+            for i in range(nx):
+                for j in range(ny):
+                    pw, ph = w / nx, h / ny
+                    r = self.rect(x - w / 2 + pw * (i + 0.5), y - h / 2 + ph * (j + 0.5), pw, ph,
+                                  color=color, rot=0, fixed=fixed, sleep=sleep, density=density,
+                                  outline=outline, opacity=opacity, collision=collision, inter=inter)
+                    first = first or r
+            return first
+        assert w <= self.MAX_RECT + 10 and h <= self.MAX_RECT + 10, 'rotated rect too long: %r' % ((w, h),)
         xml, _ = self._shape_xml(0, x, y, w, h, rot, fixed, sleep, density, color, outline,
                                  opacity, collision, inter)
         return self._add_shape(xml, dict(t=0, x=x, y=y, w=w, h=h, rot=rot, fixed=fixed,

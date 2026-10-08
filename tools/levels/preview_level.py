@@ -349,6 +349,12 @@ class Model:
             out.append('WARN start only %d px above the ground (vehicle may overlap it)' % d)
         else:
             out.append('ok start %d px above the ground' % d)
+        for i, e in enumerate(self.shapes + [sh for g in self.groups for sh in g.findall('sh')]):
+            t = int(fnum(e, 't'))
+            lim = (5000, 5000) if t in (0, 1) else (5000, 4500) if t == 2 else None
+            if lim and (fnum(e, 'p2', 100) > lim[0] or fnum(e, 'p3', 100) > lim[1]):
+                out.append('ERROR shape %d (t=%d) is %gx%g: the converter clamps it to %dx%d' % (
+                    i, t, fnum(e, 'p2', 100), fnum(e, 'p3', 100), lim[0], lim[1]))
         finishes = [e for e in self.specials if int(fnum(e, 't', -1)) == 9]
         victories = [t for t in self.triggers if int(fnum(t, 't', 1)) == 3]
         if not finishes and not victories:
