@@ -428,10 +428,10 @@ def lm_03():
 
 def lm_04():
     """Hedge Maze (medium+): three stacked hedge lanes, built so you only ever drive right. Each
-    fork is a gap with a kicker: jump it to reach a dead-end branch holding a lever, reverse out
-    and drop through the gap to go on. Lever A opens gate A on the middle lane, lever B opens gate
-    B on the bottom lane; the bottom lane leads out to the finish. Tourists and mines fill the
-    bottom lane, spikes line the dead ends."""
+    fork is a gap with a boost panel and a kicker: you sail over it into a dead-end branch that
+    holds a lever, reverse out and drop through the gap to go on. Lever A opens gate A on the
+    middle lane, lever B opens gate B on the bottom lane, which leads out to the finish. A
+    gardener and a crowd of lost tourists wait to be mown."""
     TOP, MID, LOW = 4000, 4400, 4800          # lane floors (surface y)
     TH = 70                                    # slab thickness
     L = Level('06_lawnmower_man/04_hedge_maze.xml', 'Hedge Maze', 6, (450, TOP - RIDE),
@@ -475,14 +475,14 @@ def lm_04():
     L.boost(4300, MID, panels=1, power=45)
     hedge(4850, MID, 6300, MID + TH)          # middle dead-end branch (lever B)
     hedge(6300, TOP + TH, 6400, MID + TH)     # its end wall
-    L.homing_mine(5500, MID - 150, speed=1, delay=2)
-    L.text(5000, 4120, 'This branch has a gardener.\nThe gardener has a mine.', size=14)
+    L.npc(5500, MID, char=8, sleep=True, hold=True, pose=(0, -60, -120, -30, -30, 0, 0, 0, 0))
+    L.text(5000, 4120, 'This branch has a gardener.\nHe was here first.', size=14)
     # --- bottom lane: from under G2 to the exit ------------------------------------------------
     hedge(6400, TOP + TH, 8200, MID + TH)     # ceiling over the bottom lane (solid block)
     for x, c in [(5300, 1), (5650, 15), (6000, 16), (7000, 3), (7300, 5)]:
         L.npc(x, LOW, char=c, sleep=True, reverse=True)
     for x in (5850, 6700):
-        L.mine(x, LOW)
+        L.trash(x, LOW)
     L.text(5000, 4520, 'The tourists went this way.\nWe found most of them.', size=14)
     gate_b = gate(L, 7800, MID + TH, LOW, w=60, color=rgb('245a20'), outline=HEDGE_DARK)
     lever(6150, MID, gate_b, 'Clunk. The last gate\nshould be open now.', 5700, 4120)
@@ -579,21 +579,28 @@ def lm_05():
 
 
 def lm_06():
-    """Mow or Never (hard): the garden fights back. A minefield lawn with sprinkler fans, a shed
-    with harpoon turrets, a gully whose plank bridge drops when you are on it, a greenhouse of
-    glass, a log avalanche, swinging wrecking-ball bird feeders, a gnome army, and a final jump."""
+    """Mow or Never (hard): the garden fights back. A mined flower bed crossed on loose I-beams,
+    a shed with harpoon turrets, a gully whose boards drop behind you, a greenhouse of glass, a
+    log avalanche, swinging wrecking-ball bird feeders, a gnome army, and a boosted final jump."""
     L = Level('06_lawnmower_man/06_mow_or_never.xml', 'Mow or Never', 6, (450, G - RIDE),
               bg=1, bgc=rgb('ffd9a8'))
     lawn_title(L, 180, G, 'MOW OR NEVER',
                'The lawn has unionised. It has demands.\n'
                'Its first demand is your spleen.', color=RED_DARK)
-    # 1) minefield lawn with sprinkler fans
-    L.ground([(0, G), (2600, G)], bottom=G + 700, color=GRASS)
-    for x in (1200, 1500, 1800, 2100, 2350):
-        L.mine(x, G)
-    for x in (1350, 1950):
-        L.ground([(x - 60, G), (x, G - 30), (x + 60, G)], bottom=G + 10, color=GRASS)  # bumps
-    L.text(1100, G - 300, 'Sprinkler mines. Totally normal.', size=14)
+    # 1) the minefield: a sunken flower bed full of mines, crossed on a boardwalk of loose
+    #    I-beams resting on posts (they shift under you)
+    L.ground([(0, G), (1000, G)], bottom=G + 700, color=GRASS)
+    L.box(1000, G + 160, 2400, G + 700, color=DIRT)
+    L.box(1000, G + 20, 1030, G + 700, color=GRASS)                             # banks: the beam
+    L.box(2370, G + 20, 2400, G + 700, color=GRASS)                             # ends rest on them
+    for x in (1150, 1400, 1650, 1900, 2150):
+        L.mine(x, G + 160)
+    for x in (1350, 1700, 2050):
+        L.box(x - 15, G + 20, x + 15, G + 160, color=WOOD_DARK)               # posts
+    for k in range(4):
+        L.ibeam(1000 + k * 350 + 175, G + 10, 352, 20, sleep=True)
+    L.ground([(2400, G), (2600, G)], bottom=G + 700, color=GRASS)
+    L.text(1000, G - 300, 'The flower bed is mined. The boardwalk\nis "mostly" nailed down.', size=14)
     # 2) garden shed with harpoon turrets in its windows
     L.ground([(2600, G), (4200, G)], bottom=G + 700, color=GRASS)
     L.box(3000, G - 420, 3500, G - 40, color=WOOD, outline=WOOD_DARK, inter=False)
@@ -752,8 +759,9 @@ def ex_01():
 
 def ex_02():
     """Mine Shaft (easy+): an old mine. Timber-framed tunnels, a rail across a flooded shaft, a
-    cage elevator (prismatic joint) that lowers you when you roll on, dynamite (mines) and loose
-    rocks that drop from the roof, a second rail over a chasm, and daylight at the exit."""
+    dynamite shelf, the Plunge (a smooth dive to the lower level), a door on a prismatic joint
+    that slides up as you come down, loose rocks dropping behind you, a rail over a chasm, and
+    daylight at the exit."""
     L = Level('07_explorer_guy/02_mine_shaft.xml', 'Mine Shaft', 7, (450, G - RIDE), bg=0,
               bgc=rgb('2b2118'))
     title(L, 160, G, 'MINE SHAFT', 'Closed since 1897 "for safety reasons".\n'
@@ -955,16 +963,18 @@ def ex_05():
         L.npc(x, G - 330, char=11, sleep=True, hold=True, pose=(0, -170, -170, 0, 0, 0, 0, 0, 0))
     L.homing_mine(6600, G - 300, speed=1, delay=2)
     L.homing_mine(7400, G - 250, speed=2, delay=2)
-    # the giant head on jets that tumbles down the stairs
+    # the giant head on a ledge above the stairs: woken (with its jet) once you are past, it
+    # tumbles down after you
     L.ground([(6400, G), (7600, G + 200), (8600, G + 200)], bottom=G + 1200, color=TEMPLE)
-    head = L.group()
-    head.rect(7900, G - 300, 220, 240, color=GOLD, outline=rgb('8a6d00'), fixed=False, density=2)
-    head.rect(7850, G - 330, 40, 30, color=BLACK, fixed=False)
-    head.rect(7950, G - 330, 40, 30, color=BLACK, fixed=False)
-    head.sleep = True
-    L.text(7600, G - 150, 'A face only a mother could love.\nAnd it has rockets.', size=15)
-    jet = L.jet(7900, G - 160, rot=-90, sleep=True, power=4, fire_time=20)
-    L.trigger(7400, G + 100, 100, 200, [(head, [(0,)]), (jet, [(0,)])])
+    L.box(6250, G - 420, 6650, G - 380, color=TEMPLE, outline=TEMPLE_DARK)
+    head = L.group(sleep=True)
+    head.rect(6450, G - 500, 200, 220, color=GOLD, outline=rgb('8a6d00'), fixed=False, density=2)
+    head.rect(6400, G - 540, 36, 28, color=BLACK, fixed=False)
+    head.rect(6500, G - 540, 36, 28, color=BLACK, fixed=False)
+    jet = L.jet(6340, G - 500, rot=-90, sleep=True, power=2, fire_time=10)
+    L.pin(6345, G - 500, jet, head)
+    L.trigger(6900, G + 50, 60, 300, [(head, [(0,), (2, 6, 0, 2)]), (jet, [(0,)])])
+    L.text(6600, G - 330, 'Is that statue... following you?', size=15)
     # drawbridge: a hinged plank over the moat, raised until you hit the switch
     L.box(8600, G + 1100, 9400, G + 1200, color=TEMPLE_DARK)
     L.spikes_on(9000, G + 1100, count=50)
@@ -1525,9 +1535,10 @@ def mo_02():
 
 
 def mo_03():
-    """Mall Madness (medium): Black Friday. Smash the sliding glass doors, weave through shoppers,
-    ride the escalator to the food court, ride the elevator platform down (prismatic joint, woken
-    by a trigger), and out past the restroom row to the car park finish."""
+    """Mall Madness (medium): Black Friday. Smash the glass doors, weave through shoppers past
+    the mall cop, ride the escalator up to the food court, smash the glass railing, take the down
+    escalator, and get out before the closing shutter (prismatic joint) slides down behind you,
+    past the restroom row to the car park finish."""
     U = G - 600
     L = Level('10_irresponsible_mom/03_mall_madness.xml', 'Mall Madness', 10, (600, G - RIDE), bg=0,
               bgc=rgb('efe7da'))
@@ -1589,8 +1600,8 @@ def mo_03():
 
 def mo_04():
     """Playground (medium+): the local park. A slide from the tower, a pair of see-saws, a
-    swing set (pendulums that swing into you), a spinning merry-go-round disk, a sandbox, a
-    spring-rider trampoline, a paddle and the ice-cream van finish."""
+    swing set (pendulums shoved into your path), the roundabout rollers (motorised), a sandbox,
+    a trampoline (spring box), a paddle launcher and the ice-cream van finish."""
     L = Level('10_irresponsible_mom/04_playground.xml', 'Playground', 10, (600, G - RIDE), bg=1, bgc=SKY)
     for x in (1200, 5000, 9000):
         cloud(L, x, 3800, 420)
@@ -2032,9 +2043,10 @@ def he_05():
 
 
 def he_06():
-    """Mayday (hard): the engine is coughing. Thread a cave of spikes (floor and ceiling),
-    fans that shove you up and down, swinging rock pendulums, harpoon nests, a rotating blade
-    gate, and homing mines; pick up the fuel can and drop it in the tank to open the final hatch."""
+    """Mayday (hard): the engine is coughing. Thread a cave of spikes (floor and ceiling), fans
+    that shove you up and down, rock pendulums shoved into a swing as you approach, harpoon
+    nests, homing mines and a rotating blade gate; carry the fuel can into the tank to open the
+    final hatch."""
     L = Level('11_helicopter_man/06_mayday.xml', 'Mayday', 11, (500, G - 130), bg=0, bgc=rgb('20170f'))
     title(L, 160, G, 'MAYDAY', 'Engine: coughing. Fuel: none. Insurance: expired.\n'
           'Find the fuel can. Fill the tank. Do not touch the walls.', color=rgb('ffd7a0'))
