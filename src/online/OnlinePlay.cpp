@@ -10,7 +10,8 @@ USING_NS_CC;
 
 namespace online {
 
-bool startConvertedLevel(const std::string& flashXml, ConversionReport* report, std::string* error) {
+bool startConvertedLevel(const std::string& flashXml, ConversionReport* report, std::string* error,
+                         bool chooseCharacter) {
     ConversionReport local;
     ConversionReport& r = report ? *report : local;
     const std::string xml = FlashLevelConverter::toMobile(flashXml, &r);
@@ -25,7 +26,33 @@ bool startConvertedLevel(const std::string& flashXml, ConversionReport* report, 
     session->setForceCharacter(r.forceCharacter);
     session->setCharacterIndex(r.character);
     session->setVehicleIndex(0);
-    session->playLevel(r.forceCharacter);
+    session->playLevel(r.forceCharacter && !chooseCharacter);
+    return true;
+}
+
+void LevelReturn::park() {
+    pending = true;
+    parked = Director::getInstance()->getRunningScene();
+}
+
+void LevelReturn::cancel() {
+    pending = false;
+    parked = nullptr;
+}
+
+bool LevelReturn::take() {
+    if (!pending) return false;
+    RefPtr<Scene> scene = parked;
+    cancel();
+    if (!LevelSession::getInstance()->isUserLevel()) return false;
+    // LevelSession::playLevel pushed the level over the menu scene: drop that scene so every
+    // round trip doesn't leave one more scene on the Director's stack. Only when it is still in
+    // the stack (someone besides `scene` holds it) - it then sits right below the running scene.
+    if (scene && scene->getReferenceCount() > 1 && scene.get() != Director::getInstance()->getRunningScene())
+        Director::getInstance()->popScene();
+    scene = nullptr;
+    // What MainMenu::init does when it finds a user level selected.
+    LevelSession::getInstance()->leaveUserLevel();
     return true;
 }
 

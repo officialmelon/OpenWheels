@@ -23,6 +23,14 @@ public:
     ~IrresponsibleMom() override;
 
     void setState(unsigned char state) override;
+    // RESTORED (PC addition): the kids' injury limits follow a time step change too (only the
+    // level's own characters get timeStepChanged; browser physics, online/FlashPhysics.h).
+    void timeStepChanged() override
+    {
+        CharacterB2D::timeStepChanged();
+        if (_daughter) _daughter->timeStepChanged();
+        if (_son) _son->timeStepChanged();
+    }
 
 private:
     CharacterB2D* _daughter = nullptr;

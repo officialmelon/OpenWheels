@@ -54,7 +54,7 @@ np = kg.np
 Image = kg.Image
 
 REPO = kg.REPO
-VERSION = '1'
+VERSION = '2'          # bump when the outputs change (2: main-menu portraits)
 TIERS = {'large': 2.0, 'medium': 1.0, 'small': 0.75, 'tiny': 0.5}  # tier px per symbol px
 MASTER = 4.0          # render zoom (= character-select large)
 ROT_SIGN = 1.0        # kg.warp angle sign for a Flash (clockwise, y down) rotation
@@ -757,6 +757,98 @@ def make_icons(canvas, head_pos, key):
 
 
 # ------------------------------------------------------------------------------------------
+# Main-menu portraits: head-and-shoulders busts like the mobile ones
+# ------------------------------------------------------------------------------------------
+# The main menu and the level select stand one portrait per chapter in a row
+# (PerspectiveCharacters): menus/main/portraits/char<id>_portrait_25p.png drawn 4x, swapped for
+# char<id>_portrait.png once the row settles on it, anchored bottom-left on the screen's bottom
+# edge. The mobile ones are big busts on a transparent background, cut off by the picture's
+# bottom (and often side) edges: large 1480-1988 x 1753-1900 px, the head taking the top ~45 %;
+# medium 1/2, small 3/8, tiny 1/4 of that, the 25 % version a quarter of each. Ours are the rest
+# pose's upper body (as the icons: the head upright with its helmet, the rest as the shapeGuide
+# lays it out, i.e. the riding pose) re-rendered by FFDec at the zoom the bust needs, so the
+# vector art stays sharp.
+
+PORTRAIT_SIZE = (1700, 1880)   # large px (width, height)
+PORTRAIT_HEAD = 3.4            # picture height / head (centre to top of the helmet)
+PORTRAIT_TIER = {'large': 1.0, 'medium': 0.5, 'small': 0.375, 'tiny': 0.25}
+PORTRAIT_ORDER = ['lowerArm2', 'upperArm2', 'upperLeg2', 'lowerLeg2', 'head', 'chest', 'pelvis',
+                  'upperLeg1', 'lowerLeg1', 'upperArm1', 'lowerArm1']  # as rest_pose
+
+
+def make_portrait(tree, R, plain, guide=None):
+    """The large-tier bust (straight-alpha float RGBA, PORTRAIT_SIZE). `plain`: the character's
+    rendered frames at MASTER zoom (to measure the head). `guide`: the shapeGuide entries (read
+    from `tree` when not given; tools/assets/restored_portraits.py passes its own, rebuilt from
+    the generated body plist, with a renderer that scales the generated sprites)."""
+    guide = guide or guide_entries(tree)
+    head_e = guide['headShape']
+    # Head extent above its body origin (symbol px), helmet included
+    reach = 0.0
+    for key in ('head_1', 'helmet'):
+        if key in plain:
+            b = kg.bbox(plain[key].alpha)
+            if b is not None:
+                reach = max(reach, (plain[key].origin[1] - b[1]) / MASTER)
+    if reach <= 0:
+        raise ValueError('no head art')
+    Hs = PORTRAIT_HEAD * reach                                # picture height, symbol px
+    Ws = Hs * PORTRAIT_SIZE[0] / PORTRAIT_SIZE[1]
+    x0 = head_e.tx - 0.62 * Ws                       # the head right of centre, as the originals'
+    y0 = head_e.ty - reach - 0.03 * Hs
+    zoom = PORTRAIT_SIZE[1] / Hs                              # picture px per symbol px
+
+    def clip(name):
+        return tree.child(0, name).cid
+
+    head = clip('head')
+    jobs = {'head': [R.add(head, 1, tree.depths_named(head, 1, ['helmet']), zoom=zoom)]}
+    if tree.has_child(head, 'helmet'):
+        jobs['head'].append(R.add(head, 1, tree.depths_except(head, 1, 'helmet'), zoom=zoom))
+    chest = clip('chest')
+    jobs['chest'] = [R.add(chest, 1, tree.depths_named(chest, 1, ['neck', 'wound']), zoom=zoom)]
+    pelvis = clip('pelvis')
+    jobs['pelvis'] = [R.add(pelvis, 1, tree.depths_named(pelvis, 1, ['wound']), zoom=zoom)]
+    for part in LIMBS + ['lowerArm1', 'lowerArm2', 'lowerLeg1', 'lowerLeg2']:
+        jobs[part] = [R.add(clip(part), 1, zoom=zoom)]
+    R.run()
+
+    W, H = PORTRAIT_SIZE
+    canvas = np.zeros((H, W, 4), np.float32)
+    for part in PORTRAIT_ORDER:
+        e = guide.get(part + 'Shape')
+        if e is None:
+            continue
+        angle = 0.0 if part == 'head' else ROT_SIGN * math.degrees(e.rotation)
+        for k in jobs[part]:
+            a = kg.warp(R[k], (W, H), 1.0, ((e.tx - x0) * zoom, (e.ty - y0) * zoom), angle=angle)
+            canvas = kg.over(canvas, a)
+    if kg.bbox(canvas[:, :, 3]) is None:
+        raise ValueError('empty portrait')
+    return canvas
+
+
+def write_portraits(out, cid, portrait, overwrite=True):
+    """<out>/<tier>/menus/main/portraits/char<id>_portrait.png and _portrait_25p.png (only the
+    missing ones unless `overwrite`)."""
+    H, W = portrait.shape[:2]
+    big = kg.to_pil_premul(portrait)
+    for tier, t in PORTRAIT_TIER.items():
+        size = (max(4, int(round(W * t / 4.0)) * 4), max(4, int(round(H * t / 4.0)) * 4))
+        d = os.path.join(out, tier, 'menus', 'main', 'portraits')
+        os.makedirs(d, exist_ok=True)
+        for name, sz in (('char%d_portrait.png' % cid, size),
+                         ('char%d_portrait_25p.png' % cid, (size[0] // 4, size[1] // 4))):
+            if not overwrite and os.path.isfile(os.path.join(d, name)):
+                continue
+            im = big if sz == (W, H) else big.resize(sz, Image.LANCZOS)
+            rgba = np.clip(kg.from_pil_premul(im) * 255 + 0.5, 0, 255).astype(np.uint8)
+            rgba[rgba[:, :, 3] == 0] = 0
+            Image.fromarray(rgba, 'RGBA').save(os.path.join(d, name), optimize=True)
+    log('portrait char%d: %dx%d (large)' % (cid, W, H))
+
+
+# ------------------------------------------------------------------------------------------
 # Touch-control buttons (restored control sets)
 # ------------------------------------------------------------------------------------------
 # The mobile controls atlas (controls/gameplay/controls_gameplay.plist) draws every small button
@@ -1232,6 +1324,12 @@ def build_character(args, cid, spec, work):
     plain = {k: v[0] for k, v in all_layers[name].items()}
     canvas, head_pos = rest_pose(tree, R, plain, parts)
     icons = make_icons(canvas, head_pos, spec['key'])
+    # Main-menu portrait (optional: the game falls back to the generic one without it)
+    try:
+        portrait = make_portrait(tree, R, plain)
+    except Exception as e:  # noqa: BLE001
+        log('character%d: no main-menu portrait (%s)' % (cid, e))
+        portrait = None
 
     # Character-select entry
     offset = spec.get('select_offset')
@@ -1249,7 +1347,7 @@ def build_character(args, cid, spec, work):
         'vehicles': [{'offset': pt(*offset), 'class': spec['vehicle_cls'], 'key': spec['vehicle_key'],
                       'specialOnLeft': spec['special_on_left']}],
     }
-    return entry, icons
+    return entry, icons, portrait
 
 
 def calibrate(args, work):
@@ -1388,9 +1486,11 @@ def main():
     entries, icons, sounds = [], {}, []
     try:
         for cid in ids:
-            entry, ic = build_character(args, cid, SPECS[cid], os.path.join(work, str(cid)))
+            entry, ic, portrait = build_character(args, cid, SPECS[cid], os.path.join(work, str(cid)))
             entries.append(entry)
             icons.update(ic)
+            if portrait is not None:
+                write_portraits(args.out, cid, portrait)
             sounds += SPECS[cid].get('sounds', [])
     except Exception as e:  # noqa: BLE001
         import traceback

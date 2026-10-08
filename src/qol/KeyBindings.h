@@ -1,6 +1,6 @@
 #pragma once
 // Remappable keyboard controls (PC addition, QoL page "controls"). Every action has up to two
-// keys; the defaults are the keyboard bridge's original keys (src/platform/win32/PCInput.cpp).
+// keys; the defaults are the keyboard bridge's original keys (src/platform/desktop/PCInput.cpp).
 // Persisted in UserDefault under "qol_keys_<action>" ("code,code", cocos2d KeyCode values).
 //
 // Android: the Cocos2dxGLSurfaceView forwards only back / menu / d-pad / enter / play-pause to the
@@ -10,6 +10,10 @@
 #include <vector>
 
 #include "base/CCEventKeyboard.h"
+
+namespace cocos2d {
+class Label;
+}
 
 namespace qol {
 
@@ -47,5 +51,9 @@ bool keyIs(cocos2d::EventKeyboard::KeyCode key, KeyAction action);
 std::string keyName(cocos2d::EventKeyboard::KeyCode key);
 // "up / w" ("-" when unbound).
 std::string keysText(KeyAction action);
+// In-game key hint: keysText in capitals ("UP / W").
+std::string keyHint(KeyAction action);
+// A small yellow, outlined label with keyHint(action) (reset button, tutorial arrows).
+cocos2d::Label* createKeyHintLabel(KeyAction action, float fontSize);
 
 }  // namespace qol

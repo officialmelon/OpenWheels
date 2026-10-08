@@ -1,4 +1,8 @@
-# OpenWheels - native Windows (Win32 / x86) build on top of cocos2d-x 3.17.2.
+# OpenWheels - native Windows (Win32 / x86), Linux (x86_64), macOS and iOS builds on top of
+# cocos2d-x 3.17.2. (Android has its own CMakeLists in android/app/.)
+#
+# Linux / macOS:  tools/fetch_engine.sh && tools/build.sh   (see docs/DESKTOP.md)
+# iOS:            tools/build.sh --ios   (generates an Xcode project; see docs/IOS.md)
 #
 # Modeled on cocos2d-x 3.17.2 templates/cpp-template-default/CMakeLists.txt:
 # the engine is pulled in through its own CocosBuildSet machinery and
@@ -20,7 +24,7 @@
 # emits because the prebuilt libchipmunk.lib carries dllexport directives.)
 
 # 3.12+: file(GLOB_RECURSE ... CONFIGURE_DEPENDS)
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.13)
 
 set(APP_NAME OpenWheels)
 
@@ -43,10 +47,10 @@ set(CMAKE_MODULE_PATH ${COCOS2DX_ROOT_PATH}/cmake/Modules/)
 if(NOT EXISTS "${COCOS2DX_ROOT_PATH}/cocos/cocos2d.h")
     message(FATAL_ERROR "cocos2d-x 3.17.2 not found in ${COCOS2DX_ROOT_PATH}; run tools/fetch_engine.ps1 first.")
 endif()
-if(NOT WIN32)
-    message(FATAL_ERROR "This CMakeLists only supports the native Windows build for now.")
+if(ANDROID)
+    message(FATAL_ERROR "Android builds use android/app/CMakeLists.txt (tools/build_android.ps1).")
 endif()
-if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
+if(WIN32 AND NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
     message(FATAL_ERROR "cocos2d-x 3.17.2 only ships 32-bit win32 prebuilt libs: configure with -A Win32.")
 endif()
 
@@ -104,16 +108,36 @@ add_subdirectory(${COCOS2DX_ROOT_PATH}/cocos ${ENGINE_BINARY_PATH}/cocos/core)
 # entry points, src/platform/<os>/; src/platform/win32/ and the cross-platform
 # helper folders (src/platform/debug/, src/platform/stubs/, ...) are built.
 # ---------------------------------------------------------------------------
+#
+# Platform folders: src/platform/<os>/ holds one OS's entry point; src/platform/desktop/ is shared
+# by the PC builds (Windows, Linux, macOS: keyboard bridge, --dump-world runner) and
+# src/platform/unix/ by Linux and macOS (POSIX main, crash handler).
+if(WIN32)
+    set(OW_PLATFORM_DIRS win32 desktop)
+elseif(IOS)
+    set(OW_PLATFORM_DIRS ios)
+elseif(APPLE)
+    set(OW_PLATFORM_DIRS mac desktop unix)
+else()
+    set(OW_PLATFORM_DIRS linux desktop unix)
+endif()
 file(GLOB_RECURSE GAME_SOURCES CONFIGURE_DEPENDS
      ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
      ${CMAKE_CURRENT_SOURCE_DIR}/src/*.c
      ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
      ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp
      ${CMAKE_CURRENT_SOURCE_DIR}/src/platform/win32/*.rc
+     ${CMAKE_CURRENT_SOURCE_DIR}/src/platform/ios/*.mm
+     ${CMAKE_CURRENT_SOURCE_DIR}/src/platform/ios/*.m
+     ${CMAKE_CURRENT_SOURCE_DIR}/src/platform/mac/*.mm
      )
-foreach(foreign_os android ios mac linux winrt tizen emscripten)
-    list(FILTER GAME_SOURCES EXCLUDE REGEX "/src/platform/${foreign_os}/")
+foreach(platform_dir android ios mac linux win32 desktop unix winrt tizen emscripten)
+    list(FIND OW_PLATFORM_DIRS ${platform_dir} ow_platform_index)
+    if(ow_platform_index EQUAL -1)
+        list(FILTER GAME_SOURCES EXCLUDE REGEX "/src/platform/${platform_dir}/")
+    endif()
 endforeach()
+
 # OW_WITH_EDITOR=OFF leaves out src/editor/ (only a few LevelSession hooks reach it); used by
 # private verification build trees, e.g. tools/build.ps1 -BuildDir build_parity.
 option(OW_WITH_EDITOR "Build the level editor sources under src/editor/" ON)
@@ -126,16 +150,54 @@ if(NOT OW_WITH_EDITOR)
 endif()
 
 
+if(IOS)
+    # The iOS launch screen and Info.plist (src/platform/ios/).
+    set(OW_IOS_RES
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/platform/ios/LaunchScreen.storyboard
+        )
+    list(APPEND GAME_SOURCES ${OW_IOS_RES})
+    # The player's own Android assets, bundled as OpenWheels.app/assets/ when present (otherwise
+    # copy them into the app's Documents/assets/ with Finder; see docs/IOS.md).
+    set(OW_ANDROID_ASSETS "${CMAKE_CURRENT_SOURCE_DIR}/binary/HappyWheels_Android/HW_Android/assets"
+        CACHE PATH "The Android game's assets/ folder from your own copy")
+    if(EXISTS "${OW_ANDROID_ASSETS}/shared")
+        file(GLOB_RECURSE OW_IOS_ASSET_FILES "${OW_ANDROID_ASSETS}/*")
+        foreach(asset ${OW_IOS_ASSET_FILES})
+            file(RELATIVE_PATH asset_rel "${OW_ANDROID_ASSETS}" "${asset}")
+            get_filename_component(asset_dir "${asset_rel}" DIRECTORY)
+            set_source_files_properties("${asset}" PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/assets/${asset_dir}")
+        endforeach()
+        list(APPEND GAME_SOURCES ${OW_IOS_ASSET_FILES})
+    else()
+        message(WARNING "No Android assets at ${OW_ANDROID_ASSETS}: the iOS app will ask for them at start-up "
+                        "(copy them into its Documents/assets/ with Finder).")
+    endif()
+endif()
+
 add_executable(${APP_NAME} ${GAME_SOURCES})
 
 # The original's rand()/srand()/RAND_MAX are bionic's (BSD random(), 31-bit); force the same
-# generator into the reconstructed game code only (engine code keeps the MSVC CRT's).
-if(MSVC)
-    set(OW_GAME_TUS ${GAME_SOURCES})
-    list(FILTER OW_GAME_TUS INCLUDE REGEX "/src/game/.*\\.cpp$")
-    if(OW_GAME_TUS)
+# generator into the reconstructed game code only (engine code keeps the platform libc's).
+set(OW_GAME_TUS ${GAME_SOURCES})
+list(FILTER OW_GAME_TUS INCLUDE REGEX "/src/game/.*\\.cpp$")
+if(OW_GAME_TUS)
+    if(MSVC)
         set_source_files_properties(${OW_GAME_TUS} PROPERTIES COMPILE_OPTIONS "/FIplatform/compat/BionicRand.h")
+    else()
+        set_source_files_properties(${OW_GAME_TUS} PROPERTIES COMPILE_OPTIONS
+            "-include;${CMAKE_CURRENT_SOURCE_DIR}/src/platform/compat/BionicRand.h")
     endif()
+endif()
+if(LINUX)
+    # The v3-deps-158 linux prebuilts (freetype, ...) are not position independent: link a classic
+    # (non-PIE) executable, as toolchains of that era did by default.
+    target_link_options(${APP_NAME} PRIVATE -no-pie)
+endif()
+if(NOT MSVC)
+    # The reconstruction mirrors the original's (clang, arm64) float behaviour: no FMA contraction
+    # (x86_64 GCC would otherwise fuse a*b+c on -march levels with FMA) and no fast-math.
+    target_compile_options(${APP_NAME} PRIVATE -ffp-contract=off -fno-fast-math
+        $<$<COMPILE_LANGUAGE:CXX>:-Wno-deprecated-declarations>)
 endif()
 
 target_link_libraries(${APP_NAME} cocos2d)
@@ -154,6 +216,23 @@ target_include_directories(${APP_NAME}
 
 # bin/OpenWheels/<Config>/OpenWheels.exe, /SUBSYSTEM:WINDOWS, IDE source groups
 setup_cocos_app_config(${APP_NAME})
+if(APPLE)
+    find_library(OW_SECURITY_FRAMEWORK Security)
+    target_link_libraries(${APP_NAME} ${OW_SECURITY_FRAMEWORK})
+    if(IOS)
+        set_target_properties(${APP_NAME} PROPERTIES RESOURCE "${OW_IOS_RES}")
+        set_target_properties(${APP_NAME} PROPERTIES
+            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/ios/Info.plist")
+        set_xcode_property(${APP_NAME} IPHONEOS_DEPLOYMENT_TARGET "11.0")
+        set_xcode_property(${APP_NAME} TARGETED_DEVICE_FAMILY "1,2")
+        set_xcode_property(${APP_NAME} DEVELOPMENT_TEAM "$ENV{OW_IOS_TEAM}")
+        set_xcode_property(${APP_NAME} CODE_SIGN_IDENTITY "iPhone Developer")
+        set_xcode_property(${APP_NAME} PRODUCT_BUNDLE_IDENTIFIER "org.openwheels.game")
+    else()
+        set_target_properties(${APP_NAME} PROPERTIES
+            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/mac/Info.plist")
+    endif()
+endif()
 if(MSVC)
     # As in the engine's own VS projects (IgnoreSpecificDefaultLibraries): the
     # prebuilt freetype/libjpeg/libwebp were compiled with /MT and request
@@ -173,7 +252,7 @@ set_target_properties(${APP_NAME} PROPERTIES
 # PC platform layer (keyboard -> virtual touches, --dump-world verification runner). Needs the
 # reconstructed game to link, so it stays OFF until src/game is complete.
 option(OW_WITH_PC_LAYER "Build the PC keyboard bridge and --dump-world runner" ON)
-if(OW_WITH_PC_LAYER)
+if(OW_WITH_PC_LAYER AND NOT IOS)
     target_compile_definitions(${APP_NAME} PRIVATE OW_WITH_PC_LAYER=1)
 endif()
 
@@ -229,6 +308,38 @@ if(Python3_FOUND)
                 --optional --swf-dir "${OW_FLASH_CHARACTERS}" --sounds-swf "${OW_FLASH_SOUNDS}"
                 --ffdec "${OW_FFDEC_DIR}" --out "$<TARGET_FILE_DIR:${APP_NAME}>/generated/restored"
         COMMENT "Building the restored browser characters from ${OW_FLASH_CHARACTERS} (skipped if missing)")
+    # Main-menu portraits the step above could not draw (restored characters generated by an
+    # older script, or a copied generated/ folder): drawn from the generated sprites by
+    # tools/assets/restored_portraits.py, only where missing. Skipped quietly without them.
+    add_custom_command(TARGET ${APP_NAME} POST_BUILD
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/assets/restored_portraits.py
+                --optional --out "$<TARGET_FILE_DIR:${APP_NAME}>/generated/restored"
+        COMMENT "Drawing missing restored-character portraits (skipped if none are missing)")
+endif()
+
+# RESTORED (PC addition): OpenWheels' own campaign chapters for the restored characters
+# (res/levels/restored/: chapters.plist and browser-format level XML - our own content, in the
+# repository). The game reads them as levels/restored/... through a search path after the
+# player's assets: the exe folder on Windows / Linux / macOS (Contents/MacOS inside the .app,
+# where generated/ goes too), the bundle root on iOS (bundle resources). Android stages them in
+# android/app/build.gradle.
+set(OW_CAMPAIGN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/res/levels/restored")
+if(EXISTS "${OW_CAMPAIGN_DIR}")
+    if(IOS)
+        file(GLOB_RECURSE OW_CAMPAIGN_FILES CONFIGURE_DEPENDS "${OW_CAMPAIGN_DIR}/*.plist" "${OW_CAMPAIGN_DIR}/*.xml")
+        foreach(ow_campaign_file ${OW_CAMPAIGN_FILES})
+            file(RELATIVE_PATH ow_campaign_rel "${CMAKE_CURRENT_SOURCE_DIR}/res" "${ow_campaign_file}")
+            get_filename_component(ow_campaign_rel_dir "${ow_campaign_rel}" DIRECTORY)
+            set_source_files_properties("${ow_campaign_file}" PROPERTIES
+                MACOSX_PACKAGE_LOCATION "Resources/${ow_campaign_rel_dir}" HEADER_FILE_ONLY TRUE)
+        endforeach()
+        target_sources(${APP_NAME} PRIVATE ${OW_CAMPAIGN_FILES})
+    else()
+        add_custom_command(TARGET ${APP_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory "${OW_CAMPAIGN_DIR}"
+                    "$<TARGET_FILE_DIR:${APP_NAME}>/levels/restored"
+            COMMENT "Copying the restored characters' campaign levels")
+    endif()
 endif()
 
 # ONLINE (PC addition): art for the browser-level items the mobile game lacks (furniture, food,
@@ -260,4 +371,6 @@ endif()
 # Copy the runtime DLLs of every imported engine dependency next to the exe
 # (glew32, libcurl, websockets, sqlite3, libmpg123, OpenAL32, libogg/vorbis,
 # zlib1, iconv, libcrypto/libssl ...), like the template's post-build step.
-cocos_copy_target_dll(${APP_NAME})
+if(WIN32)
+    cocos_copy_target_dll(${APP_NAME})
+endif()

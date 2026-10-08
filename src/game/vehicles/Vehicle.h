@@ -6,6 +6,7 @@
 #include "LevelItem.h"
 #include "CharacterB2D.h"  // CharacterB2D, CharacterInjury
 
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -185,6 +186,35 @@ public:
     // Finish callback of _wheelSound.
     void wheelSoundStopped();                                                  // @0063f170
 
+    // ---- QOL (PC addition): re-grab vehicle (qol::regrabVehicle, docs/QOL.md) -----------------
+    // An ejected main character whose hand grabs a body of this vehicle gets back on. At the first
+    // addCharacter every rider's pose is cached relative to the main body (qolFrameBody), with the
+    // vehicle's bodies and fixture filters. A re-mount puts the vehicle back into that frame for a
+    // moment ("spawn space"), puts the rider back into his cached pose, runs the subclass's own
+    // attach code there (its anchors are spawn-time world points), moves everything back onto
+    // the vehicle's current transform and gives the rider the frame's velocity. Joints keep only
+    // body-local anchors and reference angles, so they come out exactly as at the start.
+    // Main body the rider poses are cached against; nullptr: no re-mount.
+    virtual b2Body* qolFrameBody() { return nullptr; }
+    // Not smashed, and `character` still has what checkStateOfCharacter needs to keep him on.
+    virtual bool qolCanRemount(CharacterB2D* character) { return false; }
+    // Undoes the subclass's eject side effects and attaches `character` again (through
+    // qolMount); the lost limbs are let go afterwards (qolReplayInjuries).
+    virtual void qolRemount(CharacterB2D* character) {}
+    // Bodies to put back into their spawn pose relative to the frame while mounting (pedal
+    // cranks, so the feet land on the pedals), see qolMount.
+    virtual void qolRemountResetBodies(std::vector<b2Body*>* bodies) {}
+    // The body is part of this vehicle (reachable from the frame through joints, cached at the
+    // start; riders' bodies excluded).
+    bool qolOwnsBody(b2Body* body, CharacterB2D* rider);
+    // CharacterB2D's entry point: true when `character` rides this vehicle again.
+    bool qolTryRemount(CharacterB2D* character);
+    // The rider's joint is there and still holds his limb (not a dislocated stub): a re-mounted
+    // rider may have lost limbs, the subclasses' attach code skips their joints.
+    static bool qolLimb(CharacterB2D* character, b2RevoluteJoint* joint);
+    // A body of this vehicle that the hand fixture overlaps (any filter), or nullptr.
+    b2Body* qolTouchedBody(b2Fixture* hand, CharacterB2D* rider);
+
 protected:
     std::map<b2RevoluteJoint*, float> _wheelJointSpeedDict;      // +0x98   motor speed ratio per wheel joint
     std::vector<b2RevoluteJoint*> _wheelJoints;                  // +0xb0   motorised wheels (addWheelJoint)
@@ -215,4 +245,43 @@ protected:
     // RE-TODO(@00641cd8): every vehicle ctor stores 9989 (0x2705) here; no enumerator has that value
     // (CharacterB2D's current pose gets the same initial value).
     VehiclePose _currentPose = static_cast<VehiclePose>(9989);   // +0x1b0
+
+    // ---- QOL (PC addition): re-grab vehicle --------------------------------------------------
+    // ejectCharacter's last rider: Vehicle::cancelPose's _characters[0] once the list is empty
+    // (the binary reads the erased element left in the vector's storage, i.e. this rider).
+    CharacterB2D* _qolLastRider = nullptr;
+    // Position and (unwrapped) body angle: joint angles are differences of body angles, so a
+    // body moved back must get its own angle back, not an angle rebuilt from a rotation.
+    struct QolXf
+    {
+        b2Vec2 p;
+        float a;
+    };
+    struct QolRiderPose
+    {
+        QolXf frame;                              // qolFrameBody at the start
+        std::map<b2Body*, QolXf> bodies;          // the rider's eleven parts at the start
+    };
+    struct QolPlanBody
+    {
+        b2Body* body;
+        QolXf spawn;   // in spawn space (the frame at its start transform)
+        QolXf target;  // final
+    };
+    std::map<CharacterB2D*, QolRiderPose> _qolRiderPoses;
+    std::map<b2Body*, QolXf> _qolSpawnTransforms;         // vehicle bodies at the start
+    std::map<b2Fixture*, b2Filter> _qolFilters;           // vehicle fixtures' riding filters
+    bool _qolCached = false;
+    std::vector<QolPlanBody> _qolPlan;                    // rider bodies of the pending re-mount
+    void qolCacheRider(CharacterB2D* character);
+    std::vector<b2Body*> qolVehicleBodies(CharacterB2D* rider);
+    bool qolPlanRemount(CharacterB2D* character);
+    // Runs `attach` in spawn space (see above). Rider and vehicle bodies end up in place.
+    void qolMount(CharacterB2D* character, const std::function<void()>& attach);
+    void qolRestoreFilters(CharacterB2D* rider);
+    // Lets go of the limbs lost since the start (handleInjury for each recorded limb injury).
+    void qolReplayInjuries(CharacterB2D* character);
+    // A dead / dying / fatally hurt rider (any head, chest, pelvis smash, torso or neck break)
+    // can not get back on.
+    bool qolRiderFit(CharacterB2D* character);
 };

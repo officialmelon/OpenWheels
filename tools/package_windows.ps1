@@ -6,7 +6,8 @@
     1. Builds the Release configuration (tools\build.ps1 -Config Release), which also generates
        gametext.tsv / soundlist.tsv and the browser-game art under generated\ from the player's
        own files in binary\.
-    2. Copies OpenWheels.exe, its runtime DLLs, the .tsv tables and generated\.
+    2. Copies OpenWheels.exe, its runtime DLLs, the .tsv tables, generated\ and the restored
+       characters' campaign levels (res\levels\restored -> levels\restored).
     3. Copies the game's assets (binary\HappyWheels_Android\HW_Android\assets) to assets\ and the
        iOS bundle's resources (level-editor art, Localizable.strings; not its executable) to ios\,
        which the exe finds next to itself.
@@ -40,6 +41,14 @@ Copy-Item (Join-Path $bin 'OpenWheels.exe') $dest
 Get-ChildItem $bin -Filter *.dll | Copy-Item -Destination $dest
 Get-ChildItem $bin -Filter *.tsv | Copy-Item -Destination $dest
 if (Test-Path (Join-Path $bin 'generated')) { Copy-Item -Recurse (Join-Path $bin 'generated') $dest }
+# OpenWheels' campaign chapters for the restored characters (res\levels\restored, copied next to the
+# exe by the build as levels\restored).
+$campaign = Join-Path $repo 'res\levels\restored'
+if (Test-Path $campaign) {
+    $levelsDest = Join-Path $dest 'levels'
+    New-Item -ItemType Directory -Force $levelsDest | Out-Null
+    Copy-Item -Recurse $campaign (Join-Path $levelsDest 'restored')
+}
 
 $assets = Join-Path $repo 'binary\HappyWheels_Android\HW_Android\assets'
 if (-not (Test-Path $assets)) { throw "game assets not found: $assets" }

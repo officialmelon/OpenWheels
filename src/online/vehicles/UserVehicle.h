@@ -131,8 +131,10 @@ void destroyUserVehicles(LevelB2D* level);
 
 // --- PC keyboard: keys without an on-screen button ---------------------------------------------
 // Shift (0x20) and Ctrl (0x40) are the browser game's secondary action keys; Z (0x80) ejects from
-// a user vehicle, whose rider uses the ejected control layout (no eject button). PCInput reports
-// them, Gameplay::update ORs them into the control byte of converted levels.
+// a user vehicle, whose rider uses the ejected control layout (no eject button); Space (0x10) is
+// also reported, so the vehicle's space action does not depend on a 0x10 button being on screen
+// (or on the key's virtual finger following a layout change). PCInput reports them,
+// Gameplay::update ORs them into the control byte of converted levels.
 void setPcExtraKey(unsigned char bit, bool down);
 unsigned char pcExtraControlBits();
 

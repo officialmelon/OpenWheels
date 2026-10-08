@@ -16,6 +16,7 @@
 #include "Settings.h"
 #include "Sound.h"
 #include "platform/compat/Box2DFloat.h"
+#include "online/FlashPhysics.h"  // RESTORED (PC addition): per-step constants at 1/30 too
 
 USING_NS_CC;
 
@@ -402,14 +403,22 @@ void Sleigh::addSanta(CharacterB2D* santa)
 {
     _santa = santa;
     Vehicle::addCharacter(santa);
+    attachSanta(santa);
+}
+
+// QOL (PC addition): split from addSanta for a re-mount (re-grab vehicle). His eject took the
+// reins away (checkReins): a re-mounted Santa holds on to the sleigh at the same point.
+void Sleigh::attachSanta(CharacterB2D* santa)
+{
     b2World* world = getWorld();
     limitJoint(santa->getNeckJoint(), santa->getChestBody(), santa->getHeadBody(), -5.0f, 5.0f);
 
+    b2Body* reins = _reinsBody ? _reinsBody : _sleighBody;
     b2RevoluteJointDef def;
     def.maxMotorTorque = _maxTorque;
-    def.Initialize(_reinsBody, santa->getLowerArm1Body(), point("handAnchor"));
+    def.Initialize(reins, santa->getLowerArm1Body(), point("handAnchor"));
     addBodyVehicleJoint(santa->getLowerArm1Body(), world->CreateJoint(&def));
-    def.Initialize(_reinsBody, santa->getLowerArm2Body(), point("handAnchor"));
+    def.Initialize(reins, santa->getLowerArm2Body(), point("handAnchor"));
     addBodyVehicleJoint(santa->getLowerArm2Body(), world->CreateJoint(&def));
     def.Initialize(_sleighBody, santa->getPelvisBody(), santa->getPelvisBody()->GetWorldCenter());
     def.enableLimit = true;
@@ -915,13 +924,16 @@ void Sleigh::forwardButtonPressed()
     }
     // Flash upPressedActions (clockwise = forward = mobile negative).
     float speed = owb2::jointSpeed(_rollerJoints[1]);
-    float next = speed > 0.0f ? 0.0f : (speed > -_wheelMaxSpeed ? speed - _accelStep : speed);
+    // RESTORED (PC addition): _accelStep is per 60 Hz step; online::perStep converts it to the
+    // current step (x2 at the browser physics profile's 1/30, online/FlashPhysics.h).
+    const float accelStep = online::perStep(_accelStep);
+    float next = speed > 0.0f ? 0.0f : (speed > -_wheelMaxSpeed ? speed - accelStep : speed);
     for (b2RevoluteJoint* j : _rollerJoints) {
         j->SetMotorSpeed(next);
     }
     if (_reinsJoint) {
         _reinsJoint->SetMotorSpeed(sinf(_pumpCounter) * 6.0f);
-        _pumpCounter += 0.3f;
+        _pumpCounter += online::perStep(0.3f);  // RESTORED (PC addition): 0.3 per 60 Hz step
     }
 }
 
@@ -940,13 +952,14 @@ void Sleigh::backButtonPressed()
         }
     }
     float speed = owb2::jointSpeed(_rollerJoints[2]);
-    float next = speed < 0.0f ? 0.0f : (speed < _wheelMaxSpeed ? speed + _accelStep : speed);
+    const float accelStep = online::perStep(_accelStep);  // RESTORED (PC addition), as above
+    float next = speed < 0.0f ? 0.0f : (speed < _wheelMaxSpeed ? speed + accelStep : speed);
     for (b2RevoluteJoint* j : _rollerJoints) {
         j->SetMotorSpeed(next);
     }
     if (_reinsJoint) {
         _reinsJoint->SetMotorSpeed(sinf(_pumpCounter) * 6.0f);
-        _pumpCounter += 0.3f;
+        _pumpCounter += online::perStep(0.3f);  // RESTORED (PC addition): 0.3 per 60 Hz step
     }
 }
 
@@ -1031,7 +1044,7 @@ void Sleigh::updateMeter()
 void Sleigh::antiGravity(bool elvesOnly)
 {
     b2Vec2 lift = -getWorld()->GetGravity();
-    lift *= 1.0f / 60.0f;
+    lift *= LevelItem::s_timeStep;  // RESTORED (PC addition): one step (was 1/60)
     std::vector<b2Body*> bodies;
     if (!elvesOnly) {
         bodies = _floating;
@@ -1082,8 +1095,9 @@ void Sleigh::elfRun(Elf& elf, int direction)
         elf.wheelJoint->EnableMotor(true);
     }
     float speed = -owb2::jointSpeed(elf.wheelJoint);  // Flash sense
-    float next = direction > 0 ? (speed < elf.maxSpeed ? speed + elf.accelStep : speed)
-                               : (speed > -elf.maxSpeed ? speed - elf.accelStep : speed);
+    const float accelStep = online::perStep(elf.accelStep);  // RESTORED (PC addition): per 60 Hz step
+    float next = direction > 0 ? (speed < elf.maxSpeed ? speed + accelStep : speed)
+                               : (speed > -elf.maxSpeed ? speed - accelStep : speed);
     elf.wheelJoint->SetMotorSpeed(-next);
     elf.runPose = direction;
 }
@@ -1162,11 +1176,14 @@ void Sleigh::actions()
     }
 
     // Flight (Flash spacePressedActions / spaceNullActions, per 30 Hz frame -> per step / 2).
+    // RESTORED (PC addition): per step at the current rate (online::perStep: / 2 only at 1/60;
+    // the snow spray once per Flash frame, online::stepsPerFlashFrame).
+    const float boostStep = online::perStep(_boostStep);
     if (_boosting && !_santaEjected) {
-        _boostVal = std::min(_boostMax, _boostVal + _boostStep);
+        _boostVal = std::min(_boostMax, _boostVal + boostStep);
         if (_boostVal < _boostMax) {
             antiGravity(false);
-            if (_sleighBody && (_frame % 2) == 0) {
+            if (_sleighBody && (_frame % online::stepsPerFlashFrame()) == 0) {
                 b2Vec2 a = _sprayStart;
                 b2Vec2 b = _sprayEnd;
                 std::vector<std::string> frames;
@@ -1187,7 +1204,7 @@ void Sleigh::actions()
             stopLoop(_bellLoop, 0.5f);
         }
     } else {
-        _boostVal = std::max(0.0f, _boostVal - _boostStep);
+        _boostVal = std::max(0.0f, _boostVal - boostStep);
         stopLoop(_bellLoop, 0.5f);
     }
     updateMeter();
@@ -1585,4 +1602,36 @@ void Sleigh::sleighSmash()
     if (gameplay() && first) {
         createBodySound("SleighSmash", first, 1.0f, false);
     }
+}
+
+// ---- QOL (PC addition): re-grab vehicle (src/game/vehicles/Vehicle.h) ---------------------------
+// Only Santa gets back on; an elf, once off, stays off.
+
+b2Body* Sleigh::qolFrameBody()
+{
+    return _sleighBody;
+}
+
+// checkStateOfCharacter: Santa is off once both hands and both feet have let go (a smashed foot
+// keeps holding, handleInjury).
+bool Sleigh::qolCanRemount(CharacterB2D* character)
+{
+    return character == _santa && !_sleighSmashed && _sleighBody &&
+           !(character->qolLostLowerArm(1) && character->qolLostLowerArm(2) &&
+             character->qolLostLowerLeg(1, false) && character->qolLostLowerLeg(2, false));
+}
+
+// santaEject: _santaEjected / _ejected, the reins gone (attachSanta), the sleigh's group -1
+// shapes and the third roller in group 0 (qolRestoreFilters), the roller motors off (the drive
+// buttons switch them on), the flight stopped. He goes back to the front of _characters.
+void Sleigh::qolRemount(CharacterB2D* character)
+{
+    _santaEjected = false;
+    _ejected = false;
+    qolRestoreFilters(character);
+    qolMount(character, [this, character]() {
+        _characters.insert(_characters.begin(), character);
+        attachSanta(character);
+    });
+    qolReplayInjuries(character);
 }

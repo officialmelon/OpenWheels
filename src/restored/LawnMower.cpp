@@ -16,6 +16,7 @@
 #include "Settings.h"
 #include "Sound.h"
 #include "online/items/Grindable.h"  // ONLINE (PC addition): NPCs / food of browser levels
+#include "online/FlashPhysics.h"  // RESTORED (PC addition): per-step constants at 1/30 too
 
 USING_NS_CC;
 
@@ -436,6 +437,8 @@ void LawnMower::forwardButtonPressed()
     if (_mowerSmashed) {
         return;
     }
+    // RESTORED (PC addition): 1.5 per 60 Hz step (Flash 3 per frame) at the current step.
+    _accelStep = online::perStep(1.5f);
     Vehicle::forwardButtonPressed();
     fadeLoop(_mowerLoop, 1.0f, 0.25f, false);
 }
@@ -445,6 +448,7 @@ void LawnMower::backButtonPressed()
     if (_mowerSmashed) {
         return;
     }
+    _accelStep = online::perStep(1.5f);  // RESTORED (PC addition), as above
     Vehicle::backButtonPressed();
     fadeLoop(_mowerLoop, 1.0f, 0.25f, false);
 }
@@ -1277,4 +1281,30 @@ void LawnMower::fadeLoop(Sound*& sound, float volume, float time, bool stop)
         sound->setFinishCallback(nullptr);
         sound = nullptr;
     }
+}
+
+// ---- QOL (PC addition): re-grab vehicle (src/game/vehicles/Vehicle.h) ---------------------------
+
+b2Body* LawnMower::qolFrameBody()
+{
+    return _mowerBody;
+}
+
+// checkStateOfCharacter: off once both hands and both feet have let go.
+bool LawnMower::qolCanRemount(CharacterB2D* character)
+{
+    return character == _rider && !_mowerSmashed && _mowerBody &&
+           !(character->qolLostLowerArm(1) && character->qolLostLowerArm(2) &&
+             character->qolLostLowerLeg(1) && character->qolLostLowerLeg(2));
+}
+
+// ejectCharacter: _ejected, controls nulled, the legs solid again (addCharacter makes the
+// remaining ones sensors again), the shocks locked (as while riding). The mower keeps the riders'
+// group, so his hands reach it through qolTouchedBody (no contact).
+void LawnMower::qolRemount(CharacterB2D* character)
+{
+    _ejected = false;
+    qolRestoreFilters(character);
+    qolMount(character, [this, character]() { addCharacter(character); });
+    qolReplayInjuries(character);
 }

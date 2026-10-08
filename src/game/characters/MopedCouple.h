@@ -26,6 +26,13 @@ public:
     void setCurrentPose(CharacterPose pose) override;                       // @005f465c  vptr+0x128
     void startGrab() override;                                              // @005f45fc  vptr+0x130
     void endGrab() override;                                                // @005f462c  vptr+0x138
+    // ONLINE (PC addition): the girl's injury limits follow a time step change too (only the
+    // level's own characters get timeStepChanged; browser physics, online/FlashPhysics.h).
+    void timeStepChanged() override
+    {
+        CharacterB2D::timeStepChanged();
+        if (_girl) _girl->timeStepChanged();
+    }
 
 protected:
     CharacterB2D* _girl = nullptr;  // +0x510  retained (iOS `girl`, a MopedGirl)

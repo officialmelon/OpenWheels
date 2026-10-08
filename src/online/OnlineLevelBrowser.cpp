@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <functional>
 
 #include "Globals.h"
 #include "HWWindow.h"
@@ -14,6 +15,7 @@
 #include "online/OnlinePlay.h"
 #include "online/OnlineUi.h"
 #include "online/account/BrowserExtras.h"  // ONLINE (PC addition): account / replays
+#include "qol/CharacterChoice.h"  // QOL (PC addition): "any character"
 #include "net/NearbyPanels.h"  // NET (PC addition)
 #include "net/race/RaceSession.h"  // NET (PC addition): ghost race
 
@@ -109,20 +111,49 @@ Scene* OnlineLevelBrowser::createScene() {
 
 Scene* OnlineLevelBrowser::sceneForReturnFromLevel() {
     BrowserState& st = state();
-    if (!st.returnPending) return nullptr;
-    st.returnPending = false;
-    RefPtr<Scene> parked = st.parkedScene;
-    st.parkedScene = nullptr;
-    if (!LevelSession::getInstance()->isUserLevel()) return nullptr;
-    // LevelSession::playLevel pushed the level over the browser scene: drop that scene so every
-    // round trip doesn't leave one more scene on the Director's stack. Only when it is still in
-    // the stack (someone besides `parked` holds it) - it then sits right below the running scene.
-    if (parked && parked->getReferenceCount() > 1 && parked.get() != Director::getInstance()->getRunningScene())
-        Director::getInstance()->popScene();
-    parked = nullptr;
-    // What MainMenu::init does when it finds a user level selected.
-    LevelSession::getInstance()->leaveUserLevel();
+    st.playingId = 0;
+    if (!st.levelReturn.take()) {
+        st.autoPlay = false;
+        return nullptr;
+    }
     return createScene();
+}
+
+void OnlineLevelBrowser::levelStarting(int levelId) {
+    BrowserState& st = state();
+    st.levelReturn.park();
+    st.playingId = levelId;
+    st.playingHash = 0;
+}
+
+void OnlineLevelBrowser::cancelLevel() {
+    BrowserState& st = state();
+    st.levelReturn.cancel();
+    st.playingId = 0;
+}
+
+int OnlineLevelBrowser::nextLevelIndex() {
+    const BrowserState& st = state();
+    if (!st.levelReturn.pending || st.playingId == 0 || !st.loaded) return -1;
+    // Still the level the browser started (not a level received from a nearby player since...).
+    LevelSession* session = LevelSession::getInstance();
+    if (!session->isUserLevel() || std::hash<std::string>()(session->levelDataXML()) != st.playingHash) return -1;
+    for (size_t i = 0; i < st.levels.size(); ++i) {
+        if (st.levels[i].id == st.playingId) return i + 1 < st.levels.size() ? (int)i + 1 : -1;
+    }
+    return -1;
+}
+
+bool OnlineLevelBrowser::hasNextLevel() { return nextLevelIndex() >= 0; }
+
+Scene* OnlineLevelBrowser::sceneForNextLevel() {
+    const int next = nextLevelIndex();
+    if (next < 0) return nullptr;
+    BrowserState& st = state();
+    // init reads these: the new browser shows the next level and starts it (playSelected).
+    st.selected = next;
+    st.autoPlay = true;
+    return sceneForReturnFromLevel();
 }
 
 OnlineLevelBrowser::~OnlineLevelBrowser() {
@@ -162,6 +193,14 @@ bool OnlineLevelBrowser::init() {
         refreshDetail();
     } else {
         load();
+    }
+    if (st.autoPlay) {
+        // ONLINE (PC addition): NEXT on a browser level's victory menu (sceneForNextLevel).
+        st.autoPlay = false;
+        if (st.loaded && st.selected >= 0 && st.selected < (int)st.levels.size()) {
+            select(st.selected, true);
+            scheduleOnce([this](float) { playSelected(); }, 0.0f, "online_autoplay");
+        }
     }
     scheduleUpdate();
     return true;
@@ -422,6 +461,13 @@ void OnlineLevelBrowser::buildDetail() {
         _detail->addChild(*values[i]);
     }
     _statColW = statsW;
+    // QOL (PC addition): "any character" - CHANGE plays a level that forces its character through
+    // character select (qol/CharacterChoice.h); levels that let the player pick always do.
+    _charBtn = ui::Button::create("CHANGE", Size(180.0f, 52.0f), ui::Button::window("blue"), 28.0f, ui::kFontBodyBold);
+    _charBtn->setAnchorPoint(Vec2(1.0f, 0.5f));
+    _charBtn->setPosition(R, y - 200.0f);
+    _charBtn->setCallback([this]() { playSelected(true); });
+    _detail->addChild(_charBtn);
     y -= avatar.height + 50.0f;
     // ONLINE (PC addition): RATE + favorite on the author line, the REPLAYS bar below the stats.
     y = _extras->buildDetail(_detail, _authorBtn->getPositionY(), L, R, y);
@@ -787,11 +833,12 @@ void OnlineLevelBrowser::load() {
     _listRequest = st.featured ? api->listFeatured(done) : api->listLevels(st.query, done);
 }
 
-void OnlineLevelBrowser::playSelected() {
+void OnlineLevelBrowser::playSelected(bool chooseCharacter) {
     BrowserState& st = state();
     if (_playing || st.selected < 0 || st.selected >= (int)st.levels.size()) return;
     const OnlineLevelInfo level = st.levels[st.selected];
     _playing = true;
+    _chooseCharacter = chooseCharacter;
     const bool cached = HWApi::getInstance()->isCached(level.id);
     refreshPlayButton();
     _status->setString(cached ? "Loading level..." : "Downloading level...");
@@ -887,21 +934,22 @@ void OnlineLevelBrowser::finishPlay(const std::string& xml) {
     std::string error;
     // Remember the browser for the way back before the level scene is pushed.
     st.fieldText = _field->text();
-    st.returnPending = true;
-    st.parkedScene = Director::getInstance()->getRunningScene();
-    if (!startConvertedLevel(xml, &report, &error)) {
-        st.returnPending = false;
-        st.parkedScene = nullptr;
+    const bool hasLevel = st.selected >= 0 && st.selected < (int)st.levels.size();
+    levelStarting(hasLevel ? st.levels[st.selected].id : 0);
+    if (!startConvertedLevel(xml, &report, &error, _chooseCharacter)) {
+        cancelLevel();
         _playing = false;
         refreshPlayButton();
         HWWindow* w = Settings::getInstance()->createWindow(HWWindowAppearanceAlert, nullptr, false, false);
         w->showAlertMessage("Couldn't play this level", friendlyError(error), "OK", "", true);
         return;
     }
+    // NEXT on its victory menu checks that this level still plays (nextLevelIndex).
+    st.playingHash = std::hash<std::string>()(LevelSession::getInstance()->levelDataXML());
     // The converter's warnings (report.warnings) go to the log only: the level just starts.
     for (const std::string& w : report.warnings) log("online: %s", w.c_str());
     // ONLINE (PC addition): runs of this level are recorded as browser replays.
-    if (st.selected >= 0 && st.selected < (int)st.levels.size()) BrowserExtras::levelStarted(st.levels[st.selected]);
+    if (hasLevel) BrowserExtras::levelStarted(st.levels[st.selected]);
     _status->setString("Starting...");
 }
 
@@ -1200,6 +1248,9 @@ void OnlineLevelBrowser::refreshPlayButton() {
     const bool has = st.selected >= 0 && st.selected < (int)st.levels.size();
     _playBtn->setEnabled(has && !_playing);
     if (_editBtn) _editBtn->setEnabled(has && !_playing);  // EDITOR (PC addition)
+    if (_charBtn)  // QOL (PC addition)
+        _charBtn->setVisible(has && !_playing && st.levels[st.selected].character != 0 &&
+                             qol::anyCharacterOnForcedLevels());
     _statusSpinner->setVisible(_playing);
     _status->setPositionX(_detailRect.origin.x + 70.0f + (_playing ? 84.0f : 0.0f));
     _cachedBadge->setVisible(has && !_playing && HWApi::getInstance()->isCached(st.levels[st.selected].id));

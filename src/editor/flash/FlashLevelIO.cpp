@@ -92,7 +92,9 @@ std::string shapeNode(Special* ref, bool inVehicle, GroupRef* group, int* vertex
     s += attrN("p4", normalizedAngle(shape->getRotation()));
     s += attrB("p5", shape->fixed()) + attrB("p6", shape->sleeping()) +
          (std::isnan(shape->density()) ? attr("p7", "NaN") : attrN("p7", shape->density()));
-    s += attrN("p8", shape->color()) + attrN("p9", shape->outlineColor()) + attrN("p10", shape->shapeOpacity());
+    // (p8 -1: no fill, kept from a browser level; EDITOR (browser features, PC addition))
+    s += attrN("p8", shape->noFill() ? -1.0 : (double)shape->color()) + attrN("p9", shape->outlineColor()) +
+         attrN("p10", shape->shapeOpacity());
     s += attrN("p11", shape->collision());
     if (t == 1) s += attrN("p12", static_cast<CircleRefShape*>(ref)->innerCutout());
     if (!poly)
@@ -477,6 +479,7 @@ struct Reader
             shape->setValueForKey(Value(d && !strcmp(d, "NaN") ? std::nanf("") : attrF(e, "p7", 1)), "density");
         }
         shape->setColor((unsigned int)((int)attrF(e, "p8", 0) & 0xffffff));
+        shape->setNoFill(attrF(e, "p8", 0) < 0.0f);  // EDITOR (browser features, PC addition)
         shape->setOutlineColor(attrF(e, "p9", -1));
         shape->setShapeOpacity((unsigned int)std::max(0.0f, std::min(100.0f, attrF(e, "p10", 100))));
         shape->setCollision((unsigned int)std::max(1.0f, std::min(7.0f, attrF(e, "p11", 1))));

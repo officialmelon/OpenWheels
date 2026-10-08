@@ -23,6 +23,7 @@
 #include "online/OnlineLevelBrowser.h"
 #include "online/OnlineUi.h"
 #include "net/race/RaceHooks.h"  // NET (PC addition): ghost race
+#include "qol/CharacterChoice.h"  // QOL (PC addition)
 
 USING_NS_CC;
 
@@ -63,6 +64,11 @@ Scene* MainMenu::createScene(MenuMode mode, Node* unused)
     if (Scene* online = online::OnlineLevelBrowser::sceneForReturnFromLevel())
     {
         return online;
+    }
+    // EDITOR (PC addition): and a level started from Your Levels goes back there.
+    if (Scene* userLevels = UserLevelSelectUIView::sceneForReturnFromLevel())
+    {
+        return userLevels;
     }
     Scene* scene = Scene::create();
     MainMenu* layer;
@@ -179,6 +185,7 @@ bool MainMenu::init(bool showLevelSelectMenu)
     if (LevelSession::getInstance()->isUserLevel())
     {
         LevelSession::getInstance()->setChapterIndex(0);
+        qol::restorePlayerCharacter();  // QOL (PC addition): the player's own character again
     }
     LevelSession::getInstance()->clearLevelData();
 
@@ -225,8 +232,10 @@ void MainMenu::addPerspectiveCharacters()
         characterIds.push_back(chapter["characterIndex"].asInt());
     }
 
-    _perspectiveCharacters =
-        PerspectiveCharacters::create(characterIds, Settings::getInstance()->getSelectedChapter(), true);
+    // RESTORED (PC addition): the row is indexed by position; OpenWheels' campaign chapters
+    // (src/restored) have chapter indices 100+.
+    int selectedPosition = Settings::getInstance()->getChapterPosition(Settings::getInstance()->getSelectedChapter());
+    _perspectiveCharacters = PerspectiveCharacters::create(characterIds, std::max(0, selectedPosition), true);
     _perspectiveCharacters->setPosition(0.0f, 0.0f);
     addChild(_perspectiveCharacters);
 }

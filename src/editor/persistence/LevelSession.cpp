@@ -23,6 +23,7 @@
 #include "MainMenu.h"
 #include "Settings.h"
 #include "platform/common/Localization.h"
+#include "qol/CharacterChoice.h"  // QOL (PC addition)
 
 #include <cstdlib>
 
@@ -177,6 +178,7 @@ void LevelSession::setLevelDataWithManagedObject(LevelMO* level)
     // [entity attributesByName] -> copy every non-nil attribute value.
     _levelData.clear();
     _hasLevelData = true;
+    qol::setCharacterOverride(0);  // QOL (PC addition): another level is selected
     if (level)
     {
         _levelData["rating"] = level->rating();
@@ -217,6 +219,7 @@ void LevelSession::clearLevelData()
 {
     _levelData.clear();
     _hasLevelData = false;
+    qol::setCharacterOverride(0);  // QOL (PC addition): another level is selected
     // Port: the Android game takes a non-empty selected level path as the level XML.
     Settings::getInstance()->setSelectedLevelFilePath("");
 }
@@ -256,6 +259,15 @@ void LevelSession::applyToSettings()
     // XML; the game plays them converted (FlashLevelConverter), like online levels.
     settings->setSelectedLevelFilePath(flashed::playableLevelXml(levelDataXML()));
     settings->setForceCharacter(forceCharacter());
+    // QOL (PC addition): a level that lets the player pick no longer replaces the player's own
+    // choice with its default character (character select starts on the player's character);
+    // a forcing one remembers it (qol/CharacterChoice.h).
+    if (!forceCharacter())
+    {
+        qol::restorePlayerCharacter();
+        return;
+    }
+    qol::rememberPlayerCharacter();
     // characterIndex is a character id (see the top of this file).
     settings->setSelectedCharacterId(_characterIndex);
 }
@@ -273,6 +285,7 @@ void LevelSession::leaveUserLevel()
     if (isUserLevel())
     {
         setChapterIndex(0);   // -[MainMenuLayer addPerspectiveCharacters]
+        qol::restorePlayerCharacter();  // QOL (PC addition): the player's own character again
     }
     clearLevelData();
 }

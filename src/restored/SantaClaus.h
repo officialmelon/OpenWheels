@@ -19,6 +19,14 @@ public:
     ~SantaClaus() override;
 
     void setState(unsigned char state) override;
+    // RESTORED (PC addition): the elves' injury limits follow a time step change too (only the
+    // level's own characters get timeStepChanged; browser physics, online/FlashPhysics.h).
+    void timeStepChanged() override
+    {
+        CharacterB2D::timeStepChanged();
+        for (CharacterB2D* elf : _elves)
+            if (elf) elf->timeStepChanged();
+    }
 
 private:
     CharacterB2D* _elves[2] = {nullptr, nullptr};

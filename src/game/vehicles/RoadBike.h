@@ -140,6 +140,12 @@ public:
     void postSolve(b2Fixture* fixture, b2Fixture* otherFixture, b2Contact* contact,
                    const b2ContactImpulse* impulse) override;  // @0060e124 vptr+0xa0
     void handleContactResults() override;       // @0060e4cc vptr+0x2b8
+
+    // QOL (PC addition): re-grab vehicle (Vehicle.h).
+    b2Body* qolFrameBody() override;
+    bool qolCanRemount(CharacterB2D* character) override;
+    void qolRemount(CharacterB2D* character) override;
+    void qolRemountResetBodies(std::vector<b2Body*>* bodies) override;
     void debugFunction(int value) override;     // @0060ea24 vptr+0xf8   detachSeat()
 
 protected:

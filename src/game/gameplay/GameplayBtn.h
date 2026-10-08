@@ -53,6 +53,13 @@ public:
     bool getEnabled();                          // @005b482c
     void setAdjustedScale(float adjustedScale); // @005b4834  setScale(_unpressedScale * s * _userScale)
 
+    // QOL (PC addition): touch controls hidden (qol::touchControlsShown, GameplayControls::
+    // addControls). The button keeps its layout and is pressed by the keyboard bridge's virtual
+    // fingers, but stays at opacity 0 (showPressedState / setEnabled) and GameplayControls ignores
+    // real touches on it.
+    void setKeyOnly(bool keyOnly);
+    bool getKeyOnly();
+
 protected:
     float _userScale;              // +0x530  GameplayControls::_userScale ("controls_user_scale"); not set by the ctor
     bool _enabled;                 // +0x534  true
@@ -64,4 +71,5 @@ protected:
     // GLubyte (setEnabled narrows the load to ldrb because only the low byte is used there).
     int _unpressedOpacity;         // +0x558
     float _unpressedScale;         // +0x55c  0.86f (0x3f5c28f6)
+    bool _keyOnly = false;         // QOL (PC addition): past the original layout
 };

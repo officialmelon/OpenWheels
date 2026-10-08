@@ -2,6 +2,7 @@
 
 #include "Patch.h"
 #include "Settings.h"
+#include "restored/Restored.h"  // RESTORED (PC addition)
 
 #include <cmath>
 #include <sstream>
@@ -185,6 +186,12 @@ bool UserProgress::isLevelUnlocked(int chapter, int level)
     std::string rewardKey = "chapter" + patch::to_string(chapter) + "_level" + patch::to_string(level);
     if (_rewardData[rewardKey].getType() == Value::Type::NONE)
     {
+        // RESTORED (PC addition): OpenWheels' campaign levels (src/restored) open one after the
+        // other: completing a level unlocks the next (no "level unlocked" alert, NEXT goes there).
+        if (level > 0 && Settings::getInstance()->getLevelData(chapter, level)["unlock_after_previous"].asBool())
+        {
+            return isLevelCompleted(chapter, level - 1);
+        }
         return false;
     }
     ValueMap reward = _rewardData[rewardKey].asValueMap();
@@ -250,6 +257,13 @@ float UserProgress::getPercentageOfLevelsOfChapterCompleted(int chapter, bool us
     if (useChapterLevelCount)
     {
         ValueVector chapters = Settings::getInstance()->getAllChaptersData(false);
+        // RESTORED (PC addition): the array position of the chapter (the original indexes the
+        // array with the chapter index, which only holds for the original chapters).
+        chapter = Settings::getInstance()->getChapterPosition(chapter);
+        if (chapter < 0 || chapter >= (int)chapters.size())
+        {
+            return 0.0f;
+        }
         // The chapter index is not range checked.
         if (chapters[chapter].getType() == Value::Type::NONE)
         {
@@ -278,10 +292,17 @@ bool UserProgress::getAllLevelsCompleted()
     for (size_t chapter = 0; chapter < chapters.size(); chapter++)
     {
         ValueMap chapterData = chapters[chapter].asValueMap();
+        // RESTORED (PC addition): keyed by the chapter's "index" (== position for the original
+        // chapters); OpenWheels' campaign chapters are not needed for the credits.
+        const int chapterIndex = Settings::getInstance()->getChapterIndexAt((int)chapter);
+        if (restored::isCampaignChapter(chapterIndex))
+        {
+            continue;
+        }
         ValueVector levels = chapterData["levels"].asValueVector();
         for (size_t level = 0; level < levels.size(); level++)
         {
-            bool completed = getCompletionTimes((int)chapter, (int)level).size() != 0;
+            bool completed = getCompletionTimes(chapterIndex, (int)level).size() != 0;
             allLevelsCompleted = allLevelsCompleted && completed;
             if (!completed)
             {
@@ -312,6 +333,15 @@ UnlockLevelInstructions UserProgress::getUnlockLevelInstructions(int chapter, in
             instructions.text = text;
         }
     }
+    else if (level > 0 && Settings::getInstance()->getLevelData(chapter, level)["unlock_after_previous"].asBool())
+    {
+        // RESTORED (PC addition): OpenWheels' campaign levels open one after the other.
+        std::string previous = Settings::getInstance()->getLevelData(chapter, level - 1)["name"].asString();
+        instructions.chapterIndex = chapter;
+        instructions.text = "To unlock this level, complete " + (previous.empty() ? std::string("the level before it")
+                                                                                    : "\"" + previous + "\"")
+                            + " first.";
+    }
     return instructions;
 }
 
@@ -334,6 +364,20 @@ void UserProgress::resetLevelProgress()
     std::vector<std::string> noTimes;
     for (int chapter = 0; chapter != 10; chapter++)
     {
+        for (int level = 0; level < _levelsPerChapter; level++)
+        {
+            setCompletionTimes(getKey(chapter, level), noTimes, false);
+        }
+    }
+    // RESTORED (PC addition): OpenWheels' campaign chapters (index 100+) as well.
+    ValueVector chapters = Settings::getInstance()->getAllChaptersData(false);
+    for (size_t position = 0; position < chapters.size(); position++)
+    {
+        const int chapter = Settings::getInstance()->getChapterIndexAt((int)position);
+        if (!restored::isCampaignChapter(chapter))
+        {
+            continue;
+        }
         for (int level = 0; level < _levelsPerChapter; level++)
         {
             setCompletionTimes(getKey(chapter, level), noTimes, false);

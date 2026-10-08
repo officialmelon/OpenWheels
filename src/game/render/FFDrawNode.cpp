@@ -9,10 +9,15 @@
 
 #include "FFDrawNode.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <utility>
+#include <vector>
 
 #include "FFDrawNodeDelegate.h"
+#include "PolyFill.h"
 #include "base/CCConfiguration.h"
 #include "base/CCDirector.h"
 #include "base/CCEventDispatcher.h"
@@ -96,6 +101,28 @@ inline void applyArtTransform(V2F_C4B_T2F_Triangle& dst, const V2F_C4B_T2F_Trian
     dst.a.vertices = applyArtTransform(src.a.vertices, t);
     dst.b.vertices = applyArtTransform(src.b.vertices, t);
     dst.c.vertices = applyArtTransform(src.c.vertices, t);
+}
+
+// PC addition: a record's local triangle i (the inline array, then ArtDelegate::moreTriangles).
+const unsigned int kInlineTriangles =
+    sizeof(ArtDelegate::triangles) / sizeof(V2F_C4B_T2F_Triangle);
+
+inline V2F_C4B_T2F_Triangle& localTriangle(ArtDelegate& art, unsigned int i)
+{
+    if (i < kInlineTriangles)
+    {
+        return art.triangles[i];
+    }
+    if (art.moreTriangles.size() <= i - kInlineTriangles)
+    {
+        art.moreTriangles.resize(i - kInlineTriangles + 1);
+    }
+    return art.moreTriangles[i - kInlineTriangles];
+}
+
+inline const V2F_C4B_T2F_Triangle& localTriangle(const ArtDelegate& art, unsigned int i)
+{
+    return i < kInlineTriangles ? art.triangles[i] : art.moreTriangles[i - kInlineTriangles];
 }
 
 }  // namespace
@@ -1088,7 +1115,9 @@ int FFDrawNode::drawPolyWithVerts(Vec2* verts, int count, Color4F fillColor, dou
             if (!earFound)
             {
                 // _bufferCount is not advanced: the triangles written so far are discarded.
-                return 0;
+                // The original returns 0 here and the shape is invisible; PC addition (render
+                // fix): fill it with the repaired / even-odd triangulation instead.
+                return fallbackFill(verts, count, fillColor);
             }
 
             V2F_C4B_T2F_Triangle triangle = {
@@ -1179,7 +1208,7 @@ void FFDrawNode::updateVertex(PartitionVert* v, PartitionVert* vertices, int num
 // @005b21b0
 // Adds a dot (drawDot: 2 triangles around `offset`) as a delegate polygon; a static one is moved
 // to `position` once, an updated one is re-transformed every frame by updateVerts().
-// borderWidth/borderColor are unused.
+// borderWidth/borderColor are unused (except in a browser-level shape style, PC addition).
 void FFDrawNode::drawDotWithOffset(Vec2 position, Vec2 offset, float radius, Color4F color,
                                    float borderWidth, Color4F borderColor, bool updateArt,
                                    FFDrawNodeDelegate* artDelegate)
@@ -1189,24 +1218,60 @@ void FFDrawNode::drawDotWithOffset(Vec2 position, Vec2 offset, float radius, Col
     art.update = updateArt;
     art.delegate = artDelegate;
 
-    drawDot(offset, radius, color);
-    art.triangleCount = 2;
+    if (!_onlineStyle)
+    {
+        drawDot(offset, radius, color);
+        art.triangleCount = 2;
+    }
+    else
+    {
+        // ONLINE (PC addition): Flash CircleShape: the fill (a ring when it has an inner
+        // cutout), then the outline of the circle (and of the cutout) over it.
+        int vertexCount = 0;
+        const float cutout = std::max(0.0f, std::min(1.0f, _onlineInnerCutout));
+        if (_onlineFill && cutout <= 0.0f)
+        {
+            drawDot(offset, radius, color);
+            vertexCount += 6;
+        }
+        else if (_onlineFill && cutout < 1.0f)
+        {
+            vertexCount += onlineDrawRing(offset, radius * cutout, radius, color);
+        }
+        if (_onlineOutlineWidth > 0.0f && borderWidth > 0.0f)
+        {
+            const float half = _onlineOutlineWidth * 0.5f;
+            vertexCount += onlineDrawRing(offset, std::max(0.0f, radius - half), radius + half,
+                                          borderColor);
+            if (cutout > 0.0f && cutout < 1.0f)
+            {
+                const float inner = radius * cutout;
+                vertexCount += onlineDrawRing(offset, std::max(0.0f, inner - half), inner + half,
+                                              borderColor);
+            }
+        }
+        art.triangleCount = vertexCount / 3;
+    }
 
     V2F_C4B_T2F_Triangle* triangles = (V2F_C4B_T2F_Triangle*)_buffer;
-    art.triangles[0] = triangles[art.triangleIndex];
-    art.triangles[1] = triangles[art.triangleIndex + 1];
+    for (unsigned int i = 0; i < art.triangleCount; i++)
+    {
+        localTriangle(art, i) = triangles[art.triangleIndex + i];
+    }
 
     if (!updateArt)
     {
         AffineTransform transform =
             AffineTransformTranslate(AffineTransformIdentity, position.x, position.y);
-        applyArtTransform(triangles[art.triangleIndex], triangles[art.triangleIndex], transform);
-        applyArtTransform(triangles[art.triangleIndex + 1], triangles[art.triangleIndex + 1],
-                          transform);
+        for (unsigned int i = 0; i < art.triangleCount; i++)
+        {
+            V2F_C4B_T2F_Triangle& triangle = triangles[art.triangleIndex + i];
+            applyArtTransform(triangle, triangle, transform);
+        }
     }
 
     onlineReserveArtDelegate();  // ONLINE (PC addition)
-    _artDelegates[_artDelegateCount] = art;
+    _artDelegates[_artDelegateCount] = std::move(art);
     _artDelegateCount++;
 }
 
@@ -1254,7 +1319,25 @@ void FFDrawNode::drawPolyWithVerts(Vec2* verts, int count, Color4F fillColor, do
     art.update = updateArt;
     art.delegate = artDelegate;
 
-    int vertexCount = drawPolyWithVerts(verts, count, fillColor, borderWidth, borderColor);
+    int vertexCount;
+    if (!_onlineStyle)
+    {
+        vertexCount = drawPolyWithVerts(verts, count, fillColor, borderWidth, borderColor);
+    }
+    else
+    {
+        // ONLINE (PC addition): Flash ShapeRef: the fill (unless p8 is -1), then the outline
+        // over it.
+        vertexCount = 0;
+        if (_onlineFill)
+        {
+            vertexCount += drawPolyWithVerts(verts, count, fillColor, borderWidth, borderColor);
+        }
+        if (_onlineOutlineWidth > 0.0f && borderWidth > 0.0f)
+        {
+            vertexCount += onlineDrawOutline(verts, count, borderColor, _onlineOutlineWidth);
+        }
+    }
     art.triangleCount = vertexCount / 3;
 
     V2F_C4B_T2F_Triangle* triangles = (V2F_C4B_T2F_Triangle*)_buffer;
@@ -1273,7 +1356,7 @@ void FFDrawNode::drawPolyWithVerts(Vec2* verts, int count, Color4F fillColor, do
         for (unsigned int i = 0; i < art.triangleCount; i++)
         {
             V2F_C4B_T2F_Triangle& triangle = triangles[art.triangleIndex + i];
-            art.triangles[i] = triangle;
+            localTriangle(art, i) = triangle;
             applyArtTransform(triangle, triangle, artTransform);
         }
     }
@@ -1281,12 +1364,12 @@ void FFDrawNode::drawPolyWithVerts(Vec2* verts, int count, Color4F fillColor, do
     {
         for (unsigned int i = 0; i < art.triangleCount; i++)
         {
-            art.triangles[i] = triangles[art.triangleIndex + i];
+            localTriangle(art, i) = triangles[art.triangleIndex + i];
         }
     }
 
     onlineReserveArtDelegate();  // ONLINE (PC addition)
-    _artDelegates[_artDelegateCount] = art;
+    _artDelegates[_artDelegateCount] = std::move(art);
     _artDelegateCount++;
 }
 
@@ -1309,7 +1392,7 @@ void FFDrawNode::removeDelegate(FFDrawNodeDelegate* artDelegate)
 
     for (unsigned int i = index; i < _artDelegateCount - 1; i++)
     {
-        _artDelegates[i] = _artDelegates[i + 1];
+        _artDelegates[i] = std::move(_artDelegates[i + 1]);
         _artDelegates[i].triangleIndex -= removed.triangleCount;
     }
 
@@ -1333,9 +1416,7 @@ void FFDrawNode::replaceDelegate(FFDrawNodeDelegate* oldDelegate, FFDrawNodeDele
     {
         if (_artDelegates[i].delegate == oldDelegate)
         {
-            ArtDelegate art = _artDelegates[i];
-            art.delegate = newDelegate;
-            _artDelegates[i] = art;
+            _artDelegates[i].delegate = newDelegate;  // (a record copy-modify-store originally)
             return;
         }
     }
@@ -1350,7 +1431,7 @@ void FFDrawNode::setArtDelegateToStatic(bool isStatic, AffineTransform transform
     V2F_C4B_T2F_Triangle* triangles = (V2F_C4B_T2F_Triangle*)_buffer;
     for (unsigned int i = 0; i < _artDelegateCount; i++)
     {
-        ArtDelegate art = _artDelegates[i];
+        ArtDelegate& art = _artDelegates[i];  // (a record copy stored back in the original)
         if (art.delegate == artDelegate)
         {
             if (art.update == !isStatic)
@@ -1361,11 +1442,11 @@ void FFDrawNode::setArtDelegateToStatic(bool isStatic, AffineTransform transform
             {
                 for (unsigned int j = 0; j < art.triangleCount; j++)
                 {
-                    applyArtTransform(triangles[art.triangleIndex + j], art.triangles[j], transform);
+                    applyArtTransform(triangles[art.triangleIndex + j], localTriangle(art, j),
+                                      transform);
                 }
             }
             art.update = !isStatic;
-            _artDelegates[i] = art;
         }
     }
 }
@@ -1376,10 +1457,9 @@ void FFDrawNode::setArtDelegateToStatic(bool isStatic, AffineTransform transform
 void FFDrawNode::updateVerts()
 {
     V2F_C4B_T2F_Triangle* triangles = (V2F_C4B_T2F_Triangle*)_buffer;
-    ArtDelegate art;
     for (unsigned int i = 0; i < _artDelegateCount; i++)
     {
-        art = _artDelegates[i];
+        const ArtDelegate& art = _artDelegates[i];  // (a record copy in the original)
         if (art.delegate)
         {
             // float -> int, truncated to the GLubyte alpha (no clamping)
@@ -1391,7 +1471,8 @@ void FFDrawNode::updateVerts()
                 {
                     V2F_C4B_T2F_Triangle& triangle = triangles[j];
                     triangle.a.colors.a = triangle.b.colors.a = triangle.c.colors.a = opacity;
-                    applyArtTransform(triangle, art.triangles[j - art.triangleIndex], transform);
+                    applyArtTransform(triangle, localTriangle(art, j - art.triangleIndex),
+                                      transform);
                 }
             }
             else
@@ -1414,4 +1495,155 @@ void FFDrawNode::onlineReserveArtDelegate()
     {
         _artDelegates.resize(_artDelegates.size() * 2);
     }
+}
+
+// ONLINE (PC addition): see FFDrawNode.h.
+void FFDrawNode::onlineSetShapeStyle(bool fill, float outlineWidth, float innerCutout)
+{
+    _onlineStyle = true;
+    _onlineFill = fill;
+    _onlineOutlineWidth = outlineWidth;
+    _onlineInnerCutout = innerCutout;
+}
+
+void FFDrawNode::onlineClearShapeStyle()
+{
+    _onlineStyle = false;
+    _onlineFill = true;
+    _onlineOutlineWidth = 0.0f;
+    _onlineInnerCutout = 0.0f;
+}
+
+// ONLINE (PC addition): Flash strokes a shape's path centred on it. The closed polyline becomes
+// one quad per edge between mitred corner points (miter length limited to 4 half-widths, so a
+// spike gets a slightly thinner tip instead of a long point).
+int FFDrawNode::onlineDrawOutline(const Vec2* verts, int count, const Color4F& color, float width)
+{
+    if (verts == nullptr || count < 2 || !(width > 0.0f))
+    {
+        return 0;
+    }
+    std::vector<Vec2> ring;
+    ring.reserve((size_t)count);
+    for (int i = 0; i < count; i++)
+    {
+        if (ring.empty() || ring.back().distanceSquared(verts[i]) > 1e-8f)
+        {
+            ring.push_back(verts[i]);
+        }
+    }
+    while (ring.size() > 1 && ring.back().distanceSquared(ring.front()) <= 1e-8f)
+    {
+        ring.pop_back();
+    }
+    const int n = (int)ring.size();
+    if (n < 2)
+    {
+        return 0;
+    }
+
+    const float half = width * 0.5f;
+    std::vector<Vec2> outer((size_t)n);
+    std::vector<Vec2> inner((size_t)n);
+    for (int i = 0; i < n; i++)
+    {
+        const Vec2& previous = ring[(i + n - 1) % n];
+        const Vec2& current = ring[i];
+        const Vec2& next = ring[(i + 1) % n];
+        Vec2 d0 = current - previous;
+        Vec2 d1 = next - current;
+        d0.normalize();
+        d1.normalize();
+        const Vec2 n0(-d0.y, d0.x);
+        const Vec2 n1(-d1.y, d1.x);
+        Vec2 miter = n0 + n1;
+        float scale = 1.0f;
+        const float length = miter.length();
+        if (length < 1e-3f)
+        {
+            miter = n1;  // the path turns back on itself
+        }
+        else
+        {
+            miter = miter / length;
+            const float cosine = miter.dot(n1);
+            scale = cosine > 0.25f ? 1.0f / cosine : 4.0f;
+        }
+        const Vec2 offset = miter * (half * scale);
+        outer[(size_t)i] = current + offset;
+        inner[(size_t)i] = current - offset;
+    }
+
+    const int vertexCount = n * 6;
+    ensureCapacity(vertexCount);
+    V2F_C4B_T2F_Triangle* triangles = (V2F_C4B_T2F_Triangle*)(_buffer + _bufferCount);
+    const Color4B col(color);
+    for (int i = 0; i < n; i++)
+    {
+        const int j = (i + 1) % n;
+        const V2F_C4B_T2F a = {outer[(size_t)i], col, Tex2F(0.0f, 0.0f)};
+        const V2F_C4B_T2F b = {outer[(size_t)j], col, Tex2F(0.0f, 0.0f)};
+        const V2F_C4B_T2F c = {inner[(size_t)j], col, Tex2F(0.0f, 0.0f)};
+        const V2F_C4B_T2F d = {inner[(size_t)i], col, Tex2F(0.0f, 0.0f)};
+        *triangles++ = {a, b, c};
+        *triangles++ = {a, c, d};
+    }
+    _bufferCount += vertexCount;
+    _dirty = true;
+    return vertexCount;
+}
+
+// ONLINE (PC addition): an annulus (innerRadius may be 0: a full disc) of plain triangles.
+int FFDrawNode::onlineDrawRing(const Vec2& center, float innerRadius, float outerRadius,
+                               const Color4F& color)
+{
+    if (!(outerRadius > innerRadius))
+    {
+        return 0;
+    }
+    // About one segment per 12 points of circumference.
+    const int segments =
+        std::max(24, std::min(160, (int)std::ceil(outerRadius * 6.2831855f / 12.0f)));
+    const int vertexCount = segments * 6;
+    ensureCapacity(vertexCount);
+    V2F_C4B_T2F_Triangle* triangles = (V2F_C4B_T2F_Triangle*)(_buffer + _bufferCount);
+    const Color4B col(color);
+    for (int i = 0; i < segments; i++)
+    {
+        const float a0 = 6.2831855f * (float)i / (float)segments;
+        const float a1 = 6.2831855f * (float)(i + 1) / (float)segments;
+        const Vec2 u0(std::cos(a0), std::sin(a0));
+        const Vec2 u1(std::cos(a1), std::sin(a1));
+        const V2F_C4B_T2F a = {center + u0 * outerRadius, col, Tex2F(0.0f, 0.0f)};
+        const V2F_C4B_T2F b = {center + u1 * outerRadius, col, Tex2F(0.0f, 0.0f)};
+        const V2F_C4B_T2F c = {center + u1 * innerRadius, col, Tex2F(0.0f, 0.0f)};
+        const V2F_C4B_T2F d = {center + u0 * innerRadius, col, Tex2F(0.0f, 0.0f)};
+        *triangles++ = {a, b, c};
+        *triangles++ = {a, c, d};
+    }
+    _bufferCount += vertexCount;
+    _dirty = true;
+    return vertexCount;
+}
+
+// PC addition (render fix): see PolyFill.h. Writes from _bufferCount like the ear clipping.
+int FFDrawNode::fallbackFill(const Vec2* verts, int count, const Color4F& fillColor)
+{
+    std::vector<Vec2> points;
+    polyfill::triangulate(verts, count, points);
+    const int vertexCount = (int)points.size();
+    if (vertexCount == 0)
+    {
+        return 0;
+    }
+    ensureCapacity(vertexCount);
+    const Color4B col(fillColor);
+    V2F_C4B_T2F* vertex = _buffer + _bufferCount;
+    for (int i = 0; i < vertexCount; i++)
+    {
+        vertex[i] = {points[(size_t)i], col, Tex2F(0.0f, 0.0f)};
+    }
+    _bufferCount += vertexCount;
+    _dirty = true;
+    return vertexCount;
 }

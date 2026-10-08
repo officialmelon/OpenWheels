@@ -103,7 +103,8 @@ and declare that with `<info ptm="62.5" sw="20000" sh="10000" r="1" cw="1">`; `L
 by `ptm`, flips y against `sh` and negates rotations/joint limits (`cw`). **Without those
 attributes `LevelB2D` assumes ptm = 1 and a 320×160 stage**, so a converter must add them.
 Flash steps at 1/30 s; mobile at 1/60 (`s_timeStepOverFlashTimeStep` = 0.5) — already handled by
-the item code, nothing to convert.
+the item code, nothing to convert. (Since 2026-10-08 browser levels step at 1/30 themselves with
+the "browser physics" option, see 10.8.)
 
 ### `<info>`
 
@@ -251,7 +252,8 @@ characters and sounds as separate SWFs from swf.totaljerkface.com, which we don'
 
 * **Gate.** The converter writes `<info ... src="flash" fv="<browser version>">`. `LevelB2D::addInfo`
   calls `online::setFlashLevel()` for every level it loads, so every hook below is off for the
-  campaign (`src/online/FlashRuntime.h`). `compare_play` stays 73/73. Editor levels are saved in
+  campaign (`src/online/FlashRuntime.h`); the `LevelB2D` constructor switches it off first, so
+  character select's preview level (no `<info>`) never runs the hooks of the level played before. `compare_play` stays 73/73. Editor levels are saved in
   the browser format and played through the converter too (`docs/EDITOR_PORT.md`), so the hooks
   are on for them; the editor marks them `ow="1"`, which makes the converter keep the mobile
   backgrounds (3, 4, 4001), mobile-only special params and the iOS 5001 item.
@@ -283,6 +285,8 @@ by plays).
 | Trigger semantics (target order, delays, repeat, disable/enable, sensors, shape/group/joint actions, sounds) | most trigger levels | 30 differences fixed, see below |
 | Furniture: table, chair, TV, boombox, toilet, trash can, food (1, 19, 21, 22, 24, 26, 32) were grey blocks | 6-7 each | ports with Flash break thresholds, pieces, damage frames, sounds, particles; food is stabbable (materials & 6) and grindable |
 | User-built vehicles (`<g v="t">`) didn't drive | 9/38 | `src/online/vehicles/`: grab the handles with space; arrows drive the vehicle's joints (acceleration, lean); space/shift/ctrl actions (jets, arrow guns, brake, lock joints); Z ejects |
+| User-vehicle arrow guns ("miniguns") never fired: the mobile ArrowGun only shoots at a target body (material & 2) in range and aligned | vehicle levels | `ArrowGun::onlineSetVehicleControlled` (from `UserVehicle::checkAddSpecial`): the gun keeps its aim relative to its body and fires straight along the barrel every `framesPerShot` frames while the arrow action is held, unlimited arrows, no targeting (so never at the rider). Free-standing guns are unchanged. Arrow guns have no trigger actions in Flash (only the harpoon gun has "trigger firing"), so there is no trigger-fired case |
+| Grabbing a user-vehicle handle failed on some parts of a polygon handle | vehicle levels | every fixture of a handle shape is registered (a polygon can be split into several fixtures), not just the first |
 | Box2D 2.3 wakes sleeping bodies as soon as their bounding boxes overlap (Box2D 2.0 only on real contact) | many (sleeping shapes are common) | `online::flashPostStep` puts bodies woken that way back to sleep (POKEMON TRAINING's arena bar fell on its mine row at the start and blew up the arena) |
 | Box2D 2.3 polygon skin (0.6 px) makes items placed a pixel apart touch | many | polygon radius 0 in browser levels (`flashPreStep`) |
 | Groups whose shapes sit far from the group origin: float inertia cancels to <= 0, NaN bodies (even the level body), physics hang | e.g. "string" (37M plays) | converter moves the group body origin onto its shapes (`recenterGroup`); NaN guard restores exploded bodies |
@@ -323,6 +327,32 @@ Browser characters 6, 7, 8, 10 and 11 map to `restored::hasCharacter(id) ? id : 
 (fallbacks: motor cart, motor cart, moped couple, irresponsible dad, segway guy). A "hide vehicle"
 start with a restored character uses that character's own ragdoll, voice and gore without vehicle,
 kids or elves (Flash `PlayableCharacterB2D`; `restored::createBareCharacter`, `docs/RESTORED.md`).
+
+**Changing character and level** (PC additions; `online::LevelReturn` in `OnlinePlay.h`,
+`OnlineLevelBrowser`, `qol/CharacterChoice.h`):
+
+* Levels started from the browser are user levels (`LevelSession` chapter 5001) pushed over the
+  browser scene. Leaving them (EXIT, back from character select) comes back to a fresh browser at
+  the same list position (`MainMenu::createScene` -> `sceneForReturnFromLevel`, which pops the
+  parked browser scene); restarts, VIEW REPLAY and CHANGE CHARACTER keep the way back. Levels
+  played from Your Levels come back to Your Levels the same way (`UserLevelsScreen`).
+* NEXT on the victory menu is shown only while the level started from the browser still plays and
+  the result list has a level after it (`OnlineLevelBrowser::hasNextLevel`; the Android check of
+  `Settings` chapter 5000/5001 never saw user levels, so NEXT used to show and just exit). It goes
+  back to the browser with the next level selected and starts it like PLAY (download with play
+  count, convert; a failed download stays in the browser with its alert). Replays, `--play-online`,
+  races and levels received from nearby players have no NEXT.
+* Browser levels force their character more often than not (`pc`), and Flash forbids changing it.
+  The QoL option "any character" (on by default, user / online levels only; campaign levels and
+  ghost races keep their forced character) enables CHANGE CHARACTER in the pause and victory menus
+  of such levels and adds CHANGE next to the browser's CHARACTER (character select before
+  playing). The level starts with its own character; the picked one replaces it until another level
+  is selected (`qol::characterOverride`, also used to watch a replay recorded that way). Restored
+  characters are in character select as usual.
+* A level that forces a character no longer overwrites the player's own choice for good: it is
+  remembered and selected again in character select and when a user level is left; levels that
+  let the player pick open character select on the player's character instead of the level's
+  default (`LevelSession::applyToSettings`).
 
 ### 10.5 Remaining gaps (by levels affected in the sample)
 
@@ -383,6 +413,106 @@ kids or elves (Flash `PlayableCharacterB2D`; `restored::createBareCharacter`, `d
   Android assets by walking up from its folder). Debug switches for the physics changes:
   `OW_FLASH_KEEP_POLYGON_RADIUS=1`, `OW_FLASH_KEEP_BOX2D_WAKES=1`.
 
+### 10.7 Shape outlines, outline-only shapes and the fallback fill (2026-10-08)
+
+The mobile game ignores `p9` (outline colour) and `FFDrawNode` never drew a border, so browser
+levels lost every outline. Neon-style levels (black background, bright outlines, no fill or a
+black fill) showed black shapes or nothing at all.
+
+* **Converter.** A shape with fill `-1` and an outline is kept: `p8="-1"`, its real opacity, and
+  it counts as visible, so `enforceDrawBudget` keeps it. A shape with neither fill nor outline
+  still gets `p10="0"`. Circles keep `p12` (inner cutout, % of the radius). A physics polygon
+  (`t="3"`, interactive) whose drawn outline differs from its physics vertices gets a second
+  child `<av n v0…>`: the polygon's own outline, possibly concave and up to 100 vertices, with
+  the same integer scale as `<v>`. `<v>` keeps at most 8 vertices for Box2D (their hull). The
+  mobile loader reads only the first child, so it never sees `<av>`. An open art path (the thin
+  ribbon) gets no outline of its own, and takes the outline colour when it has no fill. The
+  editor keeps fill `-1` when it loads and saves a browser level (`RefShape::noFill`) until a
+  colour is picked.
+* **LevelB2D::addShape** (converted levels only) gives the shape layer a style before it creates
+  the shape: `FFDrawNode::onlineSetShapeStyle(fill, outlineWidth, innerCutout)`. The style is
+  cleared when `addShape` returns. Polygons are drawn from `<av>`, or from their `<v>` list, but
+  never from the fixture's convex hull. That was the case for loose dynamic polygons before.
+* **FFDrawNode** draws, in the same delegate record, the fill (skipped for `p8 -1`, a ring for a
+  cutout circle), then a centred stroke along the outline in the `p9` colour:
+  * Each edge is a quad between mitred corners, with the miter limited to 4 half-widths.
+  * Circles get a ring, plus one on the cutout edge.
+  * The width is one Flash px (`session ptm / 62.5` = 4 points). The gameplay view is as many
+    Flash px tall as the browser stage, so this matches Flash's 1 px line. It is never thinner
+    than about 1.25 framebuffer pixels when the window is small or the camera is zoomed out.
+  * `updateVerts` sets the alpha of all of a record's triangles from `getArtOpacity()` (shape ×
+    group opacity), so outlines fade with their shape, as in Flash.
+  * Records with more than 98 triangles keep the rest of their local copy in
+    `ArtDelegate::moreTriangles`.
+  * Campaign levels never set a style and draw exactly as before.
+* **Fallback fill (all levels; `src/game/render/PolyFill.cpp`).** When the original ear clipping
+  finds no ear, `FFDrawNode` / `TerrainNode::drawPolyWithVerts` used to return 0 and the shape
+  was invisible. This happens with duplicate or collinear vertices or a self-intersecting
+  outline. It can also happen with near-collinear corners that classify differently on x86 than
+  on the arm64 original: that build fuses multiply-adds (`-ffp-contract=on`), but nobody has
+  checked whether it fuses `IsConvex`. Now:
+  1. The polygon is repaired: duplicate and collinear points are removed and the winding is made
+     counter-clockwise. If the outline is simple, it is ear-clipped again in double precision.
+  2. Otherwise it gets an even-odd scanline fill: slabs at every vertex and crossing height, then
+     trapezoids between pairs of edges. Flash fills self-intersecting paths even-odd.
+
+  Shapes the original ear clipping handles get exactly the same triangles as before. Because the
+  game can now fill any outline, `fitArtRing` in the converter keeps an outline that fits the
+  100-vertex limit as it is, even when the ear clipping would reject it.
+
+### 10.8 Browser physics profile: one world step per Flash frame (2026-10-08)
+
+With the QOL option "browser physics (online levels)" (default on, `src/online/FlashPhysics.*`)
+a browser level steps its world once per 30 Hz Flash frame: `Session` time step 1/30
+(`LevelItem::s_timeStep` 1/30, `s_timeStepOverFlashTimeStep` 1, `s_timeStepInverse` 30),
+10 + 10 iterations, no block solver. Off, or in any campaign level, everything steps at 1/60 as
+before (`online::stepsPerFlashFrame()` is 2 there, 1 with the profile). Code that counted world
+steps as 1/60 s was audited so both rates behave alike; at 1/60 every change below returns the
+original values exactly (the helpers `online::stepsFor60HzFrames`, `stepsForFlashFrames` and
+`perStep` return their argument when the step is 1/60):
+
+* **Controls and timer** (`Gameplay::update`): `setState` (vehicle accelerations, lean impulses,
+  restored extra controls, user vehicles) and the level timer ran once per scheduler tick, i.e.
+  twice per 1/30 step at 60 fps (double impulses, timer at double speed). With the profile they run
+  only on ticks that will step (`Session::onlineWillStep`).
+* **Flash-frame emulations** that acted every other 1/60 step now act every
+  `stepsPerFlashFrame()` steps: prop sprays (`PropItem`), the Jet's thrust (its ramp step is then
+  the 1/60 one at both rates), the Sleigh's snow spray, the Helicopter's propeller / magnet art,
+  the finish flag, the homing mine light; `PropItem` particles move by one step (was 1/60).
+* **Per-60 Hz-step constants of the restored vehicles** go through `online::perStep`: Sleigh
+  accelerations, boost fuel step and reins pump, Mine Cart wheel / rail accelerations, Lawn Mower
+  acceleration, Helicopter spin acceleration (per step², twice), maximum spin step, rope speed and
+  rope gravity (per step²). Their anti-gravity lifts use one step (was 1/60). Step counters
+  (Mine Cart one-dongle timeout, Helicopter blade-sound delay) go through `stepsFor60HzFrames`.
+* **Mobile items' frame counters** (frame actions run once per world step): the arrow gun's
+  cooldown and string animation and the pogo stick's hop lock count two 60 Hz frames per 1/30
+  step; mine blink, boost panel and fan blade animations keep their pace.
+* **Joint limits** (|reaction force| at 60 Hz): `CharacterB2D::timeStepChanged` halves the
+  player's at 1/30, but `LevelB2D::setTimeStep` only reaches the level's own characters; the
+  passengers now follow through their owner (moped girl, Irresponsible Dad's kid, Irresponsible
+  Mom's kids, Santa's elves), and NPC limits scale with the step at the check.
+
+Left as they are (already rate-aware or correct at both rates): everything driven by
+`misc::FlashClock` (Cannon, Chain, Paddle, Token, Glass), seconds-based timers (triggers, target
+actions, text boxes, spring box, homing mine, character bleeding, ligaments), lean impulses
+(`s_timeStepOverFlashTimeStep`), user vehicles, `restored::FlashParticles` and the mobile emitters
+(own 1/60 s clocks), forces applied once per step (fans, boost panels), prop break thresholds
+(contact impulses: at 1/30 they are the browser game's own). The mobile vehicles' motor
+acceleration steps (`Vehicle::_accelStep`, RoadBike, Moped, Wheelchair...) and Irresponsible
+Mom's bike (built as RoadBike) stay per step: the mobile port kept the Flash per-frame values
+(RoadBike = Flash BicycleGuy's accelStep 1), so one per 1/30 step is the browser game's rate.
+Bodies are drawn when the world steps, so with the profile they move at 30 Hz on screen
+(no interpolation), as in the browser game.
+
+
+### Replay check (2026-10-08)
+
+The fastest replay of POKEMON TRAINING (562820, Chrepuhon, 34.13 s), watched to its end with
+`OW_TJF_WATCH_SECONDS=48 OpenWheels --online-test live-replays`: on the mobile profile (1/60, 8 + 3,
+block solver) the rider dies at 7.4 s in the first Thunderbolt battle; with browser physics the run
+survives every battle to the end of its keys (still not counted as finished, so replays remain
+approximate: the remaining Box2D 2.0 / 2.3 differences are internal to the prebuilt solver).
+
 ## 11. Replays, the player's account and publishing (2026-10-04)
 
 All of this is a PC addition (`// ONLINE (PC addition):`), in `src/online/account/` and
@@ -427,15 +557,16 @@ random IV; `em` = base64 of the ciphertext, `ei` = the IV in lowercase hex. Ther
 by user" action (`get_all_by_user` returns an empty body); "My Replays" are the runs kept on this
 PC. Mean rating = `ReplayDataObject.getAverageRating` (Bayesian prior of 10 votes at 2.5 undone).
 
-**How OpenWheels plays them** (`ReplayRuntime`): OpenWheels' physics are Box2D 2.3 stepped at
-1/60 s, not the browser's Box2D 2.0 at 1/30 s, so a replay is re-simulated from its keys and
-labelled "approximate" in game (overlay with author, time and progress). Each Flash frame drives
-two world steps; the byte is chosen per physics step (`Session::update` → `physicsStep`), not
+**How OpenWheels plays them** (`ReplayRuntime`): OpenWheels' physics are Box2D 2.3, not the
+browser's Box2D 2.0, so a replay is re-simulated from its keys and labelled "approximate" in game
+(overlay with author, time and progress). With "browser physics" (10.8) the re-simulation runs at
+the browser's 30 Hz, one world step and one input byte per Flash frame; with it off each Flash
+frame drives two 1/60 s steps (`RunRecord::stepsPerFrame`). The byte is chosen per physics step (`Session::update` → `physicsStep`), not
 per display frame as the game's own replay mode does, so a frame without a step doesn't shift the
 input. Click/roll-out entries fire their triggers before the frame's steps. The replay's
 character is used (browser 6/7/8/10/11 → restored character or the converter's fallback, shown in
 the overlay). The player's own runs of online levels are recorded the same way (frame f = the
-byte of step 2f; clicks at frame `ceil(steps/2)`), kept for the session (last 6), and can be saved
+byte of step f, or 2f on the 1/60 profile; clicks at the next frame boundary), kept for the session (last 6), and can be saved
 (`<writable>/online/replays/local/*.owreplay`), watched, uploaded or deleted. Watching one's own
 run reproduces it exactly (test: same world position after 600 steps, distance 0).
 

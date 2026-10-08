@@ -244,16 +244,21 @@ void Moped::attachCharacter(CharacterB2D* character)
     b2World* world = getWorld();
 
     // Joint limits relative to the current pose: hips -10..110 degrees, elbows 0..90, neck 0..20.
+    // QOL (PC addition): qolLimb - a re-mounted driver (re-grab vehicle) may have lost limbs.
     float relativeAngle = character->getUpperLeg1Body()->GetAngle() - character->getPelvisBody()->GetAngle();
+    if (qolLimb(character, character->getHipJoint1()))
     character->getHipJoint1()->SetLimits(CC_DEGREES_TO_RADIANS(-10) - relativeAngle,
                                          CC_DEGREES_TO_RADIANS(110) - relativeAngle);
     relativeAngle = character->getUpperLeg2Body()->GetAngle() - character->getPelvisBody()->GetAngle();
+    if (qolLimb(character, character->getHipJoint2()))
     character->getHipJoint2()->SetLimits(CC_DEGREES_TO_RADIANS(-10) - relativeAngle,
                                          CC_DEGREES_TO_RADIANS(110) - relativeAngle);
     relativeAngle = character->getLowerArm1Body()->GetAngle() - character->getUpperArm1Body()->GetAngle();
+    if (qolLimb(character, character->getElbowJoint1()))
     character->getElbowJoint1()->SetLimits(CC_DEGREES_TO_RADIANS(0) - relativeAngle,
                                            CC_DEGREES_TO_RADIANS(90) - relativeAngle);
     relativeAngle = character->getLowerArm2Body()->GetAngle() - character->getUpperArm2Body()->GetAngle();
+    if (qolLimb(character, character->getElbowJoint2()))
     character->getElbowJoint2()->SetLimits(CC_DEGREES_TO_RADIANS(0) - relativeAngle,
                                            CC_DEGREES_TO_RADIANS(90) - relativeAngle);
     relativeAngle = character->getHeadBody()->GetAngle() - character->getChestBody()->GetAngle();
@@ -960,4 +965,39 @@ void Moped::postSolve(b2Fixture* fixture, b2Fixture* otherFixture, b2Contact* co
 // @005f3e1c
 void Moped::debugFunction(int value)
 {
+}
+
+// ---------------------------------------------------------------------------------------------
+// QOL (PC addition): re-grab vehicle (Vehicle.h). Not in the original. Only the driver gets back
+// on; the passenger, once off, stays off.
+// ---------------------------------------------------------------------------------------------
+
+b2Body* Moped::qolFrameBody()
+{
+    return _frameBody;
+}
+
+// checkStateOfCharacter: off once three of his hands and feet have let go.
+bool Moped::qolCanRemount(CharacterB2D* character)
+{
+    if (character != _driver || !_frameBody || _vehicleSmashed) {
+        return false;
+    }
+    int lost = (character->qolLostLowerLeg(1) ? 1 : 0) + (character->qolLostLowerLeg(2) ? 1 : 0) +
+               (character->qolLostLowerArm(1) ? 1 : 0) + (character->qolLostLowerArm(2) ? 1 : 0);
+    return lost <= 2;
+}
+
+// ejectCharacter: the frame zero-filtered (qolRestoreFilters), the legs' mask back (attachCharacter
+// clears it again); ejectAllCharacters: the frame action (engine pitch, boost meter) removed.
+// The driver goes back to the front of _characters (refilterLegs reads _characters[0]).
+void Moped::qolRemount(CharacterB2D* character)
+{
+    qolRestoreFilters(character);
+    getLevel()->addToFrameActions(this);
+    qolMount(character, [this, character]() {
+        attachCharacter(character);
+        _characters.insert(_characters.begin(), character);
+    });
+    qolReplayInjuries(character);
 }

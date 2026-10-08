@@ -9,6 +9,7 @@
 #include "Settings.h"
 #include "Sound.h"
 #include "SoundController.h"
+#include "online/FlashPhysics.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -151,6 +152,8 @@ void Fan::triggerSingleActivation(LevelItem* trigger, int action, std::vector<fl
 void Fan::frameAction()
 {
     _skipFrame = !_skipFrame;
+    // ONLINE (PC addition): two blade frames per browser physics step (1/30), one per 1/60 step.
+    if (online::stepsPerFlashFrame() == 1 && ++_frameIndex == _frames.size()) _frameIndex = 0;
     _frameIndex++;
     if (_frameIndex == _frames.size())
     {

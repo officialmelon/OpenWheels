@@ -67,6 +67,9 @@ LevelSelectMenu::LevelSelectMenu()
     , _shakeDuration(0)
 {
     _index = (float)Settings::getInstance()->getSelectedChapter();
+    // RESTORED (PC addition): _index is a page (array position); OpenWheels' campaign chapters
+    // (src/restored) have chapter indices 100+.
+    _index = (float)std::max(0, Settings::getInstance()->getChapterPosition((int)_index));
 }
 
 // @005dff3c (D1), @005dffe8 (D0)
@@ -168,6 +171,9 @@ void LevelSelectMenu::addMenu()
         ValueMap chapterData = _chapters[chapter].asValueMap();
         ValueVector levels = chapterData["levels"].asValueVector();
         bool hasLevels = false;
+        // RESTORED (PC addition): progress and buttons use the chapter's "index" (== the page
+        // for the original chapters, 100+ for OpenWheels' campaign chapters).
+        const int chapterIndex = settings->getChapterIndexAt((int)chapter);
 
         // 15 slots: 5 columns x 3 rows. Empty slots get an outline button.
         float y = 0.0f;
@@ -177,9 +183,9 @@ void LevelSelectMenu::addMenu()
             LevelSelectBtn* btn;
             if (level < levels.size())
             {
-                bool completed = settings->isLevelCompleted(chapter, level);
-                bool unlocked = settings->isLevelUnlocked(chapter, level);
-                btn = LevelSelectBtn::create(chapter, level, !unlocked, completed);
+                bool completed = settings->isLevelCompleted(chapterIndex, level);
+                bool unlocked = settings->isLevelUnlocked(chapterIndex, level);
+                btn = LevelSelectBtn::create(chapterIndex, level, !unlocked, completed);
                 _buttonsSBN->addChild(btn);
                 _chapterLevelBtns[chapter].push_back(btn);
                 ValueMap levelData = levels[level].asValueMap();  // copied, unused
@@ -253,7 +259,7 @@ void LevelSelectMenu::checkForChapterCompletion()
     if (settings->getLevelWasCompleted())
     {
         settings->setLevelWasCompleted(false);
-        if (settings->getAllLevelsCompletedForChapter((int)_index))
+        if (settings->getAllLevelsCompletedForChapter(settings->getChapterIndexAt((int)_index)))  // RESTORED: index
         {
             _animatingChapterAdvance = true;
             startLevelsAnimation();
@@ -530,7 +536,7 @@ void LevelSelectMenu::advanceChapter()
     // M10's Settings.h declares it void - needs `bool` there for this to compile.
     if (settings->advanceChapterIndex())
     {
-        _index = (float)settings->getSelectedChapter();
+        _index = (float)std::max(0, settings->getChapterPosition(settings->getSelectedChapter()));  // RESTORED: page
         settings->setAdvancedFromLastLevel(false);
         settings->getSoundController()->playSound("SwishUp");
     }
@@ -637,7 +643,7 @@ bool LevelSelectMenu::allLevelsCompleted()
     // (sic) the last two levels of the chapter are not checked.
     for (unsigned int i = 0; i < levels.size() - 2; i++)
     {
-        if (!settings->isLevelCompleted((int)_index, i))
+        if (!settings->isLevelCompleted(settings->getChapterIndexAt((int)_index), i))  // RESTORED: index
         {
             return false;
         }
@@ -841,7 +847,9 @@ void LevelSelectMenu::hwWindowButtonPressed(int buttonTag, HWWindow* window)
         // Cancel button = "Go to levels": scroll to the chapter that unlocks this level.
         if (buttonTag == 0)
         {
-            _index = (float)_lockedLevelChapter;
+            // RESTORED (PC addition): the chapter's page (its index is 100+ for OpenWheels'
+            // campaign chapters).
+            _index = (float)std::max(0, Settings::getInstance()->getChapterPosition(_lockedLevelChapter));
         }
         _levelLockedWindow = nullptr;
     }

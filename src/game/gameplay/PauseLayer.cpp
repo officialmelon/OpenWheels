@@ -12,6 +12,7 @@
 #include "Session.h"
 #include "Settings.h"
 #include "Tracker.h"
+#include "qol/CharacterChoice.h"  // QOL (PC addition)
 
 USING_NS_CC;
 
@@ -61,7 +62,9 @@ void PauseLayer::addMenu()
                                               GameplayMenuActionChangeCharacter);
     float btnWidth = resumeBtn->getContentSize().width;
     float btnHeight = resumeBtn->getContentSize().height;  // unused
-    bool forcedChar = Settings::getInstance()->getCurrentSession()->getLevel()->getForcedChar();
+    // QOL (PC addition): "any character" lets the player change a user level's forced character.
+    bool forcedChar = Settings::getInstance()->getCurrentSession()->getLevel()->getForcedChar() &&
+                      !qol::canChangeForcedCharacter();
     if (forcedChar)
     {
         characterBtn->setOpacity(0x7d);
@@ -189,7 +192,8 @@ void PauseLayer::btnPressed(Ref* sender)
     }
     else if (action == GameplayMenuActionChangeCharacter)
     {
-        if (Settings::getInstance()->getCurrentSession()->getLevel()->getForcedChar())
+        if (Settings::getInstance()->getCurrentSession()->getLevel()->getForcedChar() &&
+            !qol::canChangeForcedCharacter())  // QOL (PC addition)
         {
             Settings::getInstance()->getTracker()->submitAction(
                 s_trackerCategory, "change_character_denied", "", -1);

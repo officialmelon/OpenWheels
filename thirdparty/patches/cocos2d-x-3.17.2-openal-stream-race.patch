@@ -1,0 +1,15 @@
+diff --git a/cocos/audio/win32/AudioEngine-win32.cpp b/cocos/audio/win32/AudioEngine-win32.cpp
+index d807d3c..0d3d31a 100644
+--- a/cocos/audio/win32/AudioEngine-win32.cpp
++++ b/cocos/audio/win32/AudioEngine-win32.cpp
+@@ -488,6 +488,10 @@ void AudioEngineImpl::update(float dt)
+             if (player->_finishCallbak) {
+                 auto& audioInfo = AudioEngine::_audioIDInfoMap[audioID];
+                 filePath = *audioInfo.filePath;
++                // OpenWheels: stop the player and join its streaming thread first - that thread
++                // reads the cache through this pointer (it crashed when a streamed source stopped
++                // right after starting, e.g. Santa's sleigh loops toggling every few frames).
++                player->destroy();
+                 player->setCache(nullptr); // it's safe for player didn't free audio cache
+             }
+ 

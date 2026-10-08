@@ -23,6 +23,12 @@ const char* const kTextureTier = "qol_texture_tier";
 const char* const kFrameRate = "qol_frame_rate";
 const char* const kEffectsVolume = "qol_effects_volume";
 const char* const kMusicVolume = "qol_music_volume";
+const char* const kTouchControls = "qol_touch_controls";
+const char* const kRegrabVehicle = "qol_regrab_vehicle";
+
+bool g_keyboardTouch = false;
+bool g_regrabSuspended = false;
+int g_regrab = -1;  // cached: UserDefault reads its file on every get on desktop builds
 
 std::function<void(bool)>& fullscreenHandler() {
     static std::function<void(bool)> handler;
@@ -150,6 +156,48 @@ void setFullscreen(bool on) {
     if (fullscreenHandler()) fullscreenHandler()(on);
 }
 void setFullscreenHandler(std::function<void(bool)> handler) { fullscreenHandler() = std::move(handler); }
+
+bool desktopBuild() {
+#if CC_TARGET_PLATFORM == CC_PLATFORM_WIN32 || CC_TARGET_PLATFORM == CC_PLATFORM_LINUX || \
+    CC_TARGET_PLATFORM == CC_PLATFORM_MAC
+    return true;
+#else
+    return false;
+#endif
+}
+
+TouchControls touchControls() {
+    const int v = store()->getIntegerForKey(kTouchControls, 0);
+    return (TouchControls)std::max(0, std::min(2, v));
+}
+void setTouchControls(TouchControls mode) { store()->setIntegerForKey(kTouchControls, (int)mode); }
+
+const char* touchControlsName(TouchControls mode) {
+    switch (mode) {
+        case TouchControls::Show: return "show";
+        case TouchControls::Hide: return "hide";
+        default: return desktopBuild() ? "auto (hidden)" : "auto (shown)";
+    }
+}
+
+bool touchControlsShown() {
+    if (!desktopBuild()) return true;  // a touch device has nothing else to drive with
+    return touchControls() == TouchControls::Show;
+}
+
+bool regrabVehicleSetting() {
+    if (g_regrab < 0) g_regrab = store()->getBoolForKey(kRegrabVehicle, true) ? 1 : 0;
+    return g_regrab == 1;
+}
+bool regrabVehicle() { return !g_regrabSuspended && regrabVehicleSetting(); }
+void setRegrabVehicle(bool on) {
+    store()->setBoolForKey(kRegrabVehicle, on);
+    g_regrab = on ? 1 : 0;
+}
+void suspendRegrabVehicle(bool suspended) { g_regrabSuspended = suspended; }
+
+void setKeyboardTouch(bool on) { g_keyboardTouch = on; }
+bool keyboardTouch() { return g_keyboardTouch; }
 
 void applyDisplaySettings() {
     Director::getInstance()->setDisplayStats(showFps());

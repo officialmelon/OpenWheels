@@ -21,4 +21,6 @@ public:
 
     // Shows a lower leg the cart hid (1 or 2; 0 = both).
     void showLowerLeg(int leg);
+    // QOL (PC addition): re-grab vehicle - back in the cart, the legs still on are hidden again.
+    void hideLowerLegs(bool leg1, bool leg2);
 };

@@ -48,6 +48,8 @@ public:
     // widgets (same play / edit / delete / new flows). This panel itself is unchanged and still
     // usable (create()).
     static cocos2d::Scene* scene();
+    // ONLINE (PC addition): UserLevelsScreen::sceneForReturnFromLevel (MainMenu::createScene).
+    static cocos2d::Scene* sceneForReturnFromLevel();
 
     bool initWithFrame(const cocos2d::Rect& frame) override;                // @ios 100106bb8
 

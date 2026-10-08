@@ -77,6 +77,11 @@ public:
     void checkStateOfCharacter(CharacterB2D* character) override;           // @00601a3c  vptr+0x2a8
     void handleContactResults() override;                                   // @00601be4  vptr+0x2b8
 
+    // QOL (PC addition): re-grab vehicle (Vehicle.h).
+    b2Body* qolFrameBody() override;
+    bool qolCanRemount(CharacterB2D* character) override;
+    void qolRemount(CharacterB2D* character) override;
+
     // ---- non-virtual ----
     // Handle smashed: destroys the stand/shock bodies and the stand-frame joint, ejects the rider.
     // Both arguments are unused (handleContactResults passes the contact impulse and an

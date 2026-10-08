@@ -1233,3 +1233,51 @@ void MomBike::basketSmash()
         createPositionSound("BasketSmash", Vec2(centre.x, centre.y), 1.0f, false);
     }
 }
+
+// ---- QOL (PC addition): re-grab vehicle (src/game/vehicles/Vehicle.h) ---------------------------
+// Only the mom gets back on; a kid, once off, stays off.
+
+b2Body* MomBike::qolFrameBody()
+{
+    return _frameBody;
+}
+
+// checkStateOfCharacter: the mom is off once both hands and both feet have let go.
+bool MomBike::qolCanRemount(CharacterB2D* character)
+{
+    return character == _mom && !_frameSmashed && _frameBody && _gearBody && _gearJoint &&
+           !(character->qolLostLowerArm(1) && character->qolLostLowerArm(2) &&
+             character->qolLostLowerLeg(1) && character->qolLostLowerLeg(2));
+}
+
+// The pedal gear goes back to its starting angle, so the feet land on the pedals.
+void MomBike::qolRemountResetBodies(std::vector<b2Body*>* bodies)
+{
+    bodies->push_back(_gearBody);
+}
+
+// momEject: _momEjected / _ejected, controls nulled, frame and wheels zero-filtered
+// (qolRestoreFilters), the legs solid (addMom makes them sensors again). She goes back to the
+// front of _characters (added first; Vehicle::cancelPose reads _characters[0]); the gear joint is
+// made again from the turned-back gear.
+void MomBike::qolRemount(CharacterB2D* character)
+{
+    _momEjected = false;
+    _ejected = false;
+    qolRestoreFilters(character);
+    qolMount(character, [this, character]() {
+        addMom(character);
+        _characters.erase(std::find(_characters.begin(), _characters.end(), character));
+        _characters.insert(_characters.begin(), character);
+    });
+    b2World* world = getWorld();
+    world->DestroyJoint(_gearJoint);
+    b2GearJointDef gear;
+    gear.bodyA = _backWheelBody;
+    gear.bodyB = _gearBody;
+    gear.joint1 = _backWheelJoint;
+    gear.joint2 = _frameGearJoint;
+    gear.ratio = -1.0f;
+    _gearJoint = static_cast<b2GearJoint*>(world->CreateJoint(&gear));
+    qolReplayInjuries(character);
+}

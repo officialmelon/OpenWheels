@@ -27,6 +27,7 @@
 #include "LevelDataElement.h"
 #include "Session.h"
 #include "Sound.h"
+#include "online/FlashPhysics.h"
 #include "online/FlashRuntime.h"
 #include "online/items/npc/NPCSpriteData.h"
 
@@ -600,7 +601,10 @@ void NPCharacter::checkJoints()
 {
     static const JointId order[] = {kWaist, kNeck, kShoulder1, kShoulder2, kElbow1, kElbow2,
                                     kHip1, kHip2, kKnee1, kKnee2};
-    for (JointId id : order) checkRevJoint(id, _jointLimit[id]);
+    // The limits are |reaction force| at 60 Hz steps; like CharacterB2D::timeStepChanged for the
+    // player, scale them with the step (x0.5 with the browser physics profile, FlashPhysics.h).
+    const float stepScale = perStep(1.0f);
+    for (JointId id : order) checkRevJoint(id, _jointLimit[id] * stepScale);
 }
 
 void NPCharacter::checkRevJoint(JointId id, float limit)

@@ -24,6 +24,7 @@
 #include "net/race/RaceUi.h"
 #include "online/FlashLevelConverter.h"
 #include "online/OnlineUi.h"
+#include "restored/Restored.h"
 
 USING_NS_CC;
 
@@ -225,6 +226,8 @@ void RaceSession::ensureTicking() {
     e->addCustomEventListener("levelCompleted", [this](EventCustom*) { onLevelComplete(); });
     e->addCustomEventListener("characterDead", [this](EventCustom*) { onCharacterEvent("dead"); });
     e->addCustomEventListener("characterEjected", [this](EventCustom*) { onCharacterEvent("ejected"); });
+    // QOL (PC addition): re-grab vehicle - back on the vehicle, racing again.
+    e->addCustomEventListener("characterRemounted", [this](EventCustom*) { onCharacterEvent("remounted"); });
     _statsSince = now();
 }
 
@@ -439,6 +442,14 @@ void RaceSession::setLevel(const RaceLevel& input) {
         if (lf != data.end()) l.forced = lf->second.asBool() && forcedId > 0;
         if (l.forced) l.forcedCharacter = forcedId;
         if (l.name.empty()) l.name = "Level " + std::to_string(l.level + 1);
+        // RESTORED (PC addition): OpenWheels' campaign chapters (src/restored) are not in every
+        // player's levelData: their (browser-format) level travels as XML and is played like an
+        // imported level, converted by each player (with his own character fallback).
+        l.xml.clear();
+        if (restored::isCampaignChapter(l.chapter)) {
+            const std::string file = data.count("dataFile") ? data["dataFile"].asString() : std::string();
+            if (!file.empty()) l.xml = FileUtils::getInstance()->getStringFromFile("levels/" + file);
+        }
     }
     _level = l;
     for (RacePlayer& p : _players) {
@@ -1171,7 +1182,7 @@ void RaceSession::startLocalLevel() {
     Settings* settings = Settings::getInstance();
     LevelSession* session = LevelSession::getInstance();
     Scene* scene = nullptr;
-    if (_level.kind == "campaign") {
+    if (_level.kind == "campaign" && _level.xml.empty()) {  // RESTORED: campaign chapters carry XML
         session->clearLevelData();
         session->setChapterIndex(_level.chapter);
         settings->setSelectedLevel(_level.chapter, _level.level);
@@ -1214,6 +1225,7 @@ void RaceSession::onCharacterEvent(const std::string& name) {
     if (_phase != Phase::Racing || statusIsFinal(_localStatus)) return;
     if (name == "dead") localStatus(Status::Dead);
     else if (name == "ejected" && _localStatus == Status::Racing) localStatus(Status::Ejected);
+    else if (name == "remounted" && _localStatus == Status::Ejected) localStatus(Status::Racing);
 }
 
 void RaceSession::integrateScene() {

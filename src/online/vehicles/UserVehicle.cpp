@@ -28,8 +28,9 @@
 
 USING_NS_CC;
 
-// Flash Jet.firingAllowed / ArrowGun.firingAllowed + unlimitedArrows: the mobile classes keep
-// these protected without setters; reach them through member pointers (no change to the classes).
+// Flash Jet.firingAllowed / ArrowGun.firingAllowed: the mobile classes keep these protected
+// without setters; reach them through member pointers (ArrowGun::onlineSetVehicleControlled
+// switches a gun to the vehicle behaviour).
 namespace {
 struct JetAccess : Jet
 {
@@ -38,7 +39,6 @@ struct JetAccess : Jet
 struct ArrowGunAccess : ArrowGun
 {
     static bool ArrowGun::*firingAllowed() { return &ArrowGunAccess::_firingAllowed; }
-    static bool ArrowGun::*unlimitedArrows() { return &ArrowGunAccess::_unlimitedArrows; }
     static b2Body* ArrowGun::*targetBody() { return &ArrowGunAccess::_targetBody; }
 };
 }  // namespace
@@ -120,13 +120,18 @@ void UserVehicle::shapeAdded(LevelDataElement* shape, b2Body* body, b2Fixture* p
     // Flash: every interactive shape of a vehicle is a handle unless saved with h="f".
     bool handle = true;
     shape->boolAttribute("vh", &handle);
-    b2Fixture* fixture = body ? body->GetFixtureList() : nullptr;
-    if (!handle || !fixture || fixture == previousFirst) {
+    if (!handle || !body) {
         return;
     }
-    _handles.push_back(fixture);
-    if (LevelVehicles* vehicles = levelVehicles(_level)) {
-        vehicles->handles[fixture] = this;
+    // Every fixture the shape added (a concave or many-sided polygon is split into several):
+    // Box2D prepends them, so they run from the list head up to the previous head.
+    LevelVehicles* vehicles = levelVehicles(_level);
+    for (b2Fixture* fixture = body->GetFixtureList(); fixture && fixture != previousFirst;
+         fixture = fixture->GetNext()) {
+        _handles.push_back(fixture);
+        if (vehicles) {
+            vehicles->handles[fixture] = this;
+        }
     }
 }
 
@@ -169,7 +174,9 @@ void UserVehicle::checkAddSpecial(LevelItem* item)
         if (std::find(_arrowGuns.begin(), _arrowGuns.end(), gun) == _arrowGuns.end()) {
             gun->*ArrowGunAccess::firingAllowed() = false;
             gun->*ArrowGunAccess::targetBody() = nullptr;
-            gun->*ArrowGunAccess::unlimitedArrows() = true;
+            // Unlimited arrows, fired straight along the barrel while the arrow action is held
+            // (no target needed, the rider is never aimed at).
+            gun->onlineSetVehicleControlled();
             _arrowGuns.push_back(gun);
         }
     }

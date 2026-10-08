@@ -48,6 +48,12 @@ Scene* UserLevelSelectUIView::scene()
     return UserLevelsScreen::createScene();
 }
 
+// ONLINE (PC addition): see UserLevelsScreen::sceneForReturnFromLevel.
+Scene* UserLevelSelectUIView::sceneForReturnFromLevel()
+{
+    return UserLevelsScreen::sceneForReturnFromLevel();
+}
+
 UserLevelSelectUIView::UserLevelSelectUIView()
     : tableView(nullptr),
       nameLabel(nullptr),

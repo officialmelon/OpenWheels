@@ -1,5 +1,6 @@
 #include "RoadBike.h"
 
+#include <algorithm>  // QOL (PC addition): std::find (re-grab vehicle)
 #include <cmath>
 #include <string>
 
@@ -249,13 +250,18 @@ void RoadBike::addDad(CharacterB2D* character)
     refilterLegs(0);
 
     // Limit the dad's joints around the riding pose (relative to the current angles).
+    // QOL (PC addition): qolLimb - a re-mounted dad (re-grab vehicle) may have lost limbs.
     float angle = character->getUpperLeg1Body()->GetAngle() - character->getPelvisBody()->GetAngle();
+    if (qolLimb(character, character->getHipJoint1()))
     character->getHipJoint1()->SetLimits(-0.17453292f - angle, 1.91986215f - angle);
     angle = character->getUpperLeg2Body()->GetAngle() - character->getPelvisBody()->GetAngle();
+    if (qolLimb(character, character->getHipJoint2()))
     character->getHipJoint2()->SetLimits(-0.17453292f - angle, 1.91986215f - angle);
     angle = character->getLowerArm1Body()->GetAngle() - character->getUpperArm1Body()->GetAngle();
+    if (qolLimb(character, character->getElbowJoint1()))
     character->getElbowJoint1()->SetLimits(-angle, 1.04719758f - angle);
     angle = character->getLowerArm2Body()->GetAngle() - character->getUpperArm2Body()->GetAngle();
+    if (qolLimb(character, character->getElbowJoint2()))
     character->getElbowJoint2()->SetLimits(-angle, 1.04719758f - angle);
     angle = character->getHeadBody()->GetAngle() - character->getChestBody()->GetAngle();
     character->getNeckJoint()->SetLimits(-angle, 0.34906584f - angle);
@@ -886,4 +892,51 @@ void RoadBike::handleContactResults()
 void RoadBike::debugFunction(int value)
 {
     detachSeat();
+}
+
+// ---------------------------------------------------------------------------------------------
+// QOL (PC addition): re-grab vehicle (Vehicle.h). Not in the original. Only the dad gets back on;
+// the kid, once off, stays off.
+// ---------------------------------------------------------------------------------------------
+
+b2Body* RoadBike::qolFrameBody()
+{
+    return _frameBody;
+}
+
+// checkStateOfCharacter: the dad is off once both feet have left the pedals.
+bool RoadBike::qolCanRemount(CharacterB2D* character)
+{
+    return character == _dad && !_vehicleSmashed && _frameBody && _gearBody && _gearJoint &&
+           !(character->qolLostLowerLeg(1) && character->qolLostLowerLeg(2));
+}
+
+// The pedal crank goes back to its starting angle, so the feet land on the pedals.
+void RoadBike::qolRemountResetBodies(std::vector<b2Body*>* bodies)
+{
+    bodies->push_back(_gearBody);
+}
+
+// ejectCharacter (dad): controls nulled, wheels and frame zero-filtered (qolRestoreFilters), the
+// legs' mask back (addDad clears it again). The dad goes back to the front of _characters (as he
+// was added first; Vehicle::cancelPose reads _characters[0]). The crank was turned back behind
+// the gear joint's back: the gear joint is made again from the joints' new angles.
+void RoadBike::qolRemount(CharacterB2D* character)
+{
+    qolRestoreFilters(character);
+    qolMount(character, [this, character]() {
+        addDad(character);
+        _characters.erase(std::find(_characters.begin(), _characters.end(), character));
+        _characters.insert(_characters.begin(), character);
+    });
+    b2World* world = getWorld();
+    world->DestroyJoint(_gearJoint);
+    b2GearJointDef gearJointDef;
+    gearJointDef.bodyA = _backWheelBody;
+    gearJointDef.bodyB = _gearBody;
+    gearJointDef.joint1 = _backWheelJoint;
+    gearJointDef.joint2 = _frameGearJoint;
+    gearJointDef.ratio = -1.0f;
+    _gearJoint = static_cast<b2GearJoint*>(world->CreateJoint(&gearJointDef));
+    qolReplayInjuries(character);
 }

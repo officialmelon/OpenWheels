@@ -11,6 +11,9 @@
 //                                                            (tools/re/extract_*.py, as on Win32)
 //         assets/ios/                                        optional: the iOS app's level-editor
 //                                                            art and Localizable.strings
+//         assets/levels/restored/                            OpenWheels' campaign chapters for the
+//                                                            restored characters (res/levels/restored,
+//                                                            in the repository; RESTORED)
 //         assets/generated/<tier>/characters/                optional (QOL): the kid's gore sheet,
 //                                                            rebuilt from the browser-game SWF
 //                                                            (tools/assets/extract_kid_gore.py)
@@ -39,6 +42,10 @@ def flashSwf    = owFile(owProp('OW_FLASH_SWF') ?: 'binary/flash/swf/game_e_v1_8
 def ffdecDir    = owFile(owProp('OW_FFDEC_DIR') ?: 'binary/flash/tools/ffdec')
 def flashChars  = owFile(owProp('OW_FLASH_CHARACTERS') ?: 'binary/flash/swf/characters')  // RESTORED
 def flashSounds = owFile(owProp('OW_FLASH_SOUNDS') ?: 'binary/flash/swf/happy_sounds_v1_72.swf')
+// Optional: the assets/ folder of an existing OpenWheels package (an OpenWheels APK's assets/, or
+// the Windows release folder), whose soundlist.tsv / gametext.tsv, generated/ and ios/ are used as
+// they are - no libMyGame.so, SWFs or FFDec needed. -POW_PREBUILT_DATA=<dir>
+def prebuiltData = owProp('OW_PREBUILT_DATA') ? owFile(owProp('OW_PREBUILT_DATA')) : null
 def isWindows   = System.getProperty('os.name').toLowerCase().contains('windows')
 def python      = owProp('OW_PYTHON') ?: (isWindows ? 'python' : 'python3')
 
@@ -57,6 +64,8 @@ def stagedGen    = new File(stageRoot, 'kidgore')  // generated/<tier>/character
 def stagedRestored = new File(stageRoot, 'restored')  // generated/restored/ (RESTORED)
 def stagedItems  = new File(stageRoot, 'flashitems')  // generated/ browser-level item art (ONLINE)
 def stagedSounds = new File(stageRoot, 'flashsounds') // generated/flash/sounds (ONLINE)
+def stagedCampaign = new File(stageRoot, 'campaign')  // levels/restored/ (RESTORED)
+def stagedPrebuilt = new File(stageRoot, 'prebuilt')  // generated/ + ios/ of OW_PREBUILT_DATA
 def iconRes      = gameRes.isDirectory() ? stagedRes : file('res-icon-fallback')
 
 if (!new File(engineDir, 'cocos/cocos2d.h').exists()) {
@@ -89,8 +98,8 @@ android {
         // NDK r27's floor; the original 1.1.3 needed API 23.
         minSdk = 21
         targetSdk = 35
-        versionCode = 1
-        versionName = '1.1.3-openwheels'
+        versionCode = 3
+        versionName = '0.3.0'
 
         ndk {
             abiFilters.addAll(owProp('OW_ABIS').split(':').collect { it.trim() }.findAll { it })
@@ -130,7 +139,8 @@ android {
             java.srcDirs = [new File(repoRoot, 'src/platform/android/java'), new File(cocosJava, 'src')]
             aidl.srcDirs = [new File(cocosJava, 'src')]
             res.srcDirs = ['res', iconRes]
-            assets.srcDirs = [stagedAssets, stagedData, stagedGen, stagedRestored, stagedItems, stagedSounds]
+            assets.srcDirs = [stagedAssets, stagedData, stagedGen, stagedRestored, stagedItems, stagedSounds,
+                              stagedCampaign, stagedPrebuilt]
         }
     }
 
@@ -220,6 +230,7 @@ def soundList = new File(stagedData, 'soundlist.tsv')
 def gameText  = new File(stagedData, 'gametext.tsv')
 
 def checkGameLib = {
+    if (prebuiltData != null) return
     if (!gameLib.isFile()) {
         throw new GradleException(
             "soundlist.tsv / gametext.tsv are generated from your own copy of the original\n" +
@@ -231,21 +242,39 @@ def checkGameLib = {
 def genSoundList = tasks.register('owGenerateSoundList', Exec) {
     description = 'Generates soundlist.tsv from libMyGame.so (tools/re/extract_soundlist.py).'
     inputs.file(new File(repoRoot, 'tools/re/extract_soundlist.py'))
-    inputs.file(gameLib).optional()
+    if (prebuiltData != null) {
+        inputs.file(new File(prebuiltData, 'soundlist.tsv'))
+    } else if (gameLib.isFile()) {
+        inputs.file(gameLib)
+    }
     outputs.file(soundList)
     doFirst { checkGameLib(); stagedData.mkdirs() }
-    commandLine python, new File(repoRoot, 'tools/re/extract_soundlist.py').path,
-                '--so', gameLib.path, '--out', soundList.path
+    if (prebuiltData != null) {
+        commandLine python, '-c', 'import shutil,sys; shutil.copyfile(sys.argv[1], sys.argv[2])',
+                    new File(prebuiltData, 'soundlist.tsv').path, soundList.path
+    } else {
+        commandLine python, new File(repoRoot, 'tools/re/extract_soundlist.py').path,
+                    '--so', gameLib.path, '--out', soundList.path
+    }
 }
 
 def genGameText = tasks.register('owGenerateGameText', Exec) {
     description = 'Generates gametext.tsv from libMyGame.so (tools/re/extract_gametext.py).'
     inputs.file(new File(repoRoot, 'tools/re/extract_gametext.py'))
-    inputs.file(gameLib).optional()
+    if (prebuiltData != null) {
+        inputs.file(new File(prebuiltData, 'gametext.tsv'))
+    } else if (gameLib.isFile()) {
+        inputs.file(gameLib)
+    }
     outputs.file(gameText)
     doFirst { checkGameLib(); stagedData.mkdirs() }
-    commandLine python, new File(repoRoot, 'tools/re/extract_gametext.py').path,
-                '--so', gameLib.path, '--out', gameText.path
+    if (prebuiltData != null) {
+        commandLine python, '-c', 'import shutil,sys; shutil.copyfile(sys.argv[1], sys.argv[2])',
+                    new File(prebuiltData, 'gametext.tsv').path, gameText.path
+    } else {
+        commandLine python, new File(repoRoot, 'tools/re/extract_gametext.py').path,
+                    '--so', gameLib.path, '--out', gameText.path
+    }
 }
 
 // QOL (PC addition): gore sprites for Irresponsible Dad's kid, which the mobile port shipped
@@ -282,6 +311,16 @@ def genRestored = tasks.register('owGenerateRestoredCharacters', Exec) {
                 '--work', new File(stageRoot, 'restored-work').path
 }
 
+// RESTORED (PC addition): main-menu portraits the step above could not draw, from the generated
+// sprites (tools/assets/restored_portraits.py; only missing ones, skipped quietly without inputs).
+def portraitsScript = new File(repoRoot, 'tools/assets/restored_portraits.py')
+def genPortraits = tasks.register('owGenerateRestoredPortraits', Exec) {
+    description = 'Draws missing restored-character portraits (tools/assets/restored_portraits.py).'
+    dependsOn genRestored
+    commandLine python, portraitsScript.path, '--optional',
+                '--out', new File(stagedRestored, 'generated/restored').path
+}
+
 // ONLINE (PC addition): art for the browser-level items the mobile game lacks (as on Win32).
 def itemsScript = new File(repoRoot, 'tools/assets/extract_flash_items.py')
 def genItems = tasks.register('owGenerateFlashItems', Exec) {
@@ -311,6 +350,24 @@ def genSounds = tasks.register('owGenerateFlashSounds', Exec) {
                 '--out', new File(stagedSounds, 'generated').path
 }
 
+// RESTORED (PC addition): OpenWheels' own campaign chapters for the restored characters
+// (res/levels/restored/, in the repository), packed as assets/levels/restored/.
+def stageCampaign = tasks.register('owStageCampaignLevels', Sync) {
+    description = "Copies the restored characters' campaign levels (res/levels/restored) into build/ow/campaign."
+    from(new File(repoRoot, 'res/levels/restored'))
+    into new File(stagedCampaign, 'levels/restored')
+}
+
+def stagePrebuilt = tasks.register('owStagePrebuiltData', Sync) {
+    description = "Copies generated/ and ios/ of OW_PREBUILT_DATA (an existing OpenWheels package) into build/ow/prebuilt."
+    if (prebuiltData != null) {
+        from(prebuiltData) {
+            include 'generated/**', 'ios/**'
+        }
+    }
+    into stagedPrebuilt
+}
+
 def stageIcon = tasks.register('owStageIcon', Sync) {
     description = "Copies the original launcher icon from the player's copy into build/ow/res."
     from(gameRes) {
@@ -322,5 +379,7 @@ def stageIcon = tasks.register('owStageIcon', Sync) {
 tasks.named('preBuild') {
     dependsOn stageGameAssets, genSoundList, genGameText, genKidGore, genRestored, genItems
     dependsOn genSounds  // ONLINE (PC addition)
+    dependsOn stageCampaign, genPortraits  // RESTORED (PC addition)
+    dependsOn stagePrebuilt
     if (iconRes == stagedRes) dependsOn stageIcon
 }

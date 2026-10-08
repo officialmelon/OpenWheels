@@ -22,9 +22,10 @@ void LevelSession::importLevelsFromFileSharingWithAlert() {}
 
 // Scene factories of editor classes whose headers are not needed here (link-level stand-ins).
 class EditorLayer { public: static cocos2d::Scene* createScene(); };
-class UserLevelSelectUIView { public: static cocos2d::Scene* scene(); };
+class UserLevelSelectUIView { public: static cocos2d::Scene* scene(); static cocos2d::Scene* sceneForReturnFromLevel(); };
 cocos2d::Scene* EditorLayer::createScene() { return nullptr; }
 cocos2d::Scene* UserLevelSelectUIView::scene() { return nullptr; }
+cocos2d::Scene* UserLevelSelectUIView::sceneForReturnFromLevel() { return nullptr; }
 
 // NET (PC addition): src/net/ is left out with the editor.
 #include "net/NetLevels.h"

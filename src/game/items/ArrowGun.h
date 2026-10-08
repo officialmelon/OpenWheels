@@ -42,6 +42,12 @@ public:
     void arrowBroken(Arrow* arrow);                             // @00581bc4
     void dealloc();                                             // @00581d2c
 
+    // ONLINE (PC addition): the gun belongs to a browser user vehicle (UserVehicle::checkAddSpecial).
+    // From then on it does not track targets: it keeps its aim relative to the body it sits on and,
+    // while firing is allowed (the vehicle's arrow action is held), shoots straight along the barrel
+    // every framesPerShot frames with unlimited arrows (Flash vehicle arrow guns).
+    void onlineSetVehicleControlled();
+
     // LevelItem overrides
     void paint() override;                                      // @00581a38  vptr+0x28
     void actions() override;                                    // @0058152c  vptr+0x30
@@ -55,6 +61,10 @@ public:
     void setOpacity(float opacity) override;                    // @00581c40  vptr+0xd0
 
 protected:
+    // fireArrow's shot along `angle` (radians): the Arrow (retained) and the fire sound.
+    Arrow* launchArrow(float angle);
+    void onlineVehicleActions();              // ONLINE (PC addition)
+
     cocos2d::Node* _mc;                       // +0x98  container: base sprite + turret, in the level items node
     cocos2d::Sprite* _turret;                 // +0xa0  "arrow_gun_turret.png"
     cocos2d::Sprite* _stringMC;               // +0xa8  "arrow_gun_string_<n>.png", child of _turret
@@ -82,4 +92,7 @@ protected:
     b2Vec2 _turretPos;                        // +0x150 world position arrows are fired from
     b2Vec2 _turretLocalPos;                   // +0x158 _turretPos in _baseBody's frame (types 1/2)
     float _currentAngle;                      // +0x160 turret angle, radians (= -p2 * pi/180)
+    // ONLINE (PC addition): past the original layout.
+    bool _onlineVehicleGun = false;           // onlineSetVehicleControlled
+    float _onlineVehicleAim = 0.0f;           // _currentAngle relative to the base body
 };

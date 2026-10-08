@@ -38,6 +38,10 @@ struct ArtDelegate
     cocos2d::V2F_C4B_T2F_Triangle triangles[98];   // +0x0008 local-space copy
     FFDrawNodeDelegate* delegate;                  // +0x1700
     bool update;                                   // +0x1708 re-transform every updateVerts()
+    // PC addition: local copies of triangles past triangles[97] (browser-level outlines, circle
+    // cutouts, the fallback fill of PolyFill.h). Empty for everything the original draws, so
+    // records stay what they were (the original's memcpy of 0x1709 bytes is plain assignment).
+    std::vector<cocos2d::V2F_C4B_T2F_Triangle> moreTriangles;
 };
 
 class FFDrawNode : public cocos2d::Node
@@ -125,6 +129,14 @@ public:
                                 FFDrawNodeDelegate* artDelegate);
     void updateVerts();  // called by Session::update after the physics step
 
+    // ONLINE (PC addition): how LevelB2D::addShape wants the next delegate polygons / dots of a
+    // browser level drawn (Flash ShapeRefs): `fill` false = outline only (p8 -1), outlineWidth
+    // > 0 = a centred stroke of that width in points in the border colour (p9), innerCutout
+    // 0..1 = circle drawn as a ring from that fraction of the radius (p12). Campaign levels never
+    // set a style: their shapes draw exactly as in the original (fill only, p9 ignored).
+    void onlineSetShapeStyle(bool fill, float outlineWidth, float innerCutout);
+    void onlineClearShapeStyle();
+
 CC_CONSTRUCTOR_ACCESS:
     FFDrawNode(float lineWidth);
     virtual ~FFDrawNode();
@@ -167,6 +179,18 @@ protected:
     std::vector<ArtDelegate> _artDelegates;   // +0x460 (was ArtDelegate[1600])
     void onlineReserveArtDelegate();
     unsigned int _artDelegateCount;           // +0x902860
+    // ONLINE (PC addition): see onlineSetShapeStyle.
+    bool _onlineStyle = false;
+    bool _onlineFill = true;
+    float _onlineOutlineWidth = 0.0f;
+    float _onlineInnerCutout = 0.0f;
+    // Appends a closed polyline stroke / a ring to _buffer; return the number of vertices added.
+    int onlineDrawOutline(const cocos2d::Vec2* verts, int count, const cocos2d::Color4F& color,
+                          float width);
+    int onlineDrawRing(const cocos2d::Vec2& center, float innerRadius, float outerRadius,
+                       const cocos2d::Color4F& color);
+    // PC addition (render fix): PolyFill.h fill of a polygon the ear clipping could not fill.
+    int fallbackFill(const cocos2d::Vec2* verts, int count, const cocos2d::Color4F& fillColor);
 
 private:
     CC_DISALLOW_COPY_AND_ASSIGN(FFDrawNode);

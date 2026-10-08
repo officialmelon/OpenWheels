@@ -9,8 +9,10 @@
 #include "OptionsMenuItem.h"
 #include "Settings.h"
 #include "qol/QoL.h"
+#include "qol/CharacterChoice.h"
 #include "qol/QoLControlsMenu.h"
 #include "qol/QoLWidgets.h"
+#include "online/FlashPhysics.h"
 
 USING_NS_CC;
 
@@ -81,6 +83,10 @@ std::string QoLMenu::labelFor(int row) const
         return std::string("child gore: ") + (qol::childGoreAvailable() ? onOff(qol::childGore()) : "no art");
     case RowTextures: return texturesLabel();
     case RowFrameRate: return "frame rate: " + std::to_string(qol::frameRate()) + " fps";
+    case RowTouchControls: return std::string("touch controls: ") + qol::touchControlsName(qol::touchControls());
+    case RowRegrabVehicle: return std::string("re-grab vehicle: ") + onOff(qol::regrabVehicleSetting());
+    case RowAnyCharacter: return std::string("any character: ") + onOff(qol::anyCharacterOnForcedLevels());
+    case RowBrowserPhysics: return std::string("browser physics (online levels): ") + onOff(online::browserPhysicsOption());
     default: return std::string();
     }
 }
@@ -103,17 +109,21 @@ void QoLMenu::addContent()
     game->addChild(QoLSliderItem::create([](float v) { return "music: " + percent(v); }, qol::musicVolume,
                                          qol::setMusicVolume));
     game->addChild(makeRow(RowUnlockLevels));
+    game->addChild(makeRow(RowAnyCharacter));  // user / online levels that force a character
+    game->addChild(makeRow(RowBrowserPhysics));  // the next browser level steps at 1/30 (FlashPhysics.h)
     game->addChild(makeRow(RowChildGore));
+    game->addChild(makeRow(RowRegrabVehicle));
     if (qol::fullscreenSupported())
     {
         game->addChild(makeRow(RowFullscreen));
+        game->addChild(makeRow(RowTouchControls));  // touch devices always show them
         game->addChild(makeRow(RowControls));  // the keyboard bridge is desktop-only
     }
     const float padding = 35.0f;
     visuals->alignItemsVerticallyWithPadding(padding);
     game->alignItemsVerticallyWithPadding(padding);
 
-    // Two 1500-wide columns of up to six rows between the title and the back button; shrink them
+    // Two 1500-wide columns of rows between the title and the back button; shrink them
     // on narrow (4:3-ish) or short screens.
     const float columnWidth = 1500.0f, gap = 160.0f, headerGap = 210.0f;
     const float rowHeight = visuals->getChildren().front()->getContentSize().height;
@@ -180,6 +190,18 @@ void QoLMenu::rowPressed(Ref* sender)
     }
     case RowFrameRate:
         qol::setFrameRate(qol::frameRate() == 60 ? 30 : 60);
+        break;
+    case RowTouchControls:
+        qol::setTouchControls((qol::TouchControls)(((int)qol::touchControls() + 1) % 3));
+        break;
+    case RowRegrabVehicle:
+        qol::setRegrabVehicle(!qol::regrabVehicleSetting());
+        break;
+    case RowAnyCharacter:
+        qol::setAnyCharacterOnForcedLevels(!qol::anyCharacterOnForcedLevels());
+        break;
+    case RowBrowserPhysics:
+        online::setBrowserPhysicsOption(!online::browserPhysicsOption());
         break;
     case RowChildGore:
         if (!qol::childGoreAvailable())

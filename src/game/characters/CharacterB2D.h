@@ -300,6 +300,29 @@ public:
     void onlineUserVehiclePose();                              // poses 10..12 (checkPose)
     void onlineUserVehicleJointDestroyed(b2Joint* joint);
 
+    // QOL (PC addition): re-grab vehicle (qol::regrabVehicle, Vehicle::qolTryRemount). Not in
+    // the original. Limb injuries are recorded (postInjury) so a re-mount lets go of the same
+    // limbs again; qolLost* mirror Vehicle::handleInjury's mapping (shoulder: upper + lower arm,
+    // elbow: lower arm, hip: upper + lower leg, knee and foot smash: lower leg).
+    bool qolHasInjury(CharacterInjury injury) const;
+    const std::vector<CharacterInjury>& qolInjuries() const { return _qolInjuries; }
+    bool qolLostLowerArm(int arm) const;
+    bool qolLostUpperLeg(int leg) const;
+    bool qolLostLowerLeg(int leg, bool footSmashCounts = true) const;
+    // Alive, not bleeding out, head, chest and pelvis still joined.
+    bool qolFit();
+    bool qolIsGripJoint(const b2Joint* joint) const { return joint && (joint == _gripJoint1 || joint == _gripJoint2); }
+    // The eleven body parts (nullptr for a destroyed one).
+    std::vector<b2Body*> qolParts();
+    // Fixtures of the limbs lost to injuries (the parts no longer on him).
+    std::vector<b2Fixture*> qolLostFixtures();
+    // Vehicle::qolMount: let go of grips, cancel the ejected pose; then riding again (before the
+    // vehicle replays the lost limbs, which may throw him off again); then hands closed, the
+    // driving controls back and "characterRemounted".
+    void qolBeginRemount();
+    void qolSetRiding();
+    void qolRemounted();
+
 protected:
     // Voice clip names picked by playRandomVocals (.data @00abb5a8).
     static const char* _randomVocals[10];
@@ -464,4 +487,14 @@ protected:
     cocos2d::Vec2 _brainAnchor;                  // +0x4d8 init: (0.5, 0.6) (headSmash)
     cocos2d::ValueMap _bodiesDict;               // +0x4e0 "characters/bodies/<name>_<vehicle>.plist"
     CharacterB2D* _mourner = nullptr;            // +0x508 mourns this character's death (setMourner)
+
+    // QOL (PC addition): re-grab vehicle. Time since the ejection (sum of physics steps) and the
+    // limb injuries in the order they happened.
+    float _qolEjectedTime = 0.0f;
+    std::vector<CharacterInjury> _qolInjuries;
+    // A hand touched `other` (contact) or overlaps a body of the vehicle (qolCheckRemount): back
+    // on the vehicle when everything allows it.
+    bool qolGrabRemount(int hand, b2Body* other);
+    void qolCheckRemount();
+    bool qolHandFree(int hand) const;
 };

@@ -39,6 +39,10 @@ class UserLevelsScreen : public cocos2d::Layer, public HWWindowDelegate
 {
 public:
     static cocos2d::Scene* createScene();
+    // Non-null once after a level started from this screen ends (EXIT, back from character
+    // select, NEXT): a fresh screen to show instead of the main menu (MainMenu::createScene,
+    // through UserLevelSelectUIView::sceneForReturnFromLevel; online::LevelReturn).
+    static cocos2d::Scene* sceneForReturnFromLevel();
     CREATE_FUNC(UserLevelsScreen);
     bool init() override;
     void onEnter() override;
