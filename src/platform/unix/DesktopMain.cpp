@@ -283,6 +283,13 @@ void runOnMainMenu(std::function<void()> action)
 int run(int argc, char** argv)
 {
     const Options opt = parseOptions(argc, argv);
+    // cocos2d-x keeps settings in ~/.config/<app>/ (Linux) and creates only the last folder: on an
+    // account without ~/.config the first UserDefault access crashed. Create the whole path.
+    {
+        FileUtils* fileUtils = FileUtils::getInstance();
+        const std::string writable = fileUtils->getWritablePath();
+        if (!writable.empty() && !fileUtils->isDirectoryExist(writable)) fileUtils->createDirectory(writable);
+    }
     setupLogging(opt.console);
     openwheels::pc::installCrashHandler(logDirectory());
 

@@ -42,6 +42,10 @@ def flashSwf    = owFile(owProp('OW_FLASH_SWF') ?: 'binary/flash/swf/game_e_v1_8
 def ffdecDir    = owFile(owProp('OW_FFDEC_DIR') ?: 'binary/flash/tools/ffdec')
 def flashChars  = owFile(owProp('OW_FLASH_CHARACTERS') ?: 'binary/flash/swf/characters')  // RESTORED
 def flashSounds = owFile(owProp('OW_FLASH_SOUNDS') ?: 'binary/flash/swf/happy_sounds_v1_72.swf')
+// Optional: the assets/ folder of an existing OpenWheels package (an OpenWheels APK's assets/, or
+// the Windows release folder), whose soundlist.tsv / gametext.tsv, generated/ and ios/ are used as
+// they are - no libMyGame.so, SWFs or FFDec needed. -POW_PREBUILT_DATA=<dir>
+def prebuiltData = owProp('OW_PREBUILT_DATA') ? owFile(owProp('OW_PREBUILT_DATA')) : null
 def isWindows   = System.getProperty('os.name').toLowerCase().contains('windows')
 def python      = owProp('OW_PYTHON') ?: (isWindows ? 'python' : 'python3')
 
@@ -61,6 +65,7 @@ def stagedRestored = new File(stageRoot, 'restored')  // generated/restored/ (RE
 def stagedItems  = new File(stageRoot, 'flashitems')  // generated/ browser-level item art (ONLINE)
 def stagedSounds = new File(stageRoot, 'flashsounds') // generated/flash/sounds (ONLINE)
 def stagedCampaign = new File(stageRoot, 'campaign')  // levels/restored/ (RESTORED)
+def stagedPrebuilt = new File(stageRoot, 'prebuilt')  // generated/ + ios/ of OW_PREBUILT_DATA
 def iconRes      = gameRes.isDirectory() ? stagedRes : file('res-icon-fallback')
 
 if (!new File(engineDir, 'cocos/cocos2d.h').exists()) {
@@ -93,8 +98,8 @@ android {
         // NDK r27's floor; the original 1.1.3 needed API 23.
         minSdk = 21
         targetSdk = 35
-        versionCode = 1
-        versionName = '1.1.3-openwheels'
+        versionCode = 3
+        versionName = '0.3.0'
 
         ndk {
             abiFilters.addAll(owProp('OW_ABIS').split(':').collect { it.trim() }.findAll { it })
@@ -135,7 +140,7 @@ android {
             aidl.srcDirs = [new File(cocosJava, 'src')]
             res.srcDirs = ['res', iconRes]
             assets.srcDirs = [stagedAssets, stagedData, stagedGen, stagedRestored, stagedItems, stagedSounds,
-                              stagedCampaign]
+                              stagedCampaign, stagedPrebuilt]
         }
     }
 
@@ -225,6 +230,7 @@ def soundList = new File(stagedData, 'soundlist.tsv')
 def gameText  = new File(stagedData, 'gametext.tsv')
 
 def checkGameLib = {
+    if (prebuiltData != null) return
     if (!gameLib.isFile()) {
         throw new GradleException(
             "soundlist.tsv / gametext.tsv are generated from your own copy of the original\n" +
@@ -236,21 +242,39 @@ def checkGameLib = {
 def genSoundList = tasks.register('owGenerateSoundList', Exec) {
     description = 'Generates soundlist.tsv from libMyGame.so (tools/re/extract_soundlist.py).'
     inputs.file(new File(repoRoot, 'tools/re/extract_soundlist.py'))
-    inputs.file(gameLib).optional()
+    if (prebuiltData != null) {
+        inputs.file(new File(prebuiltData, 'soundlist.tsv'))
+    } else if (gameLib.isFile()) {
+        inputs.file(gameLib)
+    }
     outputs.file(soundList)
     doFirst { checkGameLib(); stagedData.mkdirs() }
-    commandLine python, new File(repoRoot, 'tools/re/extract_soundlist.py').path,
-                '--so', gameLib.path, '--out', soundList.path
+    if (prebuiltData != null) {
+        commandLine python, '-c', 'import shutil,sys; shutil.copyfile(sys.argv[1], sys.argv[2])',
+                    new File(prebuiltData, 'soundlist.tsv').path, soundList.path
+    } else {
+        commandLine python, new File(repoRoot, 'tools/re/extract_soundlist.py').path,
+                    '--so', gameLib.path, '--out', soundList.path
+    }
 }
 
 def genGameText = tasks.register('owGenerateGameText', Exec) {
     description = 'Generates gametext.tsv from libMyGame.so (tools/re/extract_gametext.py).'
     inputs.file(new File(repoRoot, 'tools/re/extract_gametext.py'))
-    inputs.file(gameLib).optional()
+    if (prebuiltData != null) {
+        inputs.file(new File(prebuiltData, 'gametext.tsv'))
+    } else if (gameLib.isFile()) {
+        inputs.file(gameLib)
+    }
     outputs.file(gameText)
     doFirst { checkGameLib(); stagedData.mkdirs() }
-    commandLine python, new File(repoRoot, 'tools/re/extract_gametext.py').path,
-                '--so', gameLib.path, '--out', gameText.path
+    if (prebuiltData != null) {
+        commandLine python, '-c', 'import shutil,sys; shutil.copyfile(sys.argv[1], sys.argv[2])',
+                    new File(prebuiltData, 'gametext.tsv').path, gameText.path
+    } else {
+        commandLine python, new File(repoRoot, 'tools/re/extract_gametext.py').path,
+                    '--so', gameLib.path, '--out', gameText.path
+    }
 }
 
 // QOL (PC addition): gore sprites for Irresponsible Dad's kid, which the mobile port shipped
@@ -334,6 +358,16 @@ def stageCampaign = tasks.register('owStageCampaignLevels', Sync) {
     into new File(stagedCampaign, 'levels/restored')
 }
 
+def stagePrebuilt = tasks.register('owStagePrebuiltData', Sync) {
+    description = "Copies generated/ and ios/ of OW_PREBUILT_DATA (an existing OpenWheels package) into build/ow/prebuilt."
+    if (prebuiltData != null) {
+        from(prebuiltData) {
+            include 'generated/**', 'ios/**'
+        }
+    }
+    into stagedPrebuilt
+}
+
 def stageIcon = tasks.register('owStageIcon', Sync) {
     description = "Copies the original launcher icon from the player's copy into build/ow/res."
     from(gameRes) {
@@ -346,5 +380,6 @@ tasks.named('preBuild') {
     dependsOn stageGameAssets, genSoundList, genGameText, genKidGore, genRestored, genItems
     dependsOn genSounds  // ONLINE (PC addition)
     dependsOn stageCampaign, genPortraits  // RESTORED (PC addition)
+    dependsOn stagePrebuilt
     if (iconRes == stagedRes) dependsOn stageIcon
 }
