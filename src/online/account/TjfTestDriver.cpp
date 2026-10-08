@@ -272,7 +272,11 @@ void runTjfTestScenario(const std::string& scenario) {
         shot("02_live_replays");
         doit("watch", []() { key(EventKeyboard::KeyCode::KEY_ENTER); });
         add("watching", []() { return inGameplay(); }, 60.0f);
-        wait(8.0f);
+        {
+            // OW_TJF_WATCH_SECONDS: watch longer (to the replay's end) before the screenshot.
+            const char* watch = std::getenv("OW_TJF_WATCH_SECONDS");
+            wait(watch ? (float)std::atof(watch) : 8.0f);
+        }
         shot("03_live_watch");
         doit("exit replay", []() {
             int a = 1;

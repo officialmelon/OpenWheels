@@ -504,6 +504,15 @@ Mom's bike (built as RoadBike) stay per step: the mobile port kept the Flash per
 Bodies are drawn when the world steps, so with the profile they move at 30 Hz on screen
 (no interpolation), as in the browser game.
 
+
+### Replay check (2026-10-08)
+
+The fastest replay of POKEMON TRAINING (562820, Chrepuhon, 34.13 s), watched to its end with
+`OW_TJF_WATCH_SECONDS=48 OpenWheels --online-test live-replays`: on the mobile profile (1/60, 8 + 3,
+block solver) the rider dies at 7.4 s in the first Thunderbolt battle; with browser physics the run
+survives every battle to the end of its keys (still not counted as finished, so replays remain
+approximate: the remaining Box2D 2.0 / 2.3 differences are internal to the prebuilt solver).
+
 ## 11. Replays, the player's account and publishing (2026-10-04)
 
 All of this is a PC addition (`// ONLINE (PC addition):`), in `src/online/account/` and
