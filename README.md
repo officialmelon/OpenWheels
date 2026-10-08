@@ -132,13 +132,14 @@ maximized and goes fullscreen (F11) at any aspect ratio without black bars. See
 
 ## Download and install
 
-Builds are published on the [Releases](https://github.com/officialmelon/OpenWheels/releases) page.
+Builds are published on the [Releases](https://github.com/officialmelon/OpenWheels/releases) page,
+built by the release workflow (see [docs/RELEASING.md](docs/RELEASING.md)).
 
 - **Windows:** download `OpenWheels-windows.zip`, unzip it anywhere and run `OpenWheels.exe`.
 - **Android:** download `OpenWheels-release.apk` to your device and open it. Allow installs from
   unknown sources when Android asks.
-- **Linux, macOS, iOS:** build from source (below); you need your own copy of the game files
-  either way.
+- **Linux:** download `OpenWheels-linux-x86_64.tar.gz`, unpack it and run `./OpenWheels`.
+- **macOS, iOS:** unsigned packages when the release has them, otherwise build from source (below).
 
 ## Controls
 
