@@ -610,8 +610,8 @@ def lm_06():
     L.ground([(2600, G), (4200, G)], bottom=G + 700, color=GRASS)
     L.box(3000, G - 420, 3500, G - 40, color=WOOD, outline=WOOD_DARK, inter=False)
     L.roof(3250, G - 420, 580, 140, color=WOOD_DARK)
-    L.harpoon(3100, G - 300, rot=0, anchor=True)
-    L.harpoon(3400, G - 200, rot=0, anchor=True)
+    L.harpoon(3100, G - 300, rot=0)
+    L.harpoon(3400, G - 200, rot=0)
     L.text(3020, G - 380, 'SHED OF DOOM', size=22, color=RED_DARK, font=5)
     # 3) gully with a bridge that drops once you are on it (trigger deletes its pins)
     gl, gr_, top = 4200, 5200, G
@@ -1039,8 +1039,8 @@ def ex_06():
     L.ground([(7600, G), (9200, G)], bottom=G + 700, color=TEMPLE)
     for x in (8000, 8600):
         L.npc(x, G, char=5, sleep=True, hold=True, pose=(0, -90, -90, 0, 0, 0, 0, 0, 0))
-    L.harpoon(8300, G - 560, rot=180, anchor=True)
-    L.harpoon(9000, G - 560, rot=180, anchor=True)
+    L.harpoon(8300, G - 560, rot=180)
+    L.harpoon(9000, G - 560, rot=180)
     # spiked ceiling section: lower roof, spikes pointing down (crouch!)
     L.box(9200, G - 640, 10400, G - 260, color=TEMPLE_DARK)
     L.spikes(9800, G - 245, 70, rot=180, fixed=True)
@@ -1090,6 +1090,14 @@ def flat_house(L, x1, x2, top, bottom, wall=BRICK, lights=True, chimney=None, so
             L.circle(x1 + k * 60, top + 18, 14, color=[RED, GREEN, YELLOW, BLUE][k % 4], inter=False)
     if chimney is not None:
         L.box(chimney - 45, top - 150, chimney + 45, top - 6, color=BRICK, outline=rgb('5a2a14'), inter=False)
+
+
+def billboard_gun(L, x, roof, rot=0):
+    """A harpoon turret on a billboard 250 px above a roof: it shoots, it does not block."""
+    L.box(x - 8, roof - 250, x + 8, roof, color=METAL_DARK, inter=False)
+    L.box(x - 80, roof - 270, x + 80, roof - 250, color=METAL_DARK)
+    L.box(x - 80, roof - 380, x + 80, roof - 270, color=rgb('c0392b'), outline=WHITE, inter=False)
+    return L.harpoon(x, roof - 290, rot=rot)
 
 
 def snowman(L, x, ground, inter=False):
@@ -1350,8 +1358,8 @@ def sn_05():
     # traps
     L.mine(1850, R)
     L.mine(2350, R)
-    L.harpoon(4800, R - 20, rot=0, anchor=True)
-    L.harpoon(5500, R - 20, rot=0, anchor=True)
+    billboard_gun(L, 4900, R)
+    billboard_gun(L, 5450, R)
     L.homing_mine(6700, S - 400, speed=2, delay=1)
     L.text(6300, S - 330, 'Little Timmy built a drone.\nIt has a mine. Little Timmy is 8.', size=15, color=WHITE)
     L.text(3550, S - 330, 'Mines on the roof. Timmy got\na chemistry set for Christmas.', size=15, color=WHITE)
@@ -1375,49 +1383,54 @@ def sn_05():
 
 
 def sn_06():
-    """Silent Night (hard): over the city at midnight. Skyscraper roofs (building specials) with
-    gaps you can only fly, rooftop harpoon turrets, a water tower to duck under, meteors woken
-    as you pass (\"fireworks\"), a homing drone, and the church roof finish. Land often: the meter
-    only refills on the ground."""
-    L = Level('08_santa_claus/06_silent_night.xml', 'Silent Night', 8, (450, 3800 - RIDE), bg=2, bgc=NIGHT)
-    title(L, 160, 3800, 'SILENT NIGHT', 'All is calm. All is bright. All is 200 metres down.\n'
-          'Land on every roof: the meter only refills on the ground.', color=WHITE)
+    """Silent Night (hard): over the city at midnight. Eight skyscraper roofs (building specials),
+    each a little lower than the last, with gaps from 300 to 500 px that only flight crosses:
+    tap SPACE as the elves reach the edge and let go once you land, so the meter refills on the
+    roof. Billboard harpoon turrets, a water tower, "fireworks" (meteors) dropping through the
+    gaps, a homing drone, and the church roof finish."""
+    TOPS = [3800, 3850, 3950, 4000, 4100, 4150, 4250, 4300]
+    GAPS = [300, 350, 400, 400, 450, 450, 500, 500]          # gap after roof k
+    W = 1200                                                  # 4 floors of 300 px
+    L = Level('08_santa_claus/06_silent_night.xml', 'Silent Night', 8, (450, TOPS[0] - RIDE), bg=2, bgc=NIGHT)
+    title(L, 160, TOPS[0], 'SILENT NIGHT', 'All is calm. All is bright. All is 200 metres down.\n'
+          'Tap SPACE at each edge; the meter only refills on a roof.', color=WHITE)
     roofs = []
-    # (x, top, width floors) for type-13 buildings (300 px per floor width)
-    # every roof a little lower than the last (flight holds height, it cannot climb)
-    blds = [(0, 3800, 4), (1500, 3850, 3), (2750, 3950, 3), (4050, 4000, 3), (5350, 4100, 3),
-            (6700, 4150, 3), (8100, 4250, 3), (9600, 4300, 3)]
-    for x, top, fw in blds:
-        floors = int((6400 - top) / 165)
-        L.building(x, top, floors=floors, width=fw)
-        roofs.append((x, x + fw * 300, top))
-    L.box(-100, 6400, 12500, 6800, color=ASPHALT)                              # the street far below
-    for x1, x2, top in roofs:
-        L.box(x1 + 40, top - 70, x1 + 90, top, color=METAL_DARK, inter=False)  # vents
-    L.text(900, 3800 - 330, 'Gaps get wider. Jump, then hold SPACE.', size=15, color=YELLOW)
+    x = 0
+    for k, top in enumerate(TOPS):
+        L.building(x, top, floors=int((6400 - top) / 165), width=4)
+        roofs.append((x, x + W, top))
+        L.box(x + 40, top - 70, x + 90, top, color=METAL_DARK, inter=False)          # vents
+        x += W + GAPS[k]
+    church_x = x
+    L.box(-100, 6400, church_x + 1500, 6800, color=ASPHALT)                          # the street far below
+    L.text(900, TOPS[0] - 330, 'Gaps get wider. Jump, then hold SPACE.', size=15, color=YELLOW)
     # hazards
-    L.harpoon(4800, 4000 - 20, rot=0, anchor=True)
-    L.harpoon(8700, 4250 - 20, rot=0, anchor=True)
-    # water tower: legs you drive between, tank above
-    L.box(7100, 4150 - 260, 7140, 4150, color=WOOD_DARK, inter=False)
-    L.box(7360, 4150 - 260, 7400, 4150, color=WOOD_DARK, inter=False)
-    L.box(7060, 4150 - 480, 7440, 4150 - 260, color=WOOD, outline=WOOD_DARK)
-    meteors = [L.meteor(x, 2900, d=240) for x in (6000, 6300, 9200)]
-    L.trigger(5500, 4100 - 120, 60, 240, [(meteors[0], [(0,)]), (meteors[1], [(0,)])])
-    L.trigger(8400, 4250 - 120, 60, 240, [(meteors[2], [(0,)])])
-    L.text(5450, 4100 - 330, 'Fireworks! Very large ones.\nVery rocky ones.', size=15, color=YELLOW)
-    L.homing_mine(9300, 3900, speed=2, delay=1)
+    billboard_gun(L, roofs[3][0] + 450, roofs[3][2])
+    billboard_gun(L, roofs[6][0] + 450, roofs[6][2])
+    wx, wt = roofs[5][0] + 500, roofs[5][2]                                           # water tower
+    L.box(wx, wt - 260, wx + 40, wt, color=WOOD_DARK, inter=False)
+    L.box(wx + 260, wt - 260, wx + 300, wt, color=WOOD_DARK, inter=False)
+    L.box(wx - 40, wt - 480, wx + 340, wt - 260, color=WOOD, outline=WOOD_DARK)
+    # "fireworks": meteors dropping through gaps 4, 5 and 6, across your flight path
+    for k in (3, 4, 5):
+        gx = roofs[k][1] + GAPS[k] / 2.0
+        m = L.meteor(gx, 2700, d=220)
+        L.trigger(roofs[k][0] + 150, roofs[k][2] - 120, 60, 240, [(m, [(0,)])])
+    L.text(roofs[3][1] - 700, roofs[3][2] - 330, 'Fireworks! Very large ones.\nVery rocky ones.', size=15,
+           color=YELLOW)
+    L.homing_mine(roofs[7][0] + 300, roofs[7][2] - 300, speed=2, delay=1)
+    for k in range(7):
+        L.token(roofs[k][1] + GAPS[k] / 2.0, roofs[k][2] - 150, 6)
     # church: steeple and the finish on its roof
-    L.box(11000, 4350, 12400, 6400, color=STONE, outline=STONE_DARK)
-    L.box(11950, 3750, 12150, 4350, color=STONE, outline=STONE_DARK, inter=False)
-    L.roof(12050, 3750, 260, 300, color=STONE_DARK)
-    L.circle(12050, 3930, 90, color=rgb('fff3b0'), inter=False)
-    L.finish(11500, 4350)
-    L.text(11100, 4350 - 330, 'Silent night. Holy... that\nwas close. Merry Christmas!', size=16, color=WHITE)
-    for x in (1350, 2600, 3900, 5200, 6550, 7950, 9450, 10750):
-        L.token(x, 3700, 6)
+    ct = TOPS[-1] + 50
+    L.box(church_x, ct, church_x + 1400, 6400, color=STONE, outline=STONE_DARK)
+    L.box(church_x + 950, ct - 600, church_x + 1150, ct, color=STONE, outline=STONE_DARK, inter=False)
+    L.roof(church_x + 1050, ct - 600, 260, 300, color=STONE_DARK)
+    L.circle(church_x + 1050, ct - 420, 90, color=rgb('fff3b0'), inter=False)
+    L.finish(church_x + 500, ct)
+    L.text(church_x + 100, ct - 330, 'Silent night. Holy... that\nwas close. Merry Christmas!', size=16,
+           color=WHITE)
     return L
-
 
 # =============================================================================================
 # 10 IRRESPONSIBLE MOM (character 10): bicycle with the son in the basket and the daughter on a
@@ -1758,8 +1771,8 @@ def mo_06():
     for k in range(5):
         L.soccer(4600 + k * 90, G - 30)
     L.boombox(4250, G - 14)
-    L.harpoon(5300, G - 30, rot=0, anchor=True)
-    L.harpoon(5800, G - 30, rot=0, anchor=True)
+    L.harpoon(5300, G - 30, rot=0)
+    L.harpoon(5800, G - 30, rot=0)
     L.text(4600, G - 330, 'Fishermen. Fishing for\nmoms, apparently.', size=15)
     # airport
     L.ground([(6200, G), (9000, G)], bottom=G + 900, color=CONCRETE)
@@ -2097,8 +2110,8 @@ def he_06():
         L.pin(x, TOPC, g, LEVEL, limit=True, upper=70, lower=-70)
         L.trigger(x - 700, G - 450, 80, 800, [(g, [(2, 12 if k == 0 else -12, 0, 0)])])
     # section 4: harpoon nests and the fuel can on a ledge
-    L.harpoon(7400, G - 30, rot=0, anchor=True)
-    L.harpoon(8000, TOPC + 30, rot=180, anchor=True)
+    L.harpoon(7400, G - 30, rot=0)
+    L.harpoon(8000, TOPC + 30, rot=180)
     L.box(7600, G - 360, 7900, G - 330, color=ROCK)
     fuel = crate(L, 7750, G - 360, size=60, color=RED, density=0.3, label='FUEL')
     L.homing_mine(8600, G - 450, speed=1, delay=2)

@@ -256,7 +256,7 @@ class _ShapeOwner:
         """Building (static): x/top = top-left; type 13 w = width*300, h = floors*165+100."""
         return self.sp(kind, x, top, width, floors)
 
-    def harpoon(self, x, y, rot=0, anchor=True, fixed_turret=False, turret=0, trig=False, off=False):
+    def harpoon(self, x, y, rot=0, anchor=False, fixed_turret=False, turret=0, trig=False, off=False):
         return self.sp(15, x, y, rot, anchor, fixed_turret, turret, trig, off)
 
     def glass(self, x, y, w=10, h=200, rot=0, sleep=False, strength=5, stab=True):
