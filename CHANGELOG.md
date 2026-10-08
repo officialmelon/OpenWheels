@@ -1,5 +1,45 @@
 # Changelog
 
+## v0.3.0
+
+### New
+- **Linux, macOS and iOS.** Native Linux (x86_64) and macOS builds (`tools/fetch_engine.sh`,
+  `tools/build.sh`) and an iOS app (Xcode project from `tools/build.sh --ios`; game files bundled
+  or copied onto the device with Finder). See [docs/DESKTOP.md](docs/DESKTOP.md) and
+  [docs/IOS.md](docs/IOS.md).
+- **Restored character campaigns.** Lawnmower Man, Explorer Guy, Santa Claus, Irresponsible Mom and
+  Helicopter Man each get a chapter of six new levels made for OpenWheels, with their own
+  main-menu portraits (rendered from your own copy of the browser game, or from the already
+  generated sprites).
+- **Re-grab your vehicle.** After ejecting, grab your own vehicle and you climb back on and keep
+  riding, as often as you like, with all 11 characters (QOL "re-grab vehicle", on by default).
+- **A real PC port.** The window is resizable, starts maximized and goes fullscreen (F11) at the
+  monitor's resolution with no black bars at any aspect ratio. The mobile touch buttons are hidden
+  on PC (QOL "touch controls"); key hints replace the tutorial arrows and label the restart
+  button; held keys carry over when the controls change (hold Space through an eject to grab);
+  Esc and R work right after a death.
+- **Browser physics for online levels.** Browser levels step like the Flash game: one 1/30 s step
+  per frame, its iterations and contact solver (no block solver). Balances, stacks, "don't move"
+  levels and joint stiffness behave as in the browser, and browser replays are re-simulated one
+  input per step (QOL "browser physics", on by default).
+- **Online levels:** change character on levels that force one (QOL "any character"), NEXT plays
+  the next level of the browser list, and leaving a level returns to the browser or Your Levels.
+
+### Fixed
+- **Missing scenery everywhere:** every static polygon and art shape (trees, roots, cliffs,
+  windows, walls...) was drawn far off-screen. The swamp level alone lost 262 shapes.
+- **Neon / outline levels showed black:** shape outlines are drawn, outline-only shapes are kept,
+  concave polygons draw with their real outline, circle cutouts work, and polygons whose
+  triangulation fails get a fallback fill instead of vanishing.
+- **Vehicle miniguns didn't fire:** arrow guns on user-built vehicles fire straight on Space; every
+  fixture of a vehicle's handle can be grabbed; Space reaches user vehicles in every layout.
+- **Random "death" with no controls** on deep browser and user levels: the fall-off check now
+  follows the level's geometry instead of a fixed height.
+- Your chosen character is no longer replaced by a level's forced character; stale browser-level
+  state no longer leaks into character select.
+- Timers and per-step values of the restored vehicles, browser items, particles and passengers
+  follow the physics step.
+
 ## v0.2.1
 
 ### Fixed

@@ -6,6 +6,7 @@
 #include <cstdio>
 
 #include "HWWindow.h"
+#include "restored/Restored.h"
 #include "platform/CCImage.h"
 
 #if (CC_TARGET_PLATFORM == CC_PLATFORM_WIN32 || CC_TARGET_PLATFORM == CC_PLATFORM_LINUX || CC_TARGET_PLATFORM == CC_PLATFORM_MAC)
@@ -379,7 +380,11 @@ std::string characterTag(int c) {
 bool characterOnMobile(int c) { return (c >= 1 && c <= 5) || c == 9; }
 
 std::string characterPortrait(int c) {
-    if (characterOnMobile(c)) return "menus/main/portraits/char" + std::to_string(c) + "_portrait_25p.png";
+    const std::string own = "menus/main/portraits/char" + std::to_string(c) + "_portrait_25p.png";
+    if (characterOnMobile(c)) return own;
+    // RESTORED (PC addition): the restored characters' generated portraits (src/restored), when
+    // there are any (tools/assets/extract_character.py / restored_portraits.py).
+    if (restored::hasCharacter(c) && FileUtils::getInstance()->isFileExist(own)) return own;
     return "menus/main/portraits/generic_25p.png";
 }
 

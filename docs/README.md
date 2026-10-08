@@ -28,6 +28,9 @@
 * [RACE.md](RACE.md) — Ghost Race: local races between nearby players, the others shown as
   translucent ghosts (lobby, snapshot format, protocol, bandwidth).
 * [ANDROID.md](ANDROID.md) — building the Android APK, staged game files, release signing.
+* [DESKTOP.md](DESKTOP.md) — the Linux and macOS builds, the PC window (resizable, maximized,
+  fullscreen without black bars) and the notes on the engine's old prebuilts.
+* [IOS.md](IOS.md) — the iOS build, bundled or Finder-copied game files.
 
 ## Work notes
 

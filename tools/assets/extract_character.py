@@ -776,10 +776,12 @@ PORTRAIT_ORDER = ['lowerArm2', 'upperArm2', 'upperLeg2', 'lowerLeg2', 'head', 'c
                   'upperLeg1', 'lowerLeg1', 'upperArm1', 'lowerArm1']  # as rest_pose
 
 
-def make_portrait(tree, R, plain):
+def make_portrait(tree, R, plain, guide=None):
     """The large-tier bust (straight-alpha float RGBA, PORTRAIT_SIZE). `plain`: the character's
-    rendered frames at MASTER zoom (to measure the head)."""
-    guide = guide_entries(tree)
+    rendered frames at MASTER zoom (to measure the head). `guide`: the shapeGuide entries (read
+    from `tree` when not given; tools/assets/restored_portraits.py passes its own, rebuilt from
+    the generated body plist, with a renderer that scales the generated sprites)."""
+    guide = guide or guide_entries(tree)
     head_e = guide['headShape']
     # Head extent above its body origin (symbol px), helmet included
     reach = 0.0
@@ -792,7 +794,7 @@ def make_portrait(tree, R, plain):
         raise ValueError('no head art')
     Hs = PORTRAIT_HEAD * reach                                # picture height, symbol px
     Ws = Hs * PORTRAIT_SIZE[0] / PORTRAIT_SIZE[1]
-    x0 = head_e.tx - 0.5 * Ws
+    x0 = head_e.tx - 0.62 * Ws                       # the head right of centre, as the originals'
     y0 = head_e.ty - reach - 0.03 * Hs
     zoom = PORTRAIT_SIZE[1] / Hs                              # picture px per symbol px
 
@@ -826,8 +828,9 @@ def make_portrait(tree, R, plain):
     return canvas
 
 
-def write_portraits(out, cid, portrait):
-    """<out>/<tier>/menus/main/portraits/char<id>_portrait.png and _portrait_25p.png."""
+def write_portraits(out, cid, portrait, overwrite=True):
+    """<out>/<tier>/menus/main/portraits/char<id>_portrait.png and _portrait_25p.png (only the
+    missing ones unless `overwrite`)."""
     H, W = portrait.shape[:2]
     big = kg.to_pil_premul(portrait)
     for tier, t in PORTRAIT_TIER.items():
@@ -836,6 +839,8 @@ def write_portraits(out, cid, portrait):
         os.makedirs(d, exist_ok=True)
         for name, sz in (('char%d_portrait.png' % cid, size),
                          ('char%d_portrait_25p.png' % cid, (size[0] // 4, size[1] // 4))):
+            if not overwrite and os.path.isfile(os.path.join(d, name)):
+                continue
             im = big if sz == (W, H) else big.resize(sz, Image.LANCZOS)
             rgba = np.clip(kg.from_pil_premul(im) * 255 + 0.5, 0, 255).astype(np.uint8)
             rgba[rgba[:, :, 3] == 0] = 0

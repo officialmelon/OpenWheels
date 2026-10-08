@@ -3,7 +3,8 @@
 **OpenWheels — an open-source reimplementation of Happy Wheels.**
 
 OpenWheels rebuilds *Happy Wheels* mobile (Android 1.1.3, cocos2d-x 3.17.2 + Box2D) as readable
-C++, class for class and function for function, and runs it natively on Windows and Android. On
+C++, class for class and function for function, and runs it natively on Windows, Linux, macOS,
+Android and iOS. On
 top of that faithful core it adds the things the mobile game never had: the iOS level editor,
 online browser levels from totaljerkface.com, the five browser-only characters, and a Quality of
 Life options page. There are no ads, and the game doesn't need to be online.
@@ -106,6 +107,13 @@ behaviour:
 - **FPS counter**, **unlock all levels**, **fullscreen** (or F11)
 - **Child gore:** gives the Irresponsible Dad's son the gore the mobile version left out
 - **Controls** (PC): remap every keyboard action
+- **Touch controls** (PC): hidden by default on PC, where the keyboard drives and key hints replace
+  the tutorial arrows; shown on phones and tablets
+- **Re-grab vehicle:** after ejecting, grab your own vehicle and you climb back on and ride again
+  (all 11 characters)
+- **Any character** on online and user levels that force one
+- **Browser physics:** online levels step like the browser game (30 Hz, its solver settings), so
+  balances, "don't move" levels and browser replays behave as in Flash
 
 See [docs/QOL.md](docs/QOL.md).
 
@@ -113,10 +121,12 @@ See [docs/QOL.md](docs/QOL.md).
 
 ![Classic and realistic blood](docs/screenshots/blood-styles.png)
 
-### Windows and Android
+### Windows, Linux, macOS, Android and iOS
 
-OpenWheels runs on Windows (Win32) with mouse and keyboard, and on Android phones and tablets with
-any aspect ratio.
+OpenWheels runs on Windows (Win32), Linux (x86_64) and macOS with mouse and keyboard, and on
+Android and iOS phones and tablets with any aspect ratio. On PC the window is resizable, starts
+maximized and goes fullscreen (F11) at any aspect ratio without black bars. See
+[docs/DESKTOP.md](docs/DESKTOP.md) and [docs/IOS.md](docs/IOS.md).
 
 ![OpenWheels on an Android phone](docs/screenshots/android-phone.png)
 
@@ -127,6 +137,8 @@ Builds are published on the [Releases](https://github.com/officialmelon/OpenWhee
 - **Windows:** download `OpenWheels-windows.zip`, unzip it anywhere and run `OpenWheels.exe`.
 - **Android:** download `OpenWheels-release.apk` to your device and open it. Allow installs from
   unknown sources when Android asks.
+- **Linux, macOS, iOS:** build from source (below); you need your own copy of the game files
+  either way.
 
 ## Controls
 
@@ -139,7 +151,7 @@ and these keys work by default (remap them in *Options → quality of life → c
 | Down / S | Back (brake / reverse) |
 | Left / A | Lean back |
 | Right / D | Lean forward |
-| Space | Special action (jump, jet, brake; grab when ejected) |
+| Space | Special action (jump, jet, brake, fire a vehicle's guns; grab when ejected, grab your vehicle to get back on) |
 | Z | Eject |
 | Shift / Ctrl | Character actions (restored characters, e.g. Helicopter Man's magnet) |
 | Esc / P | Pause |
@@ -216,6 +228,26 @@ Useful command-line options:
 If the game crashes or hangs, it writes `openwheels_crash.txt` (with a minidump) or
 `openwheels_hang.txt` next to the exe. Please attach these to bug reports.
 
+### Linux and macOS
+
+```sh
+tools/fetch_engine.sh     # cocos2d-x 3.17.2 + dependencies into thirdparty/
+tools/build.sh            # RelWithDebInfo by default; --config Debug|Release
+build-linux/bin/OpenWheels/OpenWheels   # or build-macos/bin/OpenWheels/OpenWheels.app
+```
+
+Linux needs CMake 3.13+, GCC or Clang, Python 3 and the engine's system libraries (X11, GTK 3,
+GLEW, OpenAL, libvorbis, libmpg123, ...; the apt line is in [docs/DESKTOP.md](docs/DESKTOP.md)).
+The generators need the same Python packages and tools as on Windows. Game files are looked up in
+`--assets <dir>`, `assets/` next to the executable, `~/.local/share/OpenWheels/assets` (macOS:
+`~/Library/Application Support/OpenWheels/assets`) or `binary/` in the repo.
+
+### iOS
+
+On a Mac with Xcode: `tools/fetch_engine.sh`, then `OW_IOS_TEAM=<team id> tools/build.sh --ios`
+(or open the generated `build-ios/OpenWheels.xcodeproj`). Your game files are bundled when
+`binary/` has them, or can be copied onto the device with Finder. See [docs/IOS.md](docs/IOS.md).
+
 ### Android
 
 Requirements: the Android SDK (`tools\build_android.ps1` installs the platform, build tools, CMake
@@ -243,13 +275,15 @@ src/online/      online browser levels: level API client, browser, Flash-to-mobi
                  browser-level runtime, NPCs and items
 src/restored/    the five restored browser characters and their vehicles
 src/qol/         the Quality of Life options and the blood compositor
-src/platform/    Win32 and Android entry points, keyboard bridge, crash handler, shared helpers,
+src/platform/    Win32, Linux, macOS, iOS and Android entry points (desktop/: keyboard bridge and
+                 window shared by the PC builds, unix/: POSIX main), crash handlers, shared helpers,
                  no-op stand-ins for the mobile SDKs (ads, analytics), Box2D world dumper
 android/         the Android Gradle project
 tools/           build scripts, window capture and input helpers
 tools/re/        reverse-engineering and verification tools (emulator oracle, parity, world diff)
 tools/assets/    build-time generators for the browser-game art and sounds (from your own files)
-tools/levels/    browser-level decoding
+tools/levels/    browser-level decoding, the restored characters' level generator and previewer
+res/levels/      OpenWheels' own levels (the restored characters' campaign chapters)
 tools/parity/    compiler parity experiments
 docs/            documentation (see below)
 ```

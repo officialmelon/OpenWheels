@@ -23,7 +23,8 @@ libraries. On Debian / Ubuntu:
 ```sh
 sudo apt install build-essential cmake ninja-build python3 libx11-dev libxi-dev libxrandr-dev \
   libxxf86vm-dev libxinerama-dev libxcursor-dev libfontconfig1-dev libgtk-3-dev zlib1g-dev \
-  libpng-dev libglew-dev libgl1-mesa-dev libcurl4-openssl-dev libsqlite3-dev
+  libpng-dev libglew-dev libgl1-mesa-dev libcurl4-openssl-dev libsqlite3-dev \
+  libopenal-dev libvorbis-dev libmpg123-dev
 ```
 
 macOS needs Xcode's command line tools and CMake. The v3-deps-158 macOS prebuilts are x86_64 only,
@@ -45,6 +46,11 @@ Output: `build-linux/bin/OpenWheels/OpenWheels`, or `build-macos/bin/OpenWheels/
   forwards the `__powf_finite`-style entry points newer glibc dropped.
 * `thirdparty/patches/cocos2d-x-3.17.2-gcc-cstdint.patch` adds a missing `<cstdint>` include that
   current GCC needs (harmless on MSVC).
+* `thirdparty/patches/cocos2d-x-3.17.2-linux-openal-audio.patch` makes Linux play audio through
+  cocos2d-x's OpenAL backend (the one Windows uses, with the system's OpenAL Soft, libvorbisfile and
+  libmpg123) instead of FMOD. The 3.17 FMOD backend shares one channel per file, so replaying a
+  sound that is still playing leaked the old channel (looped ones could never be stopped), and the
+  mixer then pegged the main thread: Santa's sleigh froze the game a second after taking off.
 * The game's translation units get bionic's `rand()` (`src/platform/compat/BionicRand.h`) on every
   platform but Android, and are compiled without FMA contraction (`-ffp-contract=off`), like the
   original's arm64 clang build.

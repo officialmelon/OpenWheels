@@ -13,7 +13,8 @@
 # Linux also needs the system packages the engine links against, e.g. on Debian / Ubuntu:
 #   sudo apt install build-essential cmake ninja-build python3 libx11-dev libxi-dev libxrandr-dev \
 #     libxxf86vm-dev libxinerama-dev libxcursor-dev libfontconfig1-dev libgtk-3-dev zlib1g-dev \
-#     libpng-dev libglew-dev libgl1-mesa-dev libcurl4-openssl-dev libsqlite3-dev
+#     libpng-dev libglew-dev libgl1-mesa-dev libcurl4-openssl-dev libsqlite3-dev libopenal-dev \
+#     libvorbis-dev libmpg123-dev
 set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
