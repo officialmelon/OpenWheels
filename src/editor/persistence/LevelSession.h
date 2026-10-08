@@ -67,7 +67,8 @@ public:
     // True while chapterIndex() is 5000 or 5001 (a user/imported level is selected).
     bool isUserLevel() const;
     // Pushes levelData()/characterIndex() into the Android Settings (selected level XML via
-    // setSelectedLevelFilePath, setForceCharacter, selected character).
+    // setSelectedLevelFilePath, setForceCharacter, selected character - QOL (PC addition): only
+    // for a forcing level, see qol/CharacterChoice.h).
     // RE-TODO: iOS characterIndex vs. Android Characters.plist index -- assumed identical order.
     void applyToSettings();
     // The common tail of -[LoadLevelViewController playBtnPressed:] and

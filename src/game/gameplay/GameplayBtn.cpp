@@ -71,6 +71,11 @@ void GameplayBtn::showPressedState(bool pressed)
         setScale(_unpressedScale * _adjustedScale * _userScale);
         setOpacity(_unpressedOpacity);
     }
+    // QOL (PC addition): hidden touch controls stay invisible when pressed.
+    if (_keyOnly)
+    {
+        setOpacity(0);
+    }
 }
 
 // @005b43f4
@@ -145,7 +150,7 @@ void GameplayBtn::setEnabled(bool enabled)
         return;
     }
     _enabled = enabled;
-    setOpacity(enabled ? _unpressedOpacity : 0);
+    setOpacity(enabled && !_keyOnly ? _unpressedOpacity : 0);  // QOL (PC addition): && !_keyOnly
 }
 
 // @005b482c
@@ -159,4 +164,17 @@ void GameplayBtn::setAdjustedScale(float adjustedScale)
 {
     _adjustedScale = adjustedScale;
     setScale(_unpressedScale * adjustedScale * _userScale);
+}
+
+// QOL (PC addition)
+void GameplayBtn::setKeyOnly(bool keyOnly)
+{
+    _keyOnly = keyOnly;
+    setOpacity(keyOnly || !_enabled ? 0 : _unpressedOpacity);
+}
+
+// QOL (PC addition)
+bool GameplayBtn::getKeyOnly()
+{
+    return _keyOnly;
 }

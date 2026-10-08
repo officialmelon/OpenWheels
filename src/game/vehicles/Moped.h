@@ -64,6 +64,11 @@ public:
     void leg2Free();                            // @005f0a54
     void singleAction() override;               // @005f0a70 vptr+0x38   passenger legs stop being sensors
     void handleContactResults() override;       // @005f0ae8 vptr+0x2b8
+
+    // QOL (PC addition): re-grab vehicle (Vehicle.h).
+    b2Body* qolFrameBody() override;
+    bool qolCanRemount(CharacterB2D* character) override;
+    void qolRemount(CharacterB2D* character) override;
     void frameSmash(float impulse, b2Vec2 normal);       // @005f0f10
     void frontWheelSmash(float impulse, b2Vec2 normal);  // @005f1b68
     void backWheelSmash(float impulse, b2Vec2 normal);   // @005f1fc0

@@ -10,6 +10,7 @@
 #include "Patch.h"
 #include "QueryCallback.h"
 #include "Session.h"
+#include "online/FlashPhysics.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -87,6 +88,7 @@ void Mine::frameAction()
 {
     if (!_exploded && --_counter == 0) {
         _counter = 8;
+        _counter = online::stepsFor60HzFrames(8);  // ONLINE (PC addition): 4 browser physics steps
         _light->setVisible(!_light->isVisible());
     }
 }

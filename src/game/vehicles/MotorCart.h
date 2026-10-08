@@ -78,6 +78,11 @@ public:
                    const b2ContactImpulse* impulse) override;  // @005f9e78 vptr+0xa0
     void handleContactResults() override;       // @005fa11c vptr+0x2b8
 
+    // QOL (PC addition): re-grab vehicle (Vehicle.h).
+    b2Body* qolFrameBody() override;
+    bool qolCanRemount(CharacterB2D* character) override;
+    void qolRemount(CharacterB2D* character) override;
+
 protected:
     b2Body* _frontWheelBody;                // +0x1b8
     b2Body* _backWheelBody;                 // +0x1c0

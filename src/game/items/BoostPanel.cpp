@@ -9,6 +9,7 @@
 #include "Patch.h"
 #include "Session.h"
 #include "Sound.h"
+#include "online/FlashPhysics.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -127,6 +128,8 @@ void BoostPanel::setUpSprites(Vec2 position, float angleDegrees, unsigned int nu
 // @00587dc0
 void BoostPanel::frameAction()
 {
+    // ONLINE (PC addition): every 4 frames at 1/60, every 2 browser physics steps (1/30).
+    if (online::stepsPerFlashFrame() == 1 && _frameIndex == 1) _frameIndex = 3;
     if (_frameIndex++ == 3)
     {
         _frameIndex = 0;

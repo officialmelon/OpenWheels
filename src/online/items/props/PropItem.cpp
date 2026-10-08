@@ -12,6 +12,7 @@
 #include "Session.h"
 #include "Sound.h"
 #include "StageCamera.h"
+#include "online/FlashPhysics.h"
 #include "online/FlashRuntime.h"
 
 USING_NS_CC;
@@ -420,7 +421,8 @@ void PropItem::stepParticles()
         if (StageCamera* cam = session->getCamera()) limit = cam->getYParticleLimit();
     }
     // Flash Particle.step: move, then gravity (1/3 m/s per 30 Hz frame = 10 m/s^2).
-    const float dt = 1.0f / 60.0f;
+    // One world step (1/60, or 1/30 with the browser physics profile, online/FlashPhysics.h).
+    const float dt = LevelItem::s_timeStep;
     const float gravity = 10.0f * ptm * dt;
     for (size_t i = 0; i < _particles.size();) {
         Particle& p = _particles[i];
@@ -436,9 +438,10 @@ void PropItem::stepParticles()
         p.sprite->setPosition(p.pos);
         ++i;
     }
-    // Sprays emit perFrame particles per Flash frame (every second 60 Hz step).
+    // Sprays emit perFrame particles per Flash frame (every second 60 Hz step; every step with
+    // the browser physics profile).
     ++_stepCounter;
-    if ((_stepCounter & 1) == 0) {
+    if ((_stepCounter % stepsPerFlashFrame()) == 0) {
         for (Spray& s : _sprays) {
             if (s.finished || !s.body) continue;
             for (int k = 0; k < s.perFrame; k++) {

@@ -58,6 +58,12 @@ public:
     void handleInjury(CharacterInjury injury, CharacterB2D* character) override;
     void checkStateOfCharacter(CharacterB2D* character) override;
     bool ejectCharacter(CharacterB2D* character) override;
+
+    // QOL (PC addition): re-grab vehicle (src/game/vehicles/Vehicle.h).
+    void attachSanta(CharacterB2D* santa);  // addSanta's joints (also a re-mount)
+    b2Body* qolFrameBody() override;
+    bool qolCanRemount(CharacterB2D* character) override;
+    void qolRemount(CharacterB2D* character) override;
     // The eject button throws Santa off (impulse 5) and leaves the elves running (Flash Z).
     void ejectAllCharacters() override;
 

@@ -78,6 +78,11 @@ public:
     void handleLowerLeg2Injury(CharacterB2D* character) override;  // @00607660 vptr+0x290
     void nubContactAdd(b2Fixture* fixture, b2Fixture* otherFixture, b2Contact* contact);     // @006076ec
     void handleContactResults() override;       // @0060772c vptr+0x2b8
+
+    // QOL (PC addition): re-grab vehicle (Vehicle.h).
+    b2Body* qolFrameBody() override;
+    bool qolCanRemount(CharacterB2D* character) override;
+    void qolRemount(CharacterB2D* character) override;
     void frameSmash(float impulse);             // @006078c4
     void nubContactRemove(b2Fixture* fixture, b2Fixture* otherFixture, b2Contact* contact);  // @00607f14
     void extraPose1() override;                 // @00607f50 vptr+0x240

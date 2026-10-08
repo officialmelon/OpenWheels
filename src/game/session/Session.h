@@ -85,6 +85,10 @@ public:
     void setDrag(bool drag);
     void setIsReplay(bool isReplay);
     bool getIsReplay();
+    // ONLINE (PC addition): whether update(dt) will step the world. With the browser physics
+    // profile (1/30 step, online/FlashPhysics.h) not every display frame does; Gameplay::update
+    // then runs the controls and the timer only on frames that step, once per step as at 1/60.
+    bool onlineWillStep(float dt) { return _timeAccumulator + dt >= getTimeStep(); }
 
     // Fixed-step accumulator: at most one b2World::Step(step, 8, 3) per call.
     virtual void update(float dt) override;

@@ -1,0 +1,434 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>chapters</key>
+	<array>
+		<dict>
+			<key>index</key>
+			<integer>100</integer>
+			<key>name</key>
+			<string>Lawnmower Man</string>
+			<key>comment</key>
+			<string>He only wanted to mow the lawn. The lawn had other plans.</string>
+			<key>characterIndex</key>
+			<integer>6</integer>
+			<key>levels</key>
+			<array>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/06_lawnmower_man/01_lawn_and_order.xml</string>
+					<key>name</key>
+					<string>Lawn and Order</string>
+					<key>locked</key>
+					<false/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>6</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/06_lawnmower_man/02_suburban_sprawl.xml</string>
+					<key>name</key>
+					<string>Suburban Sprawl</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>6</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/06_lawnmower_man/03_grass_is_greener.xml</string>
+					<key>name</key>
+					<string>The Grass Is Greener</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>6</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/06_lawnmower_man/04_hedge_maze.xml</string>
+					<key>name</key>
+					<string>Hedge Maze</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>6</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/06_lawnmower_man/05_county_fair.xml</string>
+					<key>name</key>
+					<string>County Fair</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>6</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/06_lawnmower_man/06_mow_or_never.xml</string>
+					<key>name</key>
+					<string>Mow or Never</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>6</integer>
+				</dict>
+			</array>
+		</dict>
+		<dict>
+			<key>index</key>
+			<integer>101</integer>
+			<key>name</key>
+			<string>Explorer Guy</string>
+			<key>comment</key>
+			<string>Ancient ruins, rickety rails and a mine cart with no brakes. What could go wrong?</string>
+			<key>characterIndex</key>
+			<integer>7</integer>
+			<key>levels</key>
+			<array>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/07_explorer_guy/01_temple_run.xml</string>
+					<key>name</key>
+					<string>Temple Run</string>
+					<key>locked</key>
+					<false/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>7</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/07_explorer_guy/02_mine_shaft.xml</string>
+					<key>name</key>
+					<string>Mine Shaft</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>7</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/07_explorer_guy/03_idol_hands.xml</string>
+					<key>name</key>
+					<string>Idol Hands</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>7</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/07_explorer_guy/04_rope_bridge.xml</string>
+					<key>name</key>
+					<string>Rope Bridge</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>7</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/07_explorer_guy/05_lost_city.xml</string>
+					<key>name</key>
+					<string>The Lost City</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>7</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/07_explorer_guy/06_tomb_raided.xml</string>
+					<key>name</key>
+					<string>Tomb Raided</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>7</integer>
+				</dict>
+			</array>
+		</dict>
+		<dict>
+			<key>index</key>
+			<integer>102</integer>
+			<key>name</key>
+			<string>Santa Claus</string>
+			<key>comment</key>
+			<string>One night, one sleigh, far too many chimneys. The elves did not sign up for this.</string>
+			<key>characterIndex</key>
+			<integer>8</integer>
+			<key>levels</key>
+			<array>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/08_santa_claus/01_rooftop_run.xml</string>
+					<key>name</key>
+					<string>Rooftop Run</string>
+					<key>locked</key>
+					<false/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>8</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/08_santa_claus/02_chimney_drop.xml</string>
+					<key>name</key>
+					<string>Chimney Drop</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>8</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/08_santa_claus/03_workshop_chaos.xml</string>
+					<key>name</key>
+					<string>Workshop Chaos</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>8</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/08_santa_claus/04_north_pole.xml</string>
+					<key>name</key>
+					<string>North Pole</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>8</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/08_santa_claus/05_naughty_list.xml</string>
+					<key>name</key>
+					<string>Naughty List</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>8</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/08_santa_claus/06_silent_night.xml</string>
+					<key>name</key>
+					<string>Silent Night</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>8</integer>
+				</dict>
+			</array>
+		</dict>
+		<dict>
+			<key>index</key>
+			<integer>103</integer>
+			<key>name</key>
+			<string>Irresponsible Mom</string>
+			<key>comment</key>
+			<string>Two kids, one bicycle and a very tight schedule. She is doing her best.</string>
+			<key>characterIndex</key>
+			<integer>10</integer>
+			<key>levels</key>
+			<array>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/10_irresponsible_mom/01_school_run.xml</string>
+					<key>name</key>
+					<string>School Run</string>
+					<key>locked</key>
+					<false/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>10</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/10_irresponsible_mom/02_soccer_practice.xml</string>
+					<key>name</key>
+					<string>Soccer Practice</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>10</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/10_irresponsible_mom/03_mall_madness.xml</string>
+					<key>name</key>
+					<string>Mall Madness</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>10</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/10_irresponsible_mom/04_playground.xml</string>
+					<key>name</key>
+					<string>Playground</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>10</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/10_irresponsible_mom/05_traffic_jam.xml</string>
+					<key>name</key>
+					<string>Traffic Jam</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>10</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/10_irresponsible_mom/06_family_vacation.xml</string>
+					<key>name</key>
+					<string>Family Vacation</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>10</integer>
+				</dict>
+			</array>
+		</dict>
+		<dict>
+			<key>index</key>
+			<integer>104</integer>
+			<key>name</key>
+			<string>Helicopter Man</string>
+			<key>comment</key>
+			<string>A helicopter, a giant magnet and a pilot's licence of questionable origin.</string>
+			<key>characterIndex</key>
+			<integer>11</integer>
+			<key>levels</key>
+			<array>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/11_helicopter_man/01_lift_off.xml</string>
+					<key>name</key>
+					<string>Lift Off</string>
+					<key>locked</key>
+					<false/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>11</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/11_helicopter_man/02_skyscraper.xml</string>
+					<key>name</key>
+					<string>Skyscraper</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>11</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/11_helicopter_man/03_crane_game.xml</string>
+					<key>name</key>
+					<string>Crane Game</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>11</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/11_helicopter_man/04_air_traffic.xml</string>
+					<key>name</key>
+					<string>Air Traffic</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>11</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/11_helicopter_man/05_magnet_mayhem.xml</string>
+					<key>name</key>
+					<string>Magnet Mayhem</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>11</integer>
+				</dict>
+				<dict>
+					<key>dataFile</key>
+					<string>restored/11_helicopter_man/06_mayday.xml</string>
+					<key>name</key>
+					<string>Mayday</string>
+					<key>locked</key>
+					<true/>
+					<key>force_character</key>
+					<true/>
+					<key>playable_character</key>
+					<integer>11</integer>
+				</dict>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

@@ -10,7 +10,9 @@
 //
 // The query, results, selection and scroll position live in a process-wide BrowserState, so the
 // browser reopens where the player left it. Leaving a level that was started here comes back to
-// the browser: MainMenu::createScene asks sceneForReturnFromLevel() first.
+// the browser: MainMenu::createScene asks sceneForReturnFromLevel() first. NEXT on the victory
+// menu of such a level comes back to the browser with the next level of the list selected and
+// plays it (sceneForNextLevel).
 
 #include <string>
 #include <vector>
@@ -19,6 +21,7 @@
 #include "ui/UIScale9Sprite.h"
 #include "online/HWApi.h"
 #include "online/OnlineLevel.h"
+#include "online/OnlinePlay.h"
 
 namespace online {
 
@@ -42,9 +45,13 @@ struct BrowserState {
     bool loaded = false;                    // levels is the result of query/featured
     int selected = -1;
     float listOffset = 0.0f;
-    // Set when a level is started from the browser; consumed by sceneForReturnFromLevel.
-    bool returnPending = false;
-    cocos2d::RefPtr<cocos2d::Scene> parkedScene;  // the browser scene the level was pushed over
+    // Set when a level (or a replay) is started from the browser; taken by sceneForReturnFromLevel.
+    LevelReturn levelReturn;
+    // The level of `levels` started from the browser (0: a replay or none) and the hash of its
+    // converted XML (LevelSession::levelDataXML), so NEXT knows the level still plays.
+    int playingId = 0;
+    size_t playingHash = 0;
+    bool autoPlay = false;                  // the next browser scene plays `selected` at once (NEXT)
 };
 
 class OnlineLevelBrowser : public cocos2d::Layer {
@@ -54,6 +61,15 @@ public:
     // Non-null once after a level started from the browser ends (exit, back from character
     // select, next level): a fresh browser scene to show instead of the main menu.
     static cocos2d::Scene* sceneForReturnFromLevel();
+    // A level / replay is about to be pushed over the running browser scene (levelId: the level
+    // of the list, for NEXT; 0 for a replay). cancelLevel() when it could not start.
+    static void levelStarting(int levelId);
+    static void cancelLevel();
+    // The running level was started from the browser and the list has a level after it.
+    static bool hasNextLevel();
+    // Like sceneForReturnFromLevel, with the next level selected and started (downloaded,
+    // converted) by the new browser scene; nullptr when there is no next level.
+    static cocos2d::Scene* sceneForNextLevel();
 
     CREATE_FUNC(OnlineLevelBrowser);
     bool init() override;
@@ -95,8 +111,9 @@ private:
     void searchAuthor(const std::string& author);
     void changePage(int delta);
     void load();
-    void playSelected();
+    void playSelected(bool chooseCharacter = false);
     void finishPlay(const std::string& xml);
+    static int nextLevelIndex();
 
     // state -> view
     void refreshFilters();
@@ -152,6 +169,7 @@ private:
     cocos2d::Label* _detailPlays = nullptr;
     cocos2d::Label* _detailDate = nullptr;
     cocos2d::Label* _detailChar = nullptr;
+    ui::Button* _charBtn = nullptr;   // QOL (PC addition): CHANGE (character select, forcing levels)
     float _statColW = 0.0f;
     cocos2d::Rect _commentRect;        // world rect of the comment viewport
     cocos2d::Label* _comment = nullptr;
@@ -177,6 +195,7 @@ private:
     bool _loading = false;
     std::string _error;
     bool _playing = false;   // downloading / converting / starting
+    bool _chooseCharacter = false;   // QOL (PC addition): character select before a forcing level
 
     // input
     enum class Drag { None, ListPending, List, Scrollbar, Comment };

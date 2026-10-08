@@ -5,6 +5,9 @@
 #include "Session.h"
 #include "Settings.h"
 #include "VictoryAnimation.h"
+#include "LevelSession.h"  // EDITOR (iOS port): user levels (src/editor/persistence)
+#include "online/OnlineLevelBrowser.h"  // ONLINE (PC addition)
+#include "qol/CharacterChoice.h"  // QOL (PC addition)
 
 USING_NS_CC;
 
@@ -58,14 +61,23 @@ void VictoryMenu::addMenu()
     float btnWidth = exitBtn->getContentSize().width;
     items.pushBack(exitBtn);
     items.pushBack(resetBtn);
-    if (!settings->getCurrentSession()->getLevel()->getForcedChar())
+    // QOL (PC addition): "any character" offers it on a user level that forces a character too.
+    if (!settings->getCurrentSession()->getLevel()->getForcedChar() || qol::canChangeForcedCharacter())
     {
         items.pushBack(btnWithIcon("menu_pause_icon_character.png", 1,
                                    GameplayMenuActionChangeCharacter));
     }
     items.pushBack(btnWithIcon("menu_pause_icon_replay.png", 1, GameplayMenuActionViewReplay));
     int chapter = Settings::getInstance()->getSelectedChapter();
-    if (chapter != 5000 && chapter != 5001)
+    // EDITOR (iOS port): the user-level chapters 5000 / 5001 are the LevelSession's (the Android
+    // Settings never select them): a user level has no campaign successor. ONLINE (PC addition):
+    // a level started from the online browser offers the next level of the browser's list.
+    bool showNext = chapter != 5000 && chapter != 5001;
+    if (LevelSession::getInstance()->isUserLevel())
+    {
+        showNext = online::OnlineLevelBrowser::hasNextLevel();
+    }
+    if (showNext)
     {
         items.pushBack(btnWithIcon("menu_pause_icon_next.png", 0, GameplayMenuActionNextLevel));
     }

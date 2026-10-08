@@ -15,6 +15,7 @@
 #include "Settings.h"
 #include "Sound.h"
 #include "platform/compat/Box2DFloat.h"
+#include "online/FlashPhysics.h"  // RESTORED (PC addition): per-step constants at 1/30 too
 
 USING_NS_CC;
 
@@ -333,10 +334,12 @@ void MineCart::accelerate(Clamp& c, bool forward)
         c.railJoint->EnableMotor(true);
         float speed = c.railJoint->GetJointSpeed();
         float next;
+        // RESTORED (PC addition): per 60 Hz step; online::perStep converts to the current step.
+        const float prisAccelStep = online::perStep(_prisAccelStep);
         if (forward) {
-            next = speed < _wheelMaxSpeed ? speed + _prisAccelStep : speed;
+            next = speed < _wheelMaxSpeed ? speed + prisAccelStep : speed;
         } else {
-            next = speed > 0.0f ? 0.0f : (speed > -_wheelMaxSpeed ? speed - _prisAccelStep : speed);
+            next = speed > 0.0f ? 0.0f : (speed > -_wheelMaxSpeed ? speed - prisAccelStep : speed);
         }
         c.railJoint->SetMotorSpeed(next);
         return;
@@ -346,10 +349,11 @@ void MineCart::accelerate(Clamp& c, bool forward)
     }
     float speed = -owb2::jointSpeed(c.wheelJoint);  // Flash sense
     float next;
+    const float accelStep = online::perStep(_accelStep);  // RESTORED (PC addition), as above
     if (forward) {
-        next = speed < _wheelMaxSpeed ? speed + _accelStep : speed;
+        next = speed < _wheelMaxSpeed ? speed + accelStep : speed;
     } else {
-        next = speed > 0.0f ? 0.0f : (speed > -_wheelMaxSpeed ? speed - _accelStep : speed);
+        next = speed > 0.0f ? 0.0f : (speed > -_wheelMaxSpeed ? speed - accelStep : speed);
     }
     c.wheelJoint->SetMotorSpeed(-next);
 }
@@ -654,14 +658,15 @@ void MineCart::actions()
     }
     // The dongles do not fall (Flash: + GRAVITY_DISPLACEMENT per frame).
     b2Vec2 lift = -getWorld()->GetGravity();
-    lift *= 1.0f / 60.0f;
+    lift *= LevelItem::s_timeStep;  // RESTORED (PC addition): one step (was 1/60)
     for (Clamp* c : {&_front, &_back}) {
         if (c->dongle) {
             c->dongle->SetLinearVelocity(c->dongle->GetLinearVelocity() + lift);
         }
     }
     if ((_front.dongle != nullptr) != (_back.dongle != nullptr)) {
-        if (++_oneDongleCounter == _oneDongleMax) {
+        // RESTORED (PC addition): _oneDongleMax counts 60 Hz steps; converted to the current step.
+        if (++_oneDongleCounter == online::stepsFor60HzFrames(_oneDongleMax)) {
             removeDongle(_front.dongle ? _front : _back);
         }
     }
@@ -865,4 +870,33 @@ void MineCart::frameSmash()
     _wheelJoints.clear();
     _wheelJointSpeedDict.clear();
     _bottomFixture = _leftFixture = _rightFixture = nullptr;
+}
+
+// ---- QOL (PC addition): re-grab vehicle (src/game/vehicles/Vehicle.h) ---------------------------
+
+b2Body* MineCart::qolFrameBody()
+{
+    return _frameBody;
+}
+
+// checkStateOfCharacter (and handleInjury): off once both hands and both feet have let go.
+bool MineCart::qolCanRemount(CharacterB2D* character)
+{
+    return character == _rider && !_frameSmashed && _frameBody &&
+           !(character->qolLostLowerArm(1) && character->qolLostLowerArm(2) &&
+             character->qolLostLowerLeg(1) && character->qolLostLowerLeg(2));
+}
+
+// ejectCharacter: _riderEjected / _ejected, not connecting, the cart in group -2 with the zero
+// filter (qolRestoreFilters), the explorer's lower legs shown - the cart hides the ones still on.
+void MineCart::qolRemount(CharacterB2D* character)
+{
+    _riderEjected = false;
+    _ejected = false;
+    qolRestoreFilters(character);
+    qolMount(character, [this, character]() { addCharacter(character); });
+    if (ExplorerGuy* explorer = dynamic_cast<ExplorerGuy*>(character)) {
+        explorer->hideLowerLegs(!character->qolLostLowerLeg(1, false), !character->qolLostLowerLeg(2, false));
+    }
+    qolReplayInjuries(character);
 }

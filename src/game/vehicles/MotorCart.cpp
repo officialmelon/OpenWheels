@@ -732,7 +732,9 @@ bool MotorCart::ejectCharacter(CharacterB2D* character)
 
         b2Filter filter = _zeroFilter;
         filter.groupIndex = -2;
-        CharacterB2D* driver = _characters[0];
+        // QOL (PC addition): the binary reads _characters[0] after the rider was erased (its only
+        // rider, still in the vector's storage); the same character without reading past the end.
+        CharacterB2D* driver = character;
         _frontWheelBody->GetFixtureList()->SetFilterData(filter);
         _backWheelBody->GetFixtureList()->SetFilterData(filter);
 
@@ -760,8 +762,8 @@ bool MotorCart::ejectCharacter(CharacterB2D* character)
             _frameBody->SetUserData(frameSprite);
         }
 
-        // Push the rider off; the impulse points are the first rider's bodies (same character in
-        // practice).
+        // Push the rider off; the impulse points are the first rider's bodies (the same character,
+        // see above).
         float angle = _frameBody->GetAngle() + M_PI_2;
         b2Vec2 impulse(cosf(angle) * 4.0f, sinf(angle) * 4.0f);
         character->getChestBody()->ApplyLinearImpulse(
@@ -905,4 +907,44 @@ void MotorCart::handleContactResults()
         crackerSmash(contact.impulse, contact.normal);
     }
     _contactResultBufferDict.clear();
+}
+
+// ---------------------------------------------------------------------------------------------
+// QOL (PC addition): re-grab vehicle (Vehicle.h). Not in the original.
+// ---------------------------------------------------------------------------------------------
+
+b2Body* MotorCart::qolFrameBody()
+{
+    return _frameBody;
+}
+
+// checkStateOfCharacter: off once three of his thighs and hands have let go.
+bool MotorCart::qolCanRemount(CharacterB2D* character)
+{
+    if (_vehicleSmashed || !_frameBody) {
+        return false;
+    }
+    int lost = (character->qolLostUpperLeg(1) ? 1 : 0) + (character->qolLostUpperLeg(2) ? 1 : 0) +
+               (character->qolLostLowerArm(1) ? 1 : 0) + (character->qolLostLowerArm(2) ? 1 : 0);
+    return lost <= 2;
+}
+
+// ejectCharacter: _ejected, controls nulled, wheels and frame out of the rider's group
+// (qolRestoreFilters), the shocks locked (as while riding), and the frame sprite moved in front of
+// the characters - it goes back behind them, as createSprites put it.
+void MotorCart::qolRemount(CharacterB2D* character)
+{
+    _ejected = false;
+    qolRestoreFilters(character);
+    Node* current = static_cast<Node*>(_frameBody->GetUserData());
+    if (current) {
+        current->removeFromParentAndCleanup(false);
+    }
+    _frameSprite = Sprite::createWithSpriteFrameName("motor_cart_frame.png");
+    _frameSprite->setAnchorPoint(_frameAnchor);
+    getSession()->getVehicleBackground()->addChild(_frameSprite);
+    addHandleToFrameSprite(_frameSprite);
+    _frameBody->SetUserData(_frameSprite);
+    qolMount(character, [this, character]() { addCharacter(character); });
+    qolReplayInjuries(character);
 }

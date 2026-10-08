@@ -11,6 +11,9 @@
 //                                                            (tools/re/extract_*.py, as on Win32)
 //         assets/ios/                                        optional: the iOS app's level-editor
 //                                                            art and Localizable.strings
+//         assets/levels/restored/                            OpenWheels' campaign chapters for the
+//                                                            restored characters (res/levels/restored,
+//                                                            in the repository; RESTORED)
 //         assets/generated/<tier>/characters/                optional (QOL): the kid's gore sheet,
 //                                                            rebuilt from the browser-game SWF
 //                                                            (tools/assets/extract_kid_gore.py)
@@ -57,6 +60,7 @@ def stagedGen    = new File(stageRoot, 'kidgore')  // generated/<tier>/character
 def stagedRestored = new File(stageRoot, 'restored')  // generated/restored/ (RESTORED)
 def stagedItems  = new File(stageRoot, 'flashitems')  // generated/ browser-level item art (ONLINE)
 def stagedSounds = new File(stageRoot, 'flashsounds') // generated/flash/sounds (ONLINE)
+def stagedCampaign = new File(stageRoot, 'campaign')  // levels/restored/ (RESTORED)
 def iconRes      = gameRes.isDirectory() ? stagedRes : file('res-icon-fallback')
 
 if (!new File(engineDir, 'cocos/cocos2d.h').exists()) {
@@ -130,7 +134,8 @@ android {
             java.srcDirs = [new File(repoRoot, 'src/platform/android/java'), new File(cocosJava, 'src')]
             aidl.srcDirs = [new File(cocosJava, 'src')]
             res.srcDirs = ['res', iconRes]
-            assets.srcDirs = [stagedAssets, stagedData, stagedGen, stagedRestored, stagedItems, stagedSounds]
+            assets.srcDirs = [stagedAssets, stagedData, stagedGen, stagedRestored, stagedItems, stagedSounds,
+                              stagedCampaign]
         }
     }
 
@@ -311,6 +316,14 @@ def genSounds = tasks.register('owGenerateFlashSounds', Exec) {
                 '--out', new File(stagedSounds, 'generated').path
 }
 
+// RESTORED (PC addition): OpenWheels' own campaign chapters for the restored characters
+// (res/levels/restored/, in the repository), packed as assets/levels/restored/.
+def stageCampaign = tasks.register('owStageCampaignLevels', Sync) {
+    description = "Copies the restored characters' campaign levels (res/levels/restored) into build/ow/campaign."
+    from(new File(repoRoot, 'res/levels/restored'))
+    into new File(stagedCampaign, 'levels/restored')
+}
+
 def stageIcon = tasks.register('owStageIcon', Sync) {
     description = "Copies the original launcher icon from the player's copy into build/ow/res."
     from(gameRes) {
@@ -322,5 +335,6 @@ def stageIcon = tasks.register('owStageIcon', Sync) {
 tasks.named('preBuild') {
     dependsOn stageGameAssets, genSoundList, genGameText, genKidGore, genRestored, genItems
     dependsOn genSounds  // ONLINE (PC addition)
+    dependsOn stageCampaign  // RESTORED (PC addition)
     if (iconRes == stagedRes) dependsOn stageIcon
 }

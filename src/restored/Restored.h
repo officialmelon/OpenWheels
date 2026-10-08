@@ -39,6 +39,24 @@ void addSearchPaths(const std::string& tier);
 // Appends the restored characters' entries to the list read from Characters.plist.
 void appendCharacters(cocos2d::ValueVector& characters);
 
+// OpenWheels' own campaign: one chapter per restored character (res/levels/restored/, shipped as
+// levels/restored/ next to the exe / in the APK's or app bundle's assets). Its chapters use
+// "index" 100 and up so their progress keys ("c<index>_l<level>") never meet the original
+// chapters'; their levels are browser (Flash 1.87) level XML, played converted.
+constexpr int kFirstCampaignChapter = 100;
+inline bool isCampaignChapter(int chapterIndex)
+{
+    return chapterIndex >= kFirstCampaignChapter && chapterIndex < 1000;
+}
+// Appends the campaign chapters (levels/restored/chapters.plist) to levelData.plist's chapters:
+// only the ones whose character has been generated, each cut before its first missing level file.
+// Their level entries get "format" = "flash" and "unlock_after_previous" (see UserProgress).
+void appendChapters(cocos2d::ValueVector& chapters);
+// The XML LevelB2D plays for a campaign level file: browser XML converted by
+// online::FlashLevelConverter (forced for `browserFormat`, else when the text looks like browser
+// XML: no src / fm / ptm and ow="1" or a start outside the 330 x 170 metre range), else as is.
+std::string playableLevelXml(const std::string& xml, bool browserFormat);
+
 // True when the restored character `characterId` (browser id, e.g. 6 = Lawnmower Man) has been
 // generated and can be played (src/online/FlashLevelConverter uses it to keep forced characters).
 // Works before addSearchPaths too (tools such as --convert-flash): the generated folder is then

@@ -19,6 +19,7 @@
 #include "net/NearbyPanels.h"
 #include "net/NetUi.h"
 #include "net/race/RaceSession.h"  // NET (PC addition): ghost race
+#include "online/OnlinePlay.h"  // online::LevelReturn
 #include "online/OnlineUi.h"
 #include "platform/common/Localization.h"
 
@@ -44,6 +45,13 @@ ScreenState& screenState()
 {
     static ScreenState s;
     return s;
+}
+
+// The way back from a level started here (PLAY pushes it over this screen's scene).
+online::LevelReturn& levelReturn()
+{
+    static online::LevelReturn r;
+    return r;
 }
 
 Label* makeLabel(const std::string& text, const std::string& font, float size, const Color3B& color,
@@ -111,6 +119,11 @@ Scene* UserLevelsScreen::createScene()
     Scene* scene = Scene::create();
     scene->addChild(UserLevelsScreen::create());
     return scene;
+}
+
+Scene* UserLevelsScreen::sceneForReturnFromLevel()
+{
+    return levelReturn().take() ? createScene() : nullptr;
 }
 
 UserLevelsScreen::~UserLevelsScreen()
@@ -785,6 +798,7 @@ void UserLevelsScreen::playSelected()
     bool forceCharacter = level->force_character();
     session->setCharacterIndex(level->playable_character());
     session->setVehicleIndex(0);
+    levelReturn().park();  // leaving the level comes back here
     session->playLevel(forceCharacter);
 }
 

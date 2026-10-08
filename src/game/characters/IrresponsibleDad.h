@@ -28,6 +28,13 @@ public:
     void setCurrentPose(CharacterPose pose) override;                       // @005cbb88  vptr+0x128
     void startGrab() override;                                              // @005cba78  vptr+0x130
     void endGrab() override;                                                // @005cbaac  vptr+0x138
+    // ONLINE (PC addition): the kid's injury limits follow a time step change too (only the
+    // level's own characters get timeStepChanged; browser physics, online/FlashPhysics.h).
+    void timeStepChanged() override
+    {
+        CharacterB2D::timeStepChanged();
+        if (_kid) _kid->timeStepChanged();
+    }
     // addVocalsWithName("Damnit", priority 1)
     void mourn() override;                                                  // @005cbae0  vptr+0x148
     // CharacterB2D::taperBodies() plus a 0.85 taper of the chest.

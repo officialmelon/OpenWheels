@@ -54,6 +54,11 @@ public:
     void checkStateOfCharacter(CharacterB2D* character) override;
     bool ejectCharacter(CharacterB2D* character) override;
 
+    // QOL (PC addition): re-grab vehicle (src/game/vehicles/Vehicle.h).
+    b2Body* qolFrameBody() override;
+    bool qolCanRemount(CharacterB2D* character) override;
+    void qolRemount(CharacterB2D* character) override;
+
     void forwardButtonPressed() override;
     void backButtonPressed() override;
     void forwardBackButtonsNull() override;

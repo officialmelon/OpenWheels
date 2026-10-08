@@ -1,6 +1,6 @@
-// Disabled until the reconstructed game links: define OW_WITH_PC_LAYER (see main.cpp).
+// PC verification mode (Windows, Linux, macOS): define OW_WITH_PC_LAYER (see CMakeLists.txt).
 #ifdef OW_WITH_PC_LAYER
-#include "platform/win32/WorldDumpRunner.h"
+#include "platform/desktop/WorldDumpRunner.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -31,6 +31,8 @@ int runWorldDump(const std::string& outPath, const std::string& levelPath, int f
     const char* fpsEnv = std::getenv("OW_DUMP_FPS");
     const int fps = fpsEnv && std::atoi(fpsEnv) == 30 ? 30 : 60;
     qol::installFrameRate(fps);
+    // The original's behaviour: a grabbed vehicle is held, never re-mounted (QoL re-grab vehicle).
+    qol::suspendRegrabVehicle(true);
     const int ticksPerLoop = fps == 30 ? 2 : 1;
     const float loopDt = fps == 30 ? 1.0f / 30.0f : 1.0f / 60.0f;
 

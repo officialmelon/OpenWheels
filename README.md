@@ -35,6 +35,10 @@ select. Each restored character has his or her own vehicle, controls, gore and s
 Man**. They are rebuilt at build time from your own copy of the browser game's character files;
 see [docs/RESTORED.md](docs/RESTORED.md).
 
+Each of them also gets **a campaign chapter of their own**: six new levels per character, made
+for OpenWheels, after the original chapters in the level select, with their own main-menu
+portraits. See [docs/RESTORED.md](docs/RESTORED.md#restored-character-campaigns).
+
 ![Character select with all 11 characters](docs/screenshots/character-select.png)
 
 ![The restored characters](docs/screenshots/restored-characters.png)

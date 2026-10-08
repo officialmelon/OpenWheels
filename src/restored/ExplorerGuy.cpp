@@ -53,3 +53,13 @@ void ExplorerGuy::showLowerLeg(int leg)
         _lowerLeg2Sprite->setVisible(true);
     }
 }
+
+void ExplorerGuy::hideLowerLegs(bool leg1, bool leg2)
+{
+    if (leg1 && _lowerLeg1Sprite) {
+        _lowerLeg1Sprite->setVisible(false);
+    }
+    if (leg2 && _lowerLeg2Sprite) {
+        _lowerLeg2Sprite->setVisible(false);
+    }
+}

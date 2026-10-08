@@ -5,6 +5,8 @@
 #include "Globals.h"
 #include "Settings.h"
 #include "restored/Restored.h"  // RESTORED (PC addition)
+#include "qol/KeyBindings.h"       // QOL (PC addition)
+#include "qol/QoL.h"               // QOL (PC addition)
 
 USING_NS_CC;
 
@@ -523,6 +525,16 @@ void GameplayControls::addControls(ControlsType type)
     }
     }
 
+    // QOL (PC addition): touch controls hidden (desktop default): the state buttons stay for the
+    // keyboard bridge but are not drawn and ignore real touches.
+    if (!qol::touchControlsShown())
+    {
+        for (GameplayBtn* btn : _buttons)
+        {
+            btn->setKeyOnly(true);
+        }
+    }
+
     updateUpperUIToAccommodateBanner();  // inlined in the original
 }
 
@@ -573,6 +585,14 @@ void GameplayControls::addResetBtn()
     _resetBtn->setPosition(_resetBtnPos);
     _resetBtn->nudgeBounds(14.0f, 14.0f, 14.0f, 14.0f);
     addChild(_resetBtn);
+    // QOL (PC addition): desktop builds show the restart key above the button (scales with it).
+    if (qol::desktopBuild())
+    {
+        Label* hint = qol::createKeyHintLabel(qol::KeyAction::Restart, 70.0f);
+        hint->setAnchorPoint(Vec2(0.5f, 0.0f));
+        hint->setPosition(Vec2(size.width * 0.5f, size.height + 12.0f));
+        _resetBtn->addChild(hint);
+    }
 }
 
 // @005b77ec
@@ -587,8 +607,15 @@ void GameplayControls::handleDeath()
     {
         addControls(ControlsTypeDead);
         removeMeterBar();
+        float delay = globals::ui::postDeathDelayToAllowAdToLoadOrRegisterImpression;
+        // QOL (PC addition): no ad to wait for on desktop: pause / reset (and their keys) come
+        // back after a short beat instead of 3 s.
+        if (qol::desktopBuild())
+        {
+            delay = 0.5f;
+        }
         runAction(Sequence::create(
-            DelayTime::create(globals::ui::postDeathDelayToAllowAdToLoadOrRegisterImpression),
+            DelayTime::create(delay),
             CallFunc::create(CC_CALLBACK_0(GameplayControls::addPostDeathControls, this)),
             nullptr));
     }
@@ -706,6 +733,11 @@ bool GameplayControls::touchBegan(Touch* touch)
     }
     for (GameplayBtn* btn : _buttons)
     {
+        // QOL (PC addition): hidden touch controls only take the keyboard bridge's fingers.
+        if (btn->getKeyOnly() && !qol::keyboardTouch())
+        {
+            continue;
+        }
         if (!btn->getTouch() && btn->getHitArea().containsPoint(location))
         {
             btn->setTouch(touch);
@@ -777,6 +809,12 @@ void GameplayControls::touchMoved(Touch* touch)
     // pick up the button it moved onto
     for (GameplayBtn* btn : _buttons)
     {
+        // QOL (PC addition): hidden touch controls are not picked up by a dragged touch (the
+        // keyboard bridge's fingers never move).
+        if (btn->getKeyOnly())
+        {
+            continue;
+        }
         if (btn->getHitArea().containsPoint(location))
         {
             btn->setTouch(touch);

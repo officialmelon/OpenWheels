@@ -127,6 +127,12 @@ void Settings::updateLevelDataFromFile()
     ValueMap levelData = getLevelData(_selectedChapter, _selectedLevel);
     std::string dataFile = levelData["dataFile"].asString();
     _levelXMLData = FileUtils::getInstance()->getStringFromFile("levels/" + dataFile);
+    // RESTORED (PC addition): OpenWheels' campaign chapters (src/restored) are browser-format
+    // level files, played converted like online levels. The original chapters stay untouched.
+    if (restored::isCampaignChapter(_selectedChapter))
+    {
+        _levelXMLData = restored::playableLevelXml(_levelXMLData, levelData["format"].asString() == "flash");
+    }
 }
 
 // @0061085c
@@ -242,6 +248,11 @@ ValueVector Settings::getAllChaptersData(bool forceReload)
     {
         std::string fullPath = FileUtils::getInstance()->fullPathForFilename("levels/levelData.plist");
         _levelData = FileUtils::getInstance()->getValueMapFromFile(fullPath.c_str());
+        // RESTORED (PC addition): OpenWheels' campaign chapters, after the original ones.
+        if (_levelData["chapters"].getType() == Value::Type::VECTOR)
+        {
+            restored::appendChapters(_levelData["chapters"].asValueVector());
+        }
     }
     return _levelData["chapters"].asValueVector();
 }
@@ -370,6 +381,46 @@ ValueMap Settings::getChapterData(int chapterIndex, bool forceReload)
     return ValueMap();
 }
 
+// RESTORED (PC addition): see Settings.h.
+static int chapterIndexAt(const ValueVector& chapters, int position)
+{
+    if (position < 0 || position >= (int)chapters.size() || chapters[position].getType() != Value::Type::MAP)
+    {
+        return position;
+    }
+    const ValueMap& chapter = chapters[position].asValueMap();
+    auto index = chapter.find("index");
+    return index == chapter.end() ? position : index->second.asInt();
+}
+
+int Settings::getChapterPosition(int chapterIndex)
+{
+    getAllChaptersData(false);  // loads the plist when needed
+    if (_levelData["chapters"].getType() != Value::Type::VECTOR)
+    {
+        return -1;
+    }
+    const ValueVector& chapters = _levelData["chapters"].asValueVector();
+    for (size_t i = 0; i < chapters.size(); i++)
+    {
+        if (chapterIndexAt(chapters, (int)i) == chapterIndex)
+        {
+            return (int)i;
+        }
+    }
+    return -1;
+}
+
+int Settings::getChapterIndexAt(int position)
+{
+    getAllChaptersData(false);
+    if (_levelData["chapters"].getType() != Value::Type::VECTOR)
+    {
+        return position;
+    }
+    return chapterIndexAt(_levelData["chapters"].asValueVector(), position);
+}
+
 // @00611bec
 ValueMap Settings::getLevelData(int chapter, int level)
 {
@@ -411,8 +462,11 @@ std::string Settings::getLevelFilePath(int chapter, int level)
 // @00612010
 bool Settings::advanceLevelIndex()
 {
-    ValueMap chapter = getAllChaptersData(false)[_selectedChapter].asValueMap();
-    ValueVector levels = chapter["levels"].asValueVector();
+    // RESTORED (PC addition): looked up by "index" (the original indexes the array with it,
+    // which only holds for the original chapters).
+    ValueMap chapter = getChapterData(_selectedChapter, false);
+    ValueVector levels = chapter["levels"].getType() == Value::Type::VECTOR ? chapter["levels"].asValueVector()
+                                                                            : ValueVector();
     if (_selectedLevel + 1 < (int)levels.size())
     {
         _advancedFromLastLevel = false;
@@ -451,13 +505,20 @@ bool Settings::isLevelUnlocked(int chapter, int level)
 bool Settings::advanceChapterIndex()
 {
     ValueVector chapters = getAllChaptersData(false);
-    const size_t next = (size_t)(_selectedChapter + 1);
-    if (next < chapters.size())
+    // RESTORED (PC addition): by position, not by index (OpenWheels' campaign chapters are 100+).
+    // The original chapters never lead into the campaign ones (their last chapter still ends the
+    // game: credits), the campaign chapters lead into each other.
+    const bool campaign = restored::isCampaignChapter(_selectedChapter);
+    const int position = campaign ? getChapterPosition(_selectedChapter) : _selectedChapter;
+    const size_t next = (size_t)(position + 1);
+    if ((campaign && position < 0) || next >= chapters.size()
+        || restored::isCampaignChapter(getChapterIndexAt((int)next)) != campaign)
     {
-        _selectedChapter++;
-        _selectedLevel = 0;
+        return false;
     }
-    return next < chapters.size();
+    _selectedChapter = getChapterIndexAt((int)next);
+    _selectedLevel = 0;
+    return true;
 }
 
 // @006124a4

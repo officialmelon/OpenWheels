@@ -64,8 +64,10 @@
 #include "WreckingBall.h"
 #include "online/BareCharacter.h"   // ONLINE (PC addition)
 #include "online/FlashRuntime.h"   // ONLINE (PC addition)
+#include "online/FlashPhysics.h"  // ONLINE (PC addition)
 #include "online/items/FlashSpecials.h"  // ONLINE (PC addition)
 #include "online/vehicles/UserVehicle.h"  // ONLINE (PC addition)
+#include "qol/CharacterChoice.h"  // QOL (PC addition)
 #include "restored/Restored.h"  // RESTORED (PC addition)
 
 USING_NS_CC;
@@ -88,6 +90,10 @@ LevelB2D::LevelB2D()
     _groupItems.clear();
     _foregroundGroupItems.clear();
     _triggers.clear();
+    // ONLINE (PC addition): a new level is not a browser level until addInfo finds src="flash";
+    // character select's level (no init, no info) must not run the browser hooks of the level
+    // played before it.
+    online::setFlashLevel(false, 0.0f);
 }
 
 // @005cd79c
@@ -648,6 +654,10 @@ void LevelB2D::addInfo(LevelDataElement* info)
     Settings* settings = Settings::getInstance();
     if (_forcedChar)
     {
+        // QOL (PC addition): keep the player's own choice for later; a character picked for this
+        // user level ("any character") replaces the level's (qol/CharacterChoice.h).
+        qol::rememberPlayerCharacter();
+        characterId = qol::forcedLevelCharacter(characterId);
         settings->setSelectedCharacterId(characterId);
     }
     else
@@ -661,6 +671,10 @@ void LevelB2D::addInfo(LevelDataElement* info)
     }
     else
     addCharacter(x, y, (CharacterId)characterId, VehicleIdDefault, hideVehicle, -1);
+
+    // ONLINE (PC addition): browser levels step once per Flash frame (1/30 s) with the browser
+    // physics profile; the characters exist now, so they rescale with the step (FlashPhysics.h).
+    online::beginLevelTimeStep(Settings::getInstance()->getCurrentSession());
 
     int background = 0;
     int backgroundColor = 0;
@@ -934,6 +948,41 @@ inline b2Vec2 transformPoint(const AffineTransform& t, float x, float y)
     return b2Vec2(t.a * x + t.c * y + t.tx, t.b * x + t.d * y + t.ty);
 }
 
+// ONLINE (PC addition): puts an FFDrawNode back to the original (campaign) shape drawing when
+// LevelB2D::addShape returns.
+struct OnlineShapeStyleScope
+{
+    FFDrawNode* node = nullptr;
+    ~OnlineShapeStyleScope()
+    {
+        if (node != nullptr)
+        {
+            node->onlineClearShapeStyle();
+        }
+    }
+};
+
+// ONLINE (PC addition): stroke width (points) of browser-level shape outlines. Flash strokes
+// shapes with a 1 px line at the browser game's 1:1 view; the gameplay view shows as many Flash
+// px as the browser stage (2000 points tall, 4 points per Flash px), so that is one Flash px
+// here, kept at least ~1.25 framebuffer pixels thick when the view is small or zoomed out.
+float onlineOutlineWidth(Node* drawNode, float ptmRatio, float sourcePtmRatio)
+{
+    const float width = sourcePtmRatio > 0.0f ? ptmRatio / sourcePtmRatio : 1.0f;
+    float scale = 1.0f;
+    for (Node* node = drawNode; node != nullptr; node = node->getParent())
+    {
+        scale *= std::fabs(node->getScaleX());
+    }
+    GLView* view = Director::getInstance()->getOpenGLView();
+    const float pixelsPerPoint = (view != nullptr ? view->getScaleX() : 1.0f) * scale;
+    if (pixelsPerPoint > 0.0f)
+    {
+        return std::max(width, 1.25f / pixelsPerPoint);
+    }
+    return width;
+}
+
 }  // namespace
 
 // @005d0cb4
@@ -1004,6 +1053,26 @@ ShapeItem* LevelB2D::addShape(LevelDataElement* shape, GroupItem* groupItem, Vec
         outlineColor = ccColorFromRGB(outlineRGB);
     }
     float borderWidth = (outlineRGB >= 0) ? 1.0f : 0.0f;
+
+    // ONLINE (PC addition): browser levels draw Flash's outlines (p9, which the original ignores),
+    // outline-only shapes (p8 -1 from FlashLevelConverter) and circle cutouts (p12, % of the
+    // radius); see FFDrawNode::onlineSetShapeStyle.
+    OnlineShapeStyleScope onlineStyle;
+    if (online::flashLevel() && type != 5)
+    {
+        float innerCutout = 0.0f;
+        if (type == 1)
+        {
+            shape->floatAttribute("p12", &innerCutout);
+        }
+        float outlineWidth = 0.0f;
+        if (outlineRGB >= 0)
+        {
+            outlineWidth = onlineOutlineWidth(drawNode, _ptmRatio, _sourcePtmRatio);
+        }
+        drawNode->onlineSetShapeStyle(fillRGB >= 0, outlineWidth, innerCutout / 100.0f);
+        onlineStyle.node = drawNode;
+    }
 
     b2FixtureDef fixtureDef;
     if (groupItem == nullptr)
@@ -1195,10 +1264,15 @@ ShapeItem* LevelB2D::addShape(LevelDataElement* shape, GroupItem* groupItem, Vec
             AffineTransform artTransform = AffineTransformRotate(
                 AffineTransformTranslate(AffineTransformIdentity, x * _ptmRatio, _ptmRatio * y),
                 angle);
+            // ONLINE (PC addition): drawn from the browser polygon's own outline when it has one.
+            Vec2 onlineVerts[100];
+            int onlineCount =
+                online::flashLevel() ? onlinePolygonArtVerts(shape, scaleX, scaleY, onlineVerts) : 0;
             PolygonShape* polygonShape = new (std::nothrow) PolygonShape();
-            polygonShape->init(Vec2(x * _ptmRatio, _ptmRatio * y), angle, verts, count,
-                               artTransform, fillColor, outlineColor, opacity, borderWidth,
-                               drawNode, false);
+            polygonShape->init(Vec2(x * _ptmRatio, _ptmRatio * y), angle,
+                               onlineCount > 0 ? onlineVerts : verts,
+                               onlineCount > 0 ? onlineCount : count, artTransform, fillColor,
+                               outlineColor, opacity, borderWidth, drawNode, false);
             polygonShape->setIndex(index);
             polygonShape->setDelegate(this);
             polygonShape->setFixtureRef(fixture);
@@ -1644,11 +1718,26 @@ ShapeItem* LevelB2D::addShape(LevelDataElement* shape, GroupItem* groupItem, Vec
             fixtureDef.shape = &polygon;
             fixture = body->CreateFixture(&fixtureDef);
         }
+        // ONLINE (PC addition): browser polygons are drawn from their own outline (the converter's
+        // <av>, else the vertices above), not from the fixture's convex hull.
+        Vec2 onlineVerts[100];
+        int onlineCount =
+            online::flashLevel() ? onlinePolygonArtVerts(shape, scaleX, scaleY, onlineVerts) : 0;
+        Vec2* drawVerts = onlineCount > 0 ? onlineVerts : verts;
+        int drawCount = onlineCount > 0 ? onlineCount : count;
         if (groupItem == nullptr)
         {
             PolygonShape* polygonShape = new (std::nothrow) PolygonShape();
-            polygonShape->init(fixture, _ptmRatio, fillColor, outlineColor, opacity, borderWidth,
-                               drawNode);
+            if (online::flashLevel())
+            {
+                polygonShape->onlineInit(fixture, _ptmRatio, fillColor, outlineColor, opacity,
+                                         borderWidth, drawVerts, drawCount, drawNode);
+            }
+            else
+            {
+                polygonShape->init(fixture, _ptmRatio, fillColor, outlineColor, opacity,
+                                   borderWidth, drawNode);
+            }
             polygonShape->setDelegate(this);
             polygonShape->setIndex(index);
             _shapeItems.push_back(polygonShape);
@@ -1660,8 +1749,8 @@ ShapeItem* LevelB2D::addShape(LevelDataElement* shape, GroupItem* groupItem, Vec
                                                            _ptmRatio * (groupOffset.y + y)),
                                   angle);
         PolygonShape* polygonShape = new (std::nothrow) PolygonShape();
-        polygonShape->init(Vec2::ZERO, 0.0f, verts, count, artTransform, fillColor, outlineColor,
-                           opacity, borderWidth, drawNode, true);
+        polygonShape->init(Vec2::ZERO, 0.0f, drawVerts, drawCount, artTransform, fillColor,
+                           outlineColor, opacity, borderWidth, drawNode, true);
         polygonShape->setIndex(index);
         groupItem->addShapeItem(polygonShape);
         break;
@@ -1811,6 +1900,41 @@ void LevelB2D::convertVerts(Vec2* verts, int count)
             verts[i].y = -verts[i].y;
         }
     }
+}
+
+// ONLINE (PC addition): see LevelB2D.h. <av n v0..> is written by FlashLevelConverter with the
+// same integer scale as the shape's <v>, so the shape's stretch applies to it unchanged.
+int LevelB2D::onlinePolygonArtVerts(LevelDataElement* shape, float scaleX, float scaleY,
+                                    Vec2* verts)
+{
+    tinyxml2::XMLElement* art = shape->getData()->FirstChildElement("av");
+    if (art == nullptr)
+    {
+        return 0;
+    }
+    int count = 0;
+    art->QueryIntAttribute("n", &count);
+    if (count < 3 || count > 100)
+    {
+        return 0;
+    }
+    const char separator = (_version >= 1.84) ? '_' : '.';
+    for (int i = 0; i < count; i++)
+    {
+        const char* text = art->Attribute(("v" + std::to_string(i)).c_str());
+        if (text == nullptr || strchr(text, separator) == nullptr)
+        {
+            return 0;
+        }
+        verts[i] = stringToVec(text);
+    }
+    convertVerts(verts, count);
+    for (int i = 0; i < count; i++)
+    {
+        verts[i].x *= scaleX * _ptmRatio;
+        verts[i].y *= scaleY * _ptmRatio;
+    }
+    return count;
 }
 
 // @005d6698

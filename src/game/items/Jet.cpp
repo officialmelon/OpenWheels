@@ -9,6 +9,7 @@
 #include "Patch.h"
 #include "QueryCallback.h"
 #include "Sound.h"
+#include "online/FlashPhysics.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -73,7 +74,10 @@ bool Jet::init(LevelDataElement* element, b2Body* groupBody, b2Vec2 groupOffset)
     float accelStep = 0.0f;
     if (accelSeconds > 0) {
         accelScaler = 0.0f;
-        accelStep = 1.0f / (float)(fps * accelSeconds);
+        // ONLINE (PC addition): the ramp advances once per thrust, i.e. once per Flash frame
+        // (every other step at 1/60, every step at 1/30), so its step is the 1/60 one at both rates.
+        const int rampFps = fps * 2 / online::stepsPerFlashFrame();
+        accelStep = 1.0f / (float)(rampFps * accelSeconds);
         _fadeTime = (float)accelSeconds;
     }
     _accelScaler = accelScaler;
@@ -266,7 +270,9 @@ void Jet::frameAction()
         _skipFrame = false;
         return;
     }
-    _skipFrame = true;
+    // ONLINE (PC addition): every other step is once per Flash frame at 1/60; with the browser
+    // physics profile (1/30) every step is one, so none is skipped.
+    _skipFrame = online::stepsPerFlashFrame() == 2;
 
     // Thrust along the jet's local +y axis, every other step.
     b2Body* body = _body;

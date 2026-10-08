@@ -17,6 +17,7 @@
 #include "Session.h"
 #include "Settings.h"
 #include "Sound.h"
+#include "online/FlashPhysics.h"  // RESTORED (PC addition): per-step constants at 1/30 too
 
 USING_NS_CC;
 
@@ -375,22 +376,8 @@ void Helicopter::createDictionaries()
 void Helicopter::addCharacter(CharacterB2D* character)
 {
     Vehicle::addCharacter(character);
-    _rider = character;
+    attachRider(character);
     b2World* world = getWorld();
-    CharacterB2D* c = character;
-
-    limitJoint(c->getNeckJoint(), c->getChestBody(), c->getHeadBody(), -10.0f, 10.0f);
-
-    b2RevoluteJointDef def;
-    def.maxMotorTorque = _maxTorque;
-    def.enableLimit = false;
-    b2Vec2 origin(_origin.x, _origin.y);
-    def.Initialize(_copterBody, c->getPelvisBody(), origin + guide("seatAnchor"));
-    addBodyVehicleJoint(c->getPelvisBody(), world->CreateJoint(&def));
-    def.Initialize(_copterBody, c->getLowerArm1Body(), origin + guide("handleAnchor"));
-    addBodyVehicleJoint(c->getLowerArm1Body(), world->CreateJoint(&def));
-    def.Initialize(_copterBody, c->getLowerArm2Body(), origin + guide("handleAnchor"));
-    addBodyVehicleJoint(c->getLowerArm2Body(), world->CreateJoint(&def));
 
     // The magnet goes under the centre of mass of copter + rider; the rope hangs from the copter
     // at that x (the magnetAnchor's height) to 20 symbol px above the magnet's centre.
@@ -442,6 +429,26 @@ void Helicopter::addCharacter(CharacterB2D* character)
             _painted.push_back({_copterBody, s, false});
         }
     }
+}
+
+void Helicopter::attachRider(CharacterB2D* character)
+{
+    _rider = character;
+    b2World* world = getWorld();
+    CharacterB2D* c = character;
+
+    limitJoint(c->getNeckJoint(), c->getChestBody(), c->getHeadBody(), -10.0f, 10.0f);
+
+    b2RevoluteJointDef def;
+    def.maxMotorTorque = _maxTorque;
+    def.enableLimit = false;
+    b2Vec2 origin(_origin.x, _origin.y);
+    def.Initialize(_copterBody, c->getPelvisBody(), origin + guide("seatAnchor"));
+    addBodyVehicleJoint(c->getPelvisBody(), world->CreateJoint(&def));
+    def.Initialize(_copterBody, c->getLowerArm1Body(), origin + guide("handleAnchor"));
+    addBodyVehicleJoint(c->getLowerArm1Body(), world->CreateJoint(&def));
+    def.Initialize(_copterBody, c->getLowerArm2Body(), origin + guide("handleAnchor"));
+    addBodyVehicleJoint(c->getLowerArm2Body(), world->CreateJoint(&def));
 }
 
 // ---- rider -------------------------------------------------------------------------------------
@@ -631,16 +638,20 @@ void Helicopter::forwardBackButtonsNull()
 // positive); without the blade the lean impulses of the bikes spin the copter instead.
 void Helicopter::spin(bool right)
 {
+    // RESTORED (PC addition): the steps are per 60 Hz step (^2); online::perStep converts them to
+    // the current step (Flash's own values at the browser physics profile's 1/30).
+    const float accelStep = online::perStep(online::perStep(_accelStep));
+    const float maxStep = online::perStep(_maxStep);
     if (right) {
         if (_spinAcceleration < 0.0f) {
             _spinAcceleration = -_spinAcceleration;
         }
-        _spinAcceleration = std::min(_spinAcceleration + _accelStep, _maxStep);
+        _spinAcceleration = std::min(_spinAcceleration + accelStep, maxStep);
     } else {
         if (_spinAcceleration > 0.0f) {
             _spinAcceleration = -_spinAcceleration;
         }
-        _spinAcceleration = std::max(_spinAcceleration - _accelStep, -_maxStep);
+        _spinAcceleration = std::max(_spinAcceleration - accelStep, -maxStep);
     }
     _targetAng += _spinAcceleration;
     if (!_bladeSmashed || !_copterBody) {
@@ -686,11 +697,14 @@ void Helicopter::leanButtonsNull()
     if (!riderOn()) {
         return;
     }
+    // RESTORED (PC addition): per current step, as in spin().
+    const float decelStep = online::perStep(online::perStep(_decelStep));
+    const float maxStep = online::perStep(_maxStep);
     if (_targetAng > 0.0f) {
-        _spinAcceleration = std::max(_spinAcceleration - _decelStep, -_maxStep);
+        _spinAcceleration = std::max(_spinAcceleration - decelStep, -maxStep);
         _targetAng = std::max(_targetAng + _spinAcceleration, 0.0f);
     } else if (_targetAng < 0.0f) {
-        _spinAcceleration = std::min(_spinAcceleration + _decelStep, _maxStep);
+        _spinAcceleration = std::min(_spinAcceleration + decelStep, maxStep);
         _targetAng = std::min(_targetAng + _spinAcceleration, 0.0f);
     }
     if (_currentPose == VehiclePoseLeanForward || _currentPose == VehiclePoseLeanBack) {
@@ -729,10 +743,11 @@ void Helicopter::extraControls(unsigned char state)
     }
     float length = _ropeJoint->GetMaxLength();
     float next = length;
+    const float ropeSpeed = online::perStep(_ropeSpeed);  // RESTORED (PC addition): per current step
     if (state & 0x20) {
-        next = std::max(length - _ropeSpeed, _ropeMinLength);
+        next = std::max(length - ropeSpeed, _ropeMinLength);
     } else if (state & 0x40) {
-        next = std::min(length + _ropeSpeed, _ropeMaxLength);
+        next = std::min(length + ropeSpeed, _ropeMaxLength);
     }
     if (next != length) {
         _ropeJoint->SetMaxLength(next);
@@ -839,7 +854,8 @@ void Helicopter::stepRope()
     }
     b2Vec2 m = _magnetBody->GetWorldPoint(_magnetAnchor);
     _ropePoints.back().curr = _ropePoints.back().prev = m;
-    const float gravity = -(10.0f / 30.0f) / 30.0f / 4.0f;
+    // RESTORED (PC addition): per current step^2 (a quarter of Flash's only at 1/60).
+    const float gravity = online::perStep(online::perStep(-(10.0f / 30.0f) / 30.0f / 4.0f));
     for (RopePoint& p : _ropePoints) {
         if (!p.fixed) {
             b2Vec2 v = p.curr - p.prev;
@@ -1549,7 +1565,8 @@ void Helicopter::actions()
         hoverCopter();
     }
     if (_bladeImpactSound) {
-        if (++_soundDelayCount >= _soundDelay) {
+        // RESTORED (PC addition): _soundDelay counts 60 Hz steps; converted to the current step.
+        if (++_soundDelayCount >= online::stepsFor60HzFrames(_soundDelay)) {
             _bladeImpactSound = false;
             _soundDelayCount = 0;
             _soundDelay = ((int)roundf(CCRANDOM_0_1() * 20.0f) + 5) * 2;  // Flash frames -> steps
@@ -1586,13 +1603,15 @@ void Helicopter::actions()
     stepRope();
 
     // The propeller turns (9 frames at 30 fps), the magnet's lights blink while it is on.
-    if (gameplay() && _frameCounter % 2 == 0) {
-        int frame = (_frameCounter / 2) % 9 + 1;
+    // RESTORED (PC addition): one art frame per Flash frame (2 steps at 1/60, 1 at 1/30).
+    const int spf = online::stepsPerFlashFrame();
+    if (gameplay() && _frameCounter % spf == 0) {
+        int frame = (_frameCounter / spf) % 9 + 1;
         if (_propellerSprite && _propellerSprite->isVisible()) {
             _propellerSprite->setSpriteFrame(_name + "_propeller_" + patch::to_string(frame) + ".png");
         }
         if (_magnetized && _magnetSprite) {
-            int m = (_frameCounter / 2) % 6 + 1;
+            int m = (_frameCounter / spf) % 6 + 1;
             _magnetSprite->setSpriteFrame(_name + "_magnetOn_" + patch::to_string(m) + ".png");
         }
     }
@@ -1622,4 +1641,33 @@ void Helicopter::paint()
             _ropeNode->drawSegment(Vec2(a.x * ptm, a.y * ptm), Vec2(b.x * ptm, b.y * ptm), radius, color);
         }
     }
+}
+
+// ---- QOL (PC addition): re-grab vehicle (src/game/vehicles/Vehicle.h) ---------------------------
+
+b2Body* Helicopter::qolFrameBody()
+{
+    return _copterBody;
+}
+
+// handleInjury: off once both hands have let go (chest / pelvis smashes and a broken torso are
+// never re-mounted, Vehicle::qolRiderFit). Without the blade he can still hang on to the wreck.
+bool Helicopter::qolCanRemount(CharacterB2D* character)
+{
+    return character == _rider && !_copterSmashed && _copterBody &&
+           !(character->qolLostLowerArm(1) && character->qolLostLowerArm(2));
+}
+
+// ejectCharacter: _riderEjected / _ejected, the copter's shapes zero-filtered (qolRestoreFilters),
+// the target angle levelled (kept). The magnet, its rope and the sprites stay as they are.
+void Helicopter::qolRemount(CharacterB2D* character)
+{
+    _riderEjected = false;
+    _ejected = false;
+    qolRestoreFilters(character);
+    qolMount(character, [this, character]() {
+        Vehicle::addCharacter(character);
+        attachRider(character);
+    });
+    qolReplayInjuries(character);
 }

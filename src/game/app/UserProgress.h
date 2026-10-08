@@ -62,7 +62,9 @@ public:
     std::vector<float> getCompletionTimes(int chapter, int level);             // @00639284
     bool isLevelCompleted(int chapter, int level);                             // @006395b8
     // "_unlocked" flag, else the rewards.plist rule (type 0: completed levels of chapterIndex >= N);
-    // queues the unlock announcement when unlocked.
+    // queues the unlock announcement when unlocked. RESTORED (PC addition): a level marked
+    // "unlock_after_previous" (OpenWheels' campaign chapters, src/restored) without a rewards rule
+    // is unlocked once the level before it is completed (no announcement).
     bool isLevelUnlocked(int chapter, int level);                              // @006396b0
     void checkIfUserHasSeenAlertForUnlockedLevel(int chapter, int level);      // @00639de0
     // Levels 0.._levelsPerChapter-1 of the chapter that have a time.
@@ -72,14 +74,15 @@ public:
     float getPercentageOfLevelsOfChapterCompleted(int chapter, bool useChapterLevelCount); // @0063a410
     // UserDefault "c<c>_l<l>_unlocked" = unlocked, flush.
     void setIsLevelUnlocked(int chapter, int level, bool unlocked);            // @0063a63c
-    // Every level of every chapter in levelData.plist has a time.
+    // Every level of every chapter in levelData.plist has a time (RESTORED: the campaign
+    // chapters, index 100+, are not counted).
     bool getAllLevelsCompleted();                                              // @0063a908
     UnlockLevelInstructions getUnlockLevelInstructions(int chapter, int level); // @0063abc0
     // Returns the queued announcements and clears the queue.
     std::vector<UnlockedLevelAnnouncement> getUnlockedLevelAnnouncements();    // @0063b378
     void addDebugCompletionTimes();                                            // @0063b530 (empty)
     // Clears the times of chapters 0..9 x levels 0.._levelsPerChapter-1 (not the "_unlocked" flags),
-    // then UserDefault::flush().
+    // then UserDefault::flush(). RESTORED (PC addition): the campaign chapters' times as well.
     void resetLevelProgress();                                                 // @0063b534
 
 private:

@@ -14,6 +14,7 @@
 #include "Session.h"
 #include "Sound.h"
 #include "TargetRaycast.h"
+#include "online/FlashPhysics.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -312,6 +313,8 @@ void HomingMine::frameAction()
         return;
     }
     _skipAFrame = true;
+    // ONLINE (PC addition): every other 1/60 step = every browser physics step (1/30).
+    if (online::stepsPerFlashFrame() == 1) _skipAFrame = false;
     if (_lightColor == HomingMineLightColorYellow) {
         _light->setVisible(!_light->isVisible());
     }

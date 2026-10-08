@@ -171,6 +171,7 @@ void RefShape::setHeight(float height)
 void RefShape::setInnerRed(unsigned int innerRed)
 {
     KeyValueChange kvo(this, "innerRed");
+    _noFill = false;  // EDITOR (browser features, PC addition)
     _innerRed = innerRed;
     s_innerRed = innerRed;
     _innerColor.r = (float)innerRed * kByteToUnit;
@@ -180,6 +181,7 @@ void RefShape::setInnerRed(unsigned int innerRed)
 void RefShape::setInnerGreen(unsigned int innerGreen)
 {
     KeyValueChange kvo(this, "innerGreen");
+    _noFill = false;  // EDITOR (browser features, PC addition)
     _innerGreen = innerGreen;
     s_innerGreen = innerGreen;
     _innerColor.g = (float)innerGreen * kByteToUnit;
@@ -189,6 +191,7 @@ void RefShape::setInnerGreen(unsigned int innerGreen)
 void RefShape::setInnerBlue(unsigned int innerBlue)
 {
     KeyValueChange kvo(this, "innerBlue");
+    _noFill = false;  // EDITOR (browser features, PC addition)
     _innerBlue = innerBlue;
     s_innerBlue = innerBlue;
     _innerColor.b = (float)innerBlue * kByteToUnit;
@@ -206,6 +209,7 @@ unsigned int toUnsigned(float f)
 void RefShape::setColor(unsigned int color)
 {
     KeyValueChange kvo(this, "color");
+    _noFill = false;  // EDITOR (browser features, PC addition)
     const Color4F c = ccColorFromRGB((long long)color);
     _innerRed = toUnsigned(c.r * 255.0f);
     _innerGreen = toUnsigned(c.g * 255.0f);

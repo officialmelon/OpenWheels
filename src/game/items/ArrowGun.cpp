@@ -11,6 +11,7 @@
 #include "Patch.h"
 #include "Session.h"
 #include "TargetRaycast.h"
+#include "online/FlashPhysics.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -262,7 +263,12 @@ Arrow* ArrowGun::fireArrow()
     }
     float t = fminf(t1, t2);
     float angle = atan2f(center.y + velocity.y * t - _turretPos.y, center.x + velocity.x * t - _turretPos.x);
+    return launchArrow(angle);
+}
 
+// Second half of fireArrow (@0058107c), split out so vehicle guns can shoot without a target.
+Arrow* ArrowGun::launchArrow(float angle)
+{
     Arrow* arrow = Arrow::createWithPos(_turretPos, angle, b2Vec2(cosf(angle) * 32.0f, sinf(angle) * 32.0f),
                                         _turret->getLocalZOrder());
     arrow->retain();
@@ -292,6 +298,11 @@ void ArrowGun::frameAction()
     if (_frameCount != 0) {
         _frameCount--;
     }
+    // ONLINE (PC addition): the cooldown counts 60 Hz frames and frame actions run once per world
+    // step; a browser physics step (1/30, online/FlashPhysics.h) is two of them.
+    if (_frameCount != 0 && online::stepsPerFlashFrame() == 1) {
+        _frameCount--;
+    }
     // String release animation after a shot: advance every other frame.
     if (_stringMCFrame > 1) {
         bool shouldUpdate = _shouldUpdateFrame;
@@ -299,6 +310,7 @@ void ArrowGun::frameAction()
             advanceStringMC();
         }
         _shouldUpdateFrame = !shouldUpdate;
+        if (online::stepsPerFlashFrame() == 1) _shouldUpdateFrame = true;  // ONLINE (PC addition): every 1/30 step
     }
 }
 
@@ -307,6 +319,11 @@ void ArrowGun::actions()
 {
     if (_arrowGunType != 0) {
         _turretPos = _baseBody->GetWorldPoint(_turretLocalPos);
+    }
+    // ONLINE (PC addition): user-vehicle guns fire straight, without targets.
+    if (_onlineVehicleGun) {
+        onlineVehicleActions();
+        return;
     }
     if (!_targetBody && _firingAllowed) {
         findClosestTarget(_turretPos);
@@ -452,4 +469,39 @@ void ArrowGun::beginContact(b2Fixture* fixture, b2Fixture* otherFixture, b2Conta
 void ArrowGun::endContact(b2Fixture* fixture, b2Fixture* otherFixture, b2Contact* contact)
 {
     targetRemove(otherFixture);
+}
+
+// ONLINE (PC addition): see ArrowGun.h. The rider is never aimed at: there is no aiming.
+void ArrowGun::onlineSetVehicleControlled()
+{
+    if (_onlineVehicleGun) {
+        return;
+    }
+    _onlineVehicleGun = true;
+    _unlimitedArrows = true;
+    _targetBody = nullptr;
+    b2Body* body = _baseBody ? _baseBody : getLevelBody();
+    _onlineVehicleAim = _currentAngle - body->GetAngle();
+}
+
+// ONLINE (PC addition)
+void ArrowGun::onlineVehicleActions()
+{
+    b2Body* body = _baseBody ? _baseBody : getLevelBody();
+    _currentAngle = body->GetAngle() + _onlineVehicleAim;
+    // stopInteractivity (deleted by a trigger) clears _stringMC: the gun is dead then.
+    if (!_firingAllowed || _frameCount != 0 || !_stringMC || !_rangeSensor) {
+        return;
+    }
+    // The barrel points along _currentAngle + 90 degrees (actions: targetAngle = atan2 - pi/2).
+    Arrow* arrow = launchArrow(_currentAngle + (float)M_PI_2);
+    advanceStringMC();
+    if (_arrows.size() > 10) {
+        _arrows[0]->remoteBreak();
+        _arrows.erase(_arrows.begin());
+    }
+    if (arrow) {
+        _arrows.push_back(arrow);
+    }
+    _frameCount = _framesPerShot;
 }

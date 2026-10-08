@@ -84,6 +84,34 @@ bool fullscreen();
 void setFullscreen(bool on);
 void setFullscreenHandler(std::function<void(bool)> handler);
 
+// Desktop build (Windows, Linux, macOS): the keyboard drives the game (src/platform/desktop/PCInput).
+bool desktopBuild();
+
+// On-screen driving controls (move / lean / special / eject, the ejected d-pad and grab, the
+// restored characters' extra buttons). Auto = hidden on desktop builds, shown on touch devices;
+// touch devices always show them. Hidden buttons are still laid out and pressed by the keyboard
+// bridge, but are not drawn and ignore real touches (the mouse); pause, reset, the timer and the
+// boost meter stay, the reset button shows its key and tutorial arrows show the keys.
+enum class TouchControls { Auto = 0, Show = 1, Hide = 2 };
+TouchControls touchControls();
+void setTouchControls(TouchControls mode);
+const char* touchControlsName(TouchControls mode);
+bool touchControlsShown();  // resolved for this build
+// Set by the keyboard bridge while it injects a virtual finger, so GameplayControls can tell it
+// from a real touch (GLView renumbers touch ids).
+void setKeyboardTouch(bool on);
+bool keyboardTouch();
+
+// Re-grab vehicle: an ejected main character whose hand grabs his own (unsmashed) vehicle at least
+// 0.5 s (in physics steps) after the ejection gets back on and rides again (Vehicle::qolTryRemount).
+// On by default - the one option that departs from the original by default; it only acts on a grab
+// of the rider's own vehicle, which the original treats as an ordinary grip.
+bool regrabVehicle();               // the setting, unless suspended for this run
+bool regrabVehicleSetting();        // the stored setting
+void setRegrabVehicle(bool on);
+// --dump-world verification: the original's behaviour for this run, whatever the setting.
+void suspendRegrabVehicle(bool suspended);
+
 // Applies display options (FPS counter, fullscreen) - call once the GL view exists.
 void applyDisplaySettings();
 

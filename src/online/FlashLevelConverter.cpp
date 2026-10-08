@@ -368,7 +368,8 @@ private:
     bool convertShape(const XMLElement* e, bool inGroup, ShapeRec& out);
     bool buildPolygon(const XMLElement* e, int type, bool interactive, double width, bool hasWidth,
                       double height, bool hasHeight, ShapeRec& out, bool* becameArt);
-    void emitVerts(Node& shapeNode, const std::vector<Pt>& points);
+    void emitVerts(Node& shapeNode, const std::vector<Pt>& points,
+                   const std::vector<Pt>* artPoints = nullptr);
     ShapeRec makeBox(double x, double y, double w, double h, double angle, bool interactive,
                      bool immovable, bool sleeping, double density, int color, double opacity,
                      int collision, bool inGroup);
@@ -494,11 +495,15 @@ bool Converter::convertInfo(const XMLElement* info) {
 // ---------------------------------------------------------------------------------------------
 // Shapes
 
-void Converter::emitVerts(Node& shapeNode, const std::vector<Pt>& points) {
+void Converter::emitVerts(Node& shapeNode, const std::vector<Pt>& points,
+                          const std::vector<Pt>* artPoints) {
     // Integers (stringToVec uses atoi) scaled by k for sub-pixel precision; p2/p3 are set so
     // that LevelB2D's stretch (p2 / extent incl. the origin) divides k out again.
     double maxAbs = 1.0;
     for (const Pt& p : points) maxAbs = std::max(maxAbs, std::max(std::fabs(p.x), std::fabs(p.y)));
+    if (artPoints) {
+        for (const Pt& p : *artPoints) maxAbs = std::max(maxAbs, std::max(std::fabs(p.x), std::fabs(p.y)));
+    }
     int k = (int)std::max(1.0, std::min(10.0, std::floor(1.0e7 / maxAbs)));
     std::vector<long long> xs, ys;
     long long minX = 0, maxX = 0, minY = 0, maxY = 0;
@@ -525,6 +530,20 @@ void Converter::emitVerts(Node& shapeNode, const std::vector<Pt>& points) {
     }
     shapeNode.children.clear();
     shapeNode.children.push_back(v);
+    // The drawn outline of a physics polygon, when it is not the physics vertices (concave, more
+    // than 8 vertices): <av>, same k, read by LevelB2D::onlinePolygonArtVerts (PC addition). The
+    // mobile loader itself only reads the first child.
+    if (artPoints && artPoints->size() >= 3 && artPoints->size() <= kMaxArtVerts) {
+        Node av("av");
+        av.setInt("n", (long long)artPoints->size());
+        for (size_t i = 0; i < artPoints->size(); i++) {
+            char buffer[64];
+            snprintf(buffer, sizeof(buffer), "%lld%c%lld", std::llround((*artPoints)[i].x * k), separator,
+                     std::llround((*artPoints)[i].y * k));
+            av.set("v" + std::to_string(i), buffer);
+        }
+        shapeNode.children.push_back(av);
+    }
 }
 
 namespace {
@@ -547,7 +566,9 @@ std::vector<Pt> cleanRing(std::vector<Pt> ring) {
 // Simplifies a closed art outline to the vertex limit, preferring a result FFDrawNode can fill.
 std::vector<Pt> fitArtRing(const std::vector<Pt>& input, size_t maxCount) {
     std::vector<Pt> ring = cleanRing(input);
-    if (ring.size() <= maxCount && geom::earClipSucceeds(ring)) return ring;
+    // FFDrawNode fills outlines its ear clipping cannot (PolyFill.h: repaired, or even-odd like
+    // Flash for self-intersecting ones), so an outline within the limit is kept as it is.
+    if (ring.size() <= maxCount) return ring;
     std::vector<std::vector<Pt>> candidates;
     candidates.push_back(cleanRing(geom::simplifyClosedVW(ring, maxCount)));
     candidates.push_back(cleanRing(geom::simplifyClosedRDP(ring, maxCount)));
@@ -561,9 +582,8 @@ std::vector<Pt> fitArtRing(const std::vector<Pt>& input, size_t maxCount) {
             return candidate;
         }
     }
-    // Nothing the game can fill (self-intersecting outline): keep the closest one; FFDrawNode
-    // just draws nothing for it, as it does for such outlines in shipped levels.
-    if (ring.size() <= maxCount) return ring;
+    // Nothing the ear clipping takes (self-intersecting outline): keep the closest one;
+    // FFDrawNode's fallback fill draws it.
     return candidates.front().size() <= maxCount ? candidates.front()
                                                  : geom::simplifyClosedVW(ring, maxCount);
 }
@@ -627,7 +647,14 @@ bool Converter::buildPolygon(const XMLElement* e, int type, bool interactive, do
         }
         std::vector<Pt> hull = geom::convexHull(ring);
         if (ring.size() >= 3 && hull.size() >= 3 && std::fabs(geom::signedArea(hull)) >= 1.0) {
-            emitVerts(out.node, ring);
+            // Flash draws the polygon's own vertices; Box2D only gets the hull of <= 8 of them.
+            // Keep the drawn outline next to the physics one when they differ (PC addition).
+            std::vector<Pt> art = fitArtRing(points, kMaxArtVerts);
+            bool sameOutline = art.size() == ring.size();
+            for (size_t i = 0; sameOutline && i < art.size(); i++) {
+                sameOutline = art[i].x == ring[i].x && art[i].y == ring[i].y;
+            }
+            emitVerts(out.node, ring, sameOutline || art.size() < 3 ? nullptr : &art);
             out.area = std::fabs(geom::signedArea(ring));
             return true;
         }
@@ -712,6 +739,12 @@ bool Converter::convertShape(const XMLElement* e, bool inGroup, ShapeRec& out) {
         n.setNum("p2", width);
         n.setNum("p3", height);
         out.area = type == 1 ? kPi * width * width / 4.0 : std::fabs(width * height) / (type == 2 ? 2.0 : 1.0);
+        // Circle inner cutout (% of the radius, drawn as a ring; the fixture stays a full circle).
+        // Read by LevelB2D for converted levels only (PC addition).
+        if (type == 1) {
+            double cutout = numClamped(e, "p12", 0.0, 0.0, 100.0);
+            if (cutout > 0.0) n.setNum("p12", cutout);
+        }
         break;
     }
     default: {
@@ -729,14 +762,24 @@ bool Converter::convertShape(const XMLElement* e, bool inGroup, ShapeRec& out) {
         break;
     }
     }
-    bool visible = opacity > 0.0 && fill >= 0;
+    // An open art path became a thin ribbon (buildPolygon): it is the line itself, so it gets no
+    // outline of its own, and the outline colour when it has no fill.
+    const XMLElement* pathVerts = e->FirstChildElement("v");
+    if (type == 4 && pathVerts && attr(pathVerts, "f") && !flag(pathVerts, "f", true)) {
+        if (fill < 0) fill = outline;
+        outline = -1;
+    }
+    // Fill -1 is "no fill" in Flash; such a shape still shows its outline (common in neon-style
+    // levels). LevelB2D draws p9 outlines and skips the fill of p8 -1 for converted levels
+    // (PC addition); a shape with neither is invisible.
+    bool visible = opacity > 0.0 && (fill >= 0 || outline >= 0);
     n.setNum("p4", rotation);
     n.setBool("p5", immovable);
     n.setBool("p6", sleeping);
     n.setNum("p7", density);
-    n.setInt("p8", fill >= 0 ? (fill & 0xffffff) : 0);
+    n.setInt("p8", fill >= 0 ? (fill & 0xffffff) : -1);
     n.setInt("p9", outline >= 0 ? (outline & 0xffffff) : -1);
-    n.setNum("p10", visible ? opacity : 0.0);  // no fill in Flash: the mobile game draws no outlines
+    n.setNum("p10", visible ? opacity : 0.0);
     n.setInt("p11", collision);
     // Flash <= 1.84 picks a group shape's collision filter by the shape's own "immovable"
     // (later versions by the group's): LevelB2D reads this for converted levels (PC addition).
@@ -753,7 +796,7 @@ bool Converter::convertShape(const XMLElement* e, bool inGroup, ShapeRec& out) {
     }
     // Keep the attribute order the shipped levels use (t i p0..p11, then the vertex list).
     std::vector<std::pair<std::string, std::string>> ordered;
-    for (const char* key : {"t", "i", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10", "p11", "fim", "nm"}) {
+    for (const char* key : {"t", "i", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10", "p11", "p12", "fim", "nm"}) {
         if (const std::string* value = n.get(key)) ordered.emplace_back(key, *value);
     }
     n.attrs.swap(ordered);

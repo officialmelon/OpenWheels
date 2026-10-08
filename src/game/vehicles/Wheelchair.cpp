@@ -205,9 +205,12 @@ void Wheelchair::addCharacter(CharacterB2D* character)
     b2World* world = Settings::getInstance()->getCurrentSession()->getWorld();
 
     // Hips locked into a seated pose: 90..110 degrees relative to the current leg angle.
+    // QOL (PC addition): qolLimb - a re-mounted rider (re-grab vehicle) may have lost limbs.
     float legAngle = character->getUpperLeg1Body()->GetAngle() - character->getPelvisBody()->GetAngle();
+    if (qolLimb(character, character->getHipJoint1()))
     character->getHipJoint1()->SetLimits(1.57079637f - legAngle, 1.91986215f - legAngle);
     legAngle = character->getUpperLeg2Body()->GetAngle() - character->getPelvisBody()->GetAngle();
+    if (qolLimb(character, character->getHipJoint2()))
     character->getHipJoint2()->SetLimits(1.57079637f - legAngle, 1.91986215f - legAngle);
 
     b2RevoluteJointDef jointDef;
@@ -760,4 +763,28 @@ void Wheelchair::blastBodies(b2Vec2 position, float radius)
         impulse = 10.0f * impulse;
         body->ApplyLinearImpulse(impulse, bodyCenter, true);
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// QOL (PC addition): re-grab vehicle (Vehicle.h). Not in the original.
+// ---------------------------------------------------------------------------------------------
+
+b2Body* Wheelchair::qolFrameBody()
+{
+    return _frameBody;
+}
+
+// No checkStateOfCharacter: whatever is left of him stays seated.
+bool Wheelchair::qolCanRemount(CharacterB2D* character)
+{
+    return !_chairSmashed;
+}
+
+// ejectCharacter: controls and pose nulled (nothing to undo), chair and wheels zero-filtered
+// (qolRestoreFilters), the arms' filter reset (addCharacter sets it again).
+void Wheelchair::qolRemount(CharacterB2D* character)
+{
+    qolRestoreFilters(character);
+    qolMount(character, [this, character]() { addCharacter(character); });
+    qolReplayInjuries(character);
 }

@@ -451,13 +451,10 @@ void ReplayListPanel::refreshDetail() {
 
 void ReplayListPanel::startWatching(const OnlineLevelInfo& level, const ReplayInfo& info, const ReplayInput& input,
                                     const std::string& flashXml, const std::string& title) {
-    BrowserState& st = OnlineLevelBrowser::state();
-    st.returnPending = true;
-    st.parkedScene = Director::getInstance()->getRunningScene();
+    OnlineLevelBrowser::levelStarting(0);  // back to the browser afterwards (no NEXT)
     std::string error;
     if (!watch(level, info, input, flashXml, title, &error)) {
-        st.returnPending = false;
-        st.parkedScene = nullptr;
+        OnlineLevelBrowser::cancelLevel();
         setStatus("", false);
         tjfui::alert("Couldn't play this replay", error);
         return;

@@ -43,13 +43,18 @@ void PersonalTransporter::addCharacter(CharacterB2D* character)
     b2World* world = Settings::getInstance()->getCurrentSession()->getWorld();
 
     // The rider's joint limits are made relative to the pose he was created in.
+    // QOL (PC addition): qolLimb - a re-mounted rider (re-grab vehicle) may have lost limbs.
     float angle = character->getUpperLeg1Body()->GetAngle() - character->getPelvisBody()->GetAngle();
+    if (qolLimb(character, character->getHipJoint1()))
     character->getHipJoint1()->SetLimits(-0.174532920f - angle, 0.872664630f - angle);
     angle = character->getUpperLeg2Body()->GetAngle() - character->getPelvisBody()->GetAngle();
+    if (qolLimb(character, character->getHipJoint2()))
     character->getHipJoint2()->SetLimits(-0.174532920f - angle, 0.872664630f - angle);
     angle = character->getLowerArm1Body()->GetAngle() - character->getUpperArm1Body()->GetAngle();
+    if (qolLimb(character, character->getElbowJoint1()))
     character->getElbowJoint1()->SetLimits(0.0f - angle, 1.04719758f - angle);
     angle = character->getLowerArm2Body()->GetAngle() - character->getUpperArm2Body()->GetAngle();
+    if (qolLimb(character, character->getElbowJoint2()))
     character->getElbowJoint2()->SetLimits(0.0f - angle, 1.04719758f - angle);
     angle = character->getHeadBody()->GetAngle() - character->getChestBody()->GetAngle();
     character->getNeckJoint()->SetLimits(-0.349065840f - angle, 0.0f - angle);
@@ -497,4 +502,30 @@ void PersonalTransporter::leanForwardPose()
 // @006023ac
 void PersonalTransporter::noLeanBackPose()
 {
+}
+
+// ---------------------------------------------------------------------------------------------
+// QOL (PC addition): re-grab vehicle (Vehicle.h). Not in the original.
+// ---------------------------------------------------------------------------------------------
+
+b2Body* PersonalTransporter::qolFrameBody()
+{
+    return _frameBody;
+}
+
+// checkStateOfCharacter: off once both hands have let go.
+bool PersonalTransporter::qolCanRemount(CharacterB2D* character)
+{
+    return !_vehicleSmashed && _standFrame &&
+           !(character->qolLostLowerArm(1) && character->qolLostLowerArm(2));
+}
+
+// ejectCharacter: _ejected (its guard), the controls nulled (nothing to undo), frame and wheel
+// out of the rider's group (qolRestoreFilters).
+void PersonalTransporter::qolRemount(CharacterB2D* character)
+{
+    _ejected = false;
+    qolRestoreFilters(character);
+    qolMount(character, [this, character]() { addCharacter(character); });
+    qolReplayInjuries(character);
 }

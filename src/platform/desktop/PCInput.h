@@ -5,7 +5,10 @@
 // and the per-frame control byte is the sum of the held buttons' state bits. To keep that logic
 // 100% original, keyboard keys are turned into *virtual fingers*: pressing a key injects a touch
 // (through GLView, exactly like a real touch) at the centre of the on-screen button carrying the
-// mapped bit; releasing the key lifts that finger. Mouse clicks already arrive as touches.
+// mapped bit; releasing the key lifts that finger. Mouse clicks already arrive as touches. A held
+// key follows layout changes (eject, death, restart, pause): once per frame a finger whose button
+// went away is lifted off screen and put down on the current button. With the QoL touch controls
+// hidden the buttons are transparent and only take these virtual fingers (qol::keyboardTouch).
 //
 //   Up / W      0x01  forward          (ejected: superman)
 //   Down / S    0x02  back             (ejected: tuck)

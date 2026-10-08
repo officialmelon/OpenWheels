@@ -6,9 +6,11 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 
 #include "FFDrawNode.h"  // struct PartitionVert
 #include "FFDrawNodeDelegate.h"
+#include "PolyFill.h"
 #include "base/CCConfiguration.h"
 #include "base/CCDirector.h"
 #include "base/CCEventDispatcher.h"
@@ -526,7 +528,24 @@ int TerrainNode::drawPolyWithVerts(Vec2* verts, unsigned long count, Color4F fil
             }
             if (!earFound)
             {
-                return 0;
+                // The original returns 0 here and the terrain is not drawn at all. PC addition
+                // (render fix): fill it with the repaired / even-odd triangulation (PolyFill.h).
+                std::vector<Vec2> points;
+                polyfill::triangulate(verts, (int)count, points);
+                const int fallbackCount = (int)points.size();
+                if (fallbackCount == 0)
+                {
+                    return 0;
+                }
+                ensureCapacity(fallbackCount);
+                for (int k = 0; k < fallbackCount; k++)
+                {
+                    _buffer[_bufferCount + k] = {points[(size_t)k], Color4B(fillColor),
+                                                 Tex2F(0.0f, 0.0f)};
+                }
+                _dirty = true;
+                _bufferCount += fallbackCount;
+                return fallbackCount;
             }
 
             V2F_C4B_T2F_Triangle tmp = {

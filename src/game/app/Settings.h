@@ -100,6 +100,12 @@ public:
 
     // The chapter dictionary whose "index" == chapterIndex (empty map if none).
     cocos2d::ValueMap getChapterData(int chapterIndex, bool forceReload = false); // @006119dc
+    // RESTORED (PC addition): chapter "index" <-> position in getAllChaptersData(). The original
+    // chapters have index == position (1.1.3 relies on it); OpenWheels' campaign chapters
+    // appended after them (src/restored, index 100+) do not. -1 when the index is not listed;
+    // the position itself for an entry without "index".
+    int getChapterPosition(int chapterIndex);
+    int getChapterIndexAt(int position);
     // getChapterData(chapter)["levels"][level] (empty map if missing).
     cocos2d::ValueMap getLevelData(int chapter, int level);                    // @00611bec
     // XML text of the selected level (loads it when _levelXMLData is empty).

@@ -55,6 +55,20 @@ bool PolygonShape::init(Vec2 pos, float rotationRadians, Vec2* verts, unsigned i
     return true;
 }
 
+// ONLINE (PC addition): see PolygonShape.h.
+bool PolygonShape::onlineInit(b2Fixture* fixture, float ptmRatio, Color4F innerColor,
+                              Color4F outlineColor, float opacity, float borderWidth, Vec2* verts,
+                              unsigned int count, FFDrawNode* drawNode)
+{
+    bool result = ShapeItem::init(fixture, ptmRatio, opacity, drawNode);
+    if (result)
+    {
+        drawNode->drawPolyWithVerts(verts, (int)count, innerColor, borderWidth, outlineColor, true,
+                                    AffineTransformIdentity, AffineTransformIdentity, this);
+    }
+    return result;
+}
+
 // @00608cb4
 float PolygonShape::getArtOpacity()
 {

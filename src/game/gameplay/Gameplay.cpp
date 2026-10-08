@@ -1,5 +1,6 @@
 #include "Gameplay.h"
 
+#include <algorithm>  // QOL (PC addition): std::min
 #include <new>
 #include <vector>
 
@@ -29,9 +30,14 @@
 #include "VictoryMenu.h"
 #include "LevelSession.h"  // EDITOR (iOS port): user levels (src/editor/persistence)
 #include "online/FlashRuntime.h"           // ONLINE (PC addition)
+#include "online/FlashPhysics.h"           // ONLINE (PC addition)
 #include "online/vehicles/UserVehicle.h"  // ONLINE (PC addition)
 #include "online/replays/ReplayRuntime.h"  // ONLINE (PC addition)
+#include "online/OnlineLevelBrowser.h"  // ONLINE (PC addition): NEXT in browser levels
+#include "qol/CharacterChoice.h"  // QOL (PC addition)
 #include "net/race/RaceHooks.h"  // NET (PC addition): ghost race
+#include "qol/KeyBindings.h"  // QOL (PC addition): key hints of hidden touch controls
+#include "qol/QoL.h"          // QOL (PC addition)
 
 USING_NS_CC;
 
@@ -130,6 +136,9 @@ Scene* Gameplay::createScene(std::string levelXml, ReplayData* replayData)
 Scene* Gameplay::createTestingScene(std::string levelXml)
 {
     Scene* scene = Scene::create();
+    // QOL (PC addition): the editor's level plays its own (forced) character, not one picked
+    // for the user level played before (qol/CharacterChoice.h).
+    qol::setCharacterOverride(0);
     Gameplay* layer = Gameplay::create(levelXml);
     layer->setIsTesting(true);
     scene->addChild(layer, 1);
@@ -257,6 +266,18 @@ void Gameplay::addListeners()
     _characterEjectedListener = getEventDispatcher()->addCustomEventListener(
         "characterEjected", [this](EventCustom* event) { characterEjected(); });
     _characterEjectedListener->retain();
+
+    // QOL (PC addition): re-grab vehicle - back on the vehicle, the next ejection is handled
+    // like the first (characterEjected drops its listener). Removed with this layer.
+    EventListenerCustom* remounted = EventListenerCustom::create("characterRemounted", [this](EventCustom*) {
+        if (!_characterEjectedListener)
+        {
+            _characterEjectedListener = getEventDispatcher()->addCustomEventListener(
+                "characterEjected", [this](EventCustom* event) { characterEjected(); });
+            _characterEjectedListener->retain();
+        }
+    });
+    getEventDispatcher()->addEventListenerWithSceneGraphPriority(remounted, this);
 }
 
 // @005b9a74
@@ -357,6 +378,32 @@ void Gameplay::checkCharacterPosition()
     }
     if (_session->getCamera()->getFocus()->GetPosition().y < -20.0f)
     {
+        // QOL (PC addition): browser and user levels are not bound to the campaign's y >= 0:
+        // their geometry may reach far below -20 m (a browser stage maps to y 0..160 m, its shapes
+        // go far past it). There the drop counts from 20 m below the lowest fixed shape. The
+        // event stops the controls for good while the character lives on.
+        if (online::flashLevel() || _isTesting || LevelSession::getInstance()->isUserLevel())
+        {
+            float lowest = 0.0f;
+            for (b2Body* body = _session->getWorld()->GetBodyList(); body; body = body->GetNext())
+            {
+                if (body->GetType() == b2_dynamicBody)
+                {
+                    continue;
+                }
+                for (b2Fixture* fixture = body->GetFixtureList(); fixture; fixture = fixture->GetNext())
+                {
+                    for (int32 child = 0; child < fixture->GetShape()->GetChildCount(); child++)
+                    {
+                        lowest = std::min(lowest, fixture->GetAABB(child).lowerBound.y);
+                    }
+                }
+            }
+            if (_session->getCamera()->getFocus()->GetPosition().y >= lowest - 20.0f)
+            {
+                return;
+            }
+        }
         Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("characterDead", nullptr);
         _characterDroppedOffscreen = true;
     }
@@ -380,8 +427,9 @@ void Gameplay::update(float dt)
     else
     {
         state = _controls->getState();
-        // ONLINE (PC addition): browser levels also read Shift / Ctrl (user-vehicle actions) and
-        // Z without an eject button (user-vehicle riders); see online/vehicles/UserVehicle.h.
+        // ONLINE (PC addition): browser levels also read Shift / Ctrl (user-vehicle actions), Z
+        // without an eject button (user-vehicle riders) and Space whatever the layout; see
+        // online/vehicles/UserVehicle.h.
         if (online::flashLevel())
         {
             state |= online::pcExtraControlBits();
@@ -391,7 +439,13 @@ void Gameplay::update(float dt)
     }
 
     LevelB2D* level = _level;
-    if (!level->getLevelComplete())
+    // ONLINE (PC addition): with the browser physics profile (1/30 step) the controls (vehicle
+    // accelerations, lean impulses) and the timer run only on display frames that step the world,
+    // i.e. once per step as at 1/60; otherwise they would act twice per step at 60 fps
+    // (online/FlashPhysics.h, Session::onlineWillStep).
+    const bool onlineSteps = !online::browserPhysics() ||
+                             Settings::getInstance()->getCurrentSession()->onlineWillStep(dt);
+    if (!level->getLevelComplete() && onlineSteps)
     {
         CharacterB2D* character = level->getCharacter();
         if (character && !character->getDead() && !_characterDroppedOffscreen && _timer->update())
@@ -567,7 +621,16 @@ void Gameplay::handleMenuAction(GameplayMenuAction action)
         {
             removeBanner(true);
             die();
-            scene = MainMenu::createScene(MenuModeLevelSelect, nullptr);
+            // ONLINE (PC addition): a level started from the online browser goes on with the next
+            // level of the browser's list (the browser downloads and starts it).
+            scene = online::OnlineLevelBrowser::sceneForNextLevel();
+            if (!scene)
+            {
+                // EDITOR (iOS port): like EXIT, a user level goes back to the main menu.
+                scene = MainMenu::createScene(LevelSession::getInstance()->isUserLevel() ? MenuModeMain
+                                                                                        : MenuModeLevelSelect,
+                                              nullptr);
+            }
         }
         break;
 
@@ -780,6 +843,18 @@ void Gameplay::highlightSpriteAtPos(Vec2 position, int tag)
     highlight->setScale(scale);
     highlight->setPosition(position);
     highlightNode->addChild(highlight);
+    // QOL (PC addition): with the touch controls hidden the arrow points at the bound keys
+    // instead of the invisible button (tags 0..4 = systemTrigger's buttons).
+    static const qol::KeyAction kTutorialKeys[] = {qol::KeyAction::Accelerate, qol::KeyAction::Reverse,
+                                                   qol::KeyAction::LeanForward, qol::KeyAction::LeanBack,
+                                                   qol::KeyAction::Special};
+    if (!qol::touchControlsShown() && tag >= 0 && tag < 5)
+    {
+        Label* hint = qol::createKeyHintLabel(kTutorialKeys[tag], 90.0f);
+        hint->setAnchorPoint(Vec2(0.5f, 1.0f));
+        hint->setPosition(Vec2(0.0f, -10.0f));
+        highlight->addChild(hint);
+    }
 }
 
 // @005bb8bc

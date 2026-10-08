@@ -67,7 +67,8 @@ int stepsFor60HzFrames(int frames60)
 {
     const float ratio = stepsRatio60();
     if (ratio == 1.0f || frames60 <= 0) return frames60;
-    return std::max(1, (int)std::floor(frames60 * ratio + 0.5f));
+    // ratio is 2 (+ float error) at 1/30: halves round up (the 1e-3 absorbs the error).
+    return std::max(1, (int)std::floor(frames60 / ratio + 0.5f + 1e-3f));
 }
 
 int stepsForFlashFrames(int frames30) { return stepsFor60HzFrames(frames30 * 2); }

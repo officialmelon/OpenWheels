@@ -9,6 +9,7 @@
 #include "LevelDataElement.h"
 #include "Patch.h"
 #include "Session.h"
+#include "online/FlashPhysics.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -194,6 +195,8 @@ void FinishLine::frameAction()
         _flagSprite->setSpriteFrame(_frames[_frameIndex]);
     }
     _updateAnimation = !_updateAnimation;
+    // ONLINE (PC addition): every other 1/60 step = every browser physics step (1/30).
+    if (online::stepsPerFlashFrame() == 1) _updateAnimation = true;
 }
 
 // @005b4118

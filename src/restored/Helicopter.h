@@ -55,6 +55,11 @@ public:
     void handleInjury(CharacterInjury injury, CharacterB2D* character) override;
     bool ejectCharacter(CharacterB2D* character) override;
 
+    // QOL (PC addition): re-grab vehicle (src/game/vehicles/Vehicle.h).
+    b2Body* qolFrameBody() override;
+    bool qolCanRemount(CharacterB2D* character) override;
+    void qolRemount(CharacterB2D* character) override;
+
     void forwardButtonPressed() override;   // up: climb
     void backButtonPressed() override;      // down: sink
     void forwardBackButtonsNull() override;
@@ -150,6 +155,8 @@ private:
     void legSmash(int leg, bool sound);
     b2Body* brokenPiece(int index);
     void eject();
+    // Neck limit, seat and both hands on the copter (addCharacter; a re-mount, Vehicle::qolMount).
+    void attachRider(CharacterB2D* character);
 
     // Flash constants (per Flash frame values converted to 60 Hz steps where noted)
     float _impulseLeft;        // 1 (blade smashed: lean impulses)

@@ -131,6 +131,11 @@ public:
     cocos2d::Color4F ccColorFromRGB(long rgb);
     cocos2d::Vec2 stringToVec(const char* str);  // "x_y" (or "x.y" for old versions), atoi
     void convertVerts(cocos2d::Vec2* verts, int count);
+    // ONLINE (PC addition): a browser polygon's drawn outline (<av>, FlashLevelConverter: the
+    // concave / finer outline next to the physics vertices), converted and stretched like the
+    // physics vertices and scaled to points. Returns the count (<= 100), 0 when there is none.
+    int onlinePolygonArtVerts(LevelDataElement* shape, float scaleX, float scaleY,
+                              cocos2d::Vec2* verts);
     TerrainVert stringToTerrainVert(const char* str);
     void convertTerrainVerts(TerrainVert* verts, int count);
     float calculateBezier(float t, float value0, float value1, float value2, float value3);

@@ -91,6 +91,12 @@ public:
     virtual cocos2d::Value valueForKey(const std::string& key) override;
     virtual void setValueForKey(const cocos2d::Value& value, const std::string& key) override;
 
+    // EDITOR (browser features, PC addition): a browser shape without a fill (p8 -1, e.g. the
+    // outline-only shapes of neon levels) is saved without one again; picking a colour
+    // (setColor, setInnerRed/Green/Blue) gives it a fill.
+    bool noFill() const { return _noFill; }
+    void setNoFill(bool noFill) { _noFill = noFill; }
+
 protected:
     RefShape();
 
@@ -109,4 +115,5 @@ protected:
     unsigned int _innerBlue;                // _innerBlue
     float _outlineColor;                    // _outlineColor (-1)
     cocos2d::Color4F _innerColor;           // _innerColor  ccColor4F
+    bool _noFill = false;                   // EDITOR (browser features, PC addition)
 };

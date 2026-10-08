@@ -1,9 +1,12 @@
 #include "qol/KeyBindings.h"
 
+#include <cctype>
 #include <cstdlib>
 #include <sstream>
 
 #include "cocos2d.h"
+
+#include "Globals.h"
 
 USING_NS_CC;
 
@@ -225,6 +228,21 @@ std::string keysText(KeyAction action)
         text += (text.empty() ? "" : " / ") + keyName(key);
     }
     return text.empty() ? "-" : text;
+}
+
+std::string keyHint(KeyAction action)
+{
+    std::string text = keysText(action);
+    for (char& c : text) c = (char)toupper((unsigned char)c);
+    return text;
+}
+
+Label* createKeyHintLabel(KeyAction action, float fontSize)
+{
+    Label* label = Label::createWithTTF(keyHint(action), "fonts/ClarendonLTStd-Bold.ttf", fontSize);
+    label->setColor(globals::colors::yellow);
+    label->enableOutline(Color4B(0, 0, 0, 255), (int)(fontSize * 0.08f) + 1);
+    return label;
 }
 
 }  // namespace qol

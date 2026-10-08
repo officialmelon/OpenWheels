@@ -1,5 +1,6 @@
 #include "CharacterSelectLayer.h"
 #include "LevelSession.h"  // EDITOR (iOS port): user levels (src/editor/persistence)
+#include "qol/CharacterChoice.h"  // QOL (PC addition)
 #include "restored/Restored.h"  // RESTORED (PC addition)
 
 #include "CharacterB2D.h"
@@ -62,6 +63,9 @@ bool CharacterSelectLayer::init(int unused1, unsigned long unused2)
 {
     Size visibleSize = Director::getInstance()->getVisibleSize();
     Vec2 origin = Director::getInstance()->getVisibleOrigin();
+    // QOL (PC addition): start on the player's own character, not on one a level forced
+    // (qol/CharacterChoice.h).
+    qol::restorePlayerCharacter();
 
     Texture2D::setDefaultAlphaPixelFormat(Texture2D::PixelFormat::RGBA8888);
     SpriteFrameCache::getInstance()->addSpriteFramesWithFile("menus/character_select/character_select.plist");
@@ -261,6 +265,8 @@ void CharacterSelectLayer::handleConfirmButtonReleased()
 
     _confirmed = true;
     unscheduleUpdate();
+    // QOL (PC addition): on a user level the pick also replaces a forced character ("any character").
+    qol::characterPicked(Settings::getInstance()->getSelectedCharacterId());
     Settings::getInstance()->killSession();
     removeUnusedTexturesAndSpriteFrames();
     std::string levelPath = Settings::getInstance()->getSelectedLevelFilePath();

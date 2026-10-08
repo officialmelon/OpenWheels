@@ -333,7 +333,9 @@ void beginOnlineRun(const OnlineLevelInfo& level) {
 std::vector<RunRecord*> recentRuns(int levelId) {
     std::vector<RunRecord*> out;
     for (auto it = g_runs.rbegin(); it != g_runs.rend(); ++it)
-        if ((levelId == 0 || (*it)->level.id == levelId) && (*it)->steps.size() >= 30) out.push_back(*it);
+        // Runs of at least half a second (15 Flash frames, at either physics profile).
+        if ((levelId == 0 || (*it)->level.id == levelId) && (*it)->steps.size() >= (size_t)(15 * (*it)->stepsPerFrame))
+            out.push_back(*it);
     return out;
 }
 

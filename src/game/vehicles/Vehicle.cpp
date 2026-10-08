@@ -1,11 +1,16 @@
 #include "Vehicle.h"
 
+#include <algorithm>
+#include <cmath>
+#include <set>
+
 #include "LevelB2D.h"
 #include "Session.h"
 #include "Settings.h"
 #include "Sound.h"
 #include "SoundController.h"
 #include "platform/compat/Box2DFloat.h"
+#include "qol/QoL.h"  // QOL (PC addition): re-grab vehicle
 
 USING_NS_CC;
 
@@ -104,6 +109,8 @@ void Vehicle::removeBodyVehicleJoint(b2Body* body)
 void Vehicle::addCharacter(CharacterB2D* character)
 {
     _characters.push_back(character);
+    // QOL (PC addition): re-grab vehicle - the rider's starting pose (no effect on the game).
+    qolCacheRider(character);
 }
 
 // @0063dc74
@@ -135,6 +142,7 @@ bool Vehicle::ejectCharacter(CharacterB2D* character)
     {
         character->eject();
         destroyAllCharacterJoints(character);
+        _qolLastRider = character;  // QOL (PC addition): see cancelPose
         _characters.erase(it);
         return true;
     }
@@ -297,7 +305,14 @@ void Vehicle::setCurrentPose(VehiclePose pose)
 // @0063f19c
 void Vehicle::cancelPose()
 {
-    CharacterB2D* character = _characters[0];
+    // QOL (PC addition): the subclasses' ejectCharacter cancel the pose after the rider was
+    // erased; the binary then reads the erased pointer still in the vector's storage (the rider
+    // just ejected). Same rider, without reading past the end.
+    CharacterB2D* character = _characters.empty() ? _qolLastRider : _characters[0];
+    if (!character)
+    {
+        return;
+    }
     if (character->getNeckJoint())
     {
         character->getNeckJoint()->EnableMotor(false);
@@ -636,6 +651,465 @@ void Vehicle::destroyJointsForBody(b2Body* body)
             {
                 getWorld()->DestroyJoint(joint);
             }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// QOL (PC addition): re-grab vehicle (qol::regrabVehicle, docs/QOL.md). Not in the original.
+// ---------------------------------------------------------------------------------------------
+
+namespace
+{
+
+// b2ContactFilter::ShouldCollide (the world keeps the default contact filter).
+bool qolShouldCollide(const b2Filter& a, const b2Filter& b)
+{
+    if (a.groupIndex == b.groupIndex && a.groupIndex != 0)
+    {
+        return a.groupIndex > 0;
+    }
+    return (a.maskBits & b.categoryBits) != 0 && (a.categoryBits & b.maskBits) != 0;
+}
+
+b2Transform qolTransform(b2Vec2 p, float a)
+{
+    return b2Transform(p, b2Rot(a));
+}
+
+// Something solid the re-mounted rider would end up inside of.
+class QolOverlapQuery : public b2QueryCallback
+{
+public:
+    b2Fixture* fixture = nullptr;
+    int32 child = 0;
+    b2Transform xf;
+    const std::set<b2Body*>* ignore = nullptr;
+    bool hit = false;
+
+    bool ReportFixture(b2Fixture* other) override
+    {
+        b2Body* body = other->GetBody();
+        if (other->IsSensor() || ignore->count(body))
+        {
+            return true;
+        }
+        // Light loose things (debris, his own severed limbs) are just pushed aside.
+        if (body->GetType() == b2_dynamicBody && body->GetMass() < 0.5f)
+        {
+            return true;
+        }
+        if (!qolShouldCollide(fixture->GetFilterData(), other->GetFilterData()))
+        {
+            return true;
+        }
+        const b2Shape* shape = other->GetShape();
+        for (int32 i = 0; i < shape->GetChildCount(); i++)
+        {
+            if (b2TestOverlap(fixture->GetShape(), child, shape, i, xf, body->GetTransform()))
+            {
+                hit = true;
+                return false;
+            }
+        }
+        return true;
+    }
+};
+
+}  // namespace
+
+void Vehicle::qolCacheRider(CharacterB2D* character)
+{
+    b2Body* frame = qolFrameBody();
+    if (!frame || !character || _qolRiderPoses.count(character))
+    {
+        return;
+    }
+    QolRiderPose& pose = _qolRiderPoses[character];
+    pose.frame = {frame->GetPosition(), frame->GetAngle()};
+    for (b2Body* body : character->qolParts())
+    {
+        if (body)
+        {
+            pose.bodies[body] = {body->GetPosition(), body->GetAngle()};
+        }
+    }
+    if (!_qolCached)
+    {
+        _qolCached = true;
+        for (b2Body* body : qolVehicleBodies(character))
+        {
+            _qolSpawnTransforms[body] = {body->GetPosition(), body->GetAngle()};
+            for (b2Fixture* fixture = body->GetFixtureList(); fixture; fixture = fixture->GetNext())
+            {
+                _qolFilters[fixture] = fixture->GetFilterData();
+            }
+        }
+    }
+}
+
+// The frame and every dynamic body jointed to it, directly or not, but the riders'.
+std::vector<b2Body*> Vehicle::qolVehicleBodies(CharacterB2D* rider)
+{
+    std::vector<b2Body*> bodies;
+    b2Body* frame = qolFrameBody();
+    if (!frame)
+    {
+        return bodies;
+    }
+    auto excluded = [this, rider](b2Body* body) {
+        if (body->GetType() != b2_dynamicBody || (rider && rider->ownsBody(body)))
+        {
+            return true;
+        }
+        for (CharacterB2D* character : _characters)
+        {
+            if (character->ownsBody(body))
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+    bodies.push_back(frame);
+    for (size_t i = 0; i < bodies.size() && bodies.size() < 256; i++)
+    {
+        for (b2JointEdge* edge = bodies[i]->GetJointList(); edge; edge = edge->next)
+        {
+            b2Body* other = edge->other;
+            if (std::find(bodies.begin(), bodies.end(), other) == bodies.end() && !excluded(other))
+            {
+                bodies.push_back(other);
+            }
+        }
+    }
+    return bodies;
+}
+
+bool Vehicle::qolOwnsBody(b2Body* body, CharacterB2D* rider)
+{
+    if (!body || !_qolSpawnTransforms.count(body))
+    {
+        return false;
+    }
+    std::vector<b2Body*> bodies = qolVehicleBodies(rider);
+    return std::find(bodies.begin(), bodies.end(), body) != bodies.end();
+}
+
+b2Body* Vehicle::qolTouchedBody(b2Fixture* hand, CharacterB2D* rider)
+{
+    if (!hand || !_qolCached)
+    {
+        return nullptr;
+    }
+    const b2Transform& handXf = hand->GetBody()->GetTransform();
+    b2AABB handBox;
+    hand->GetShape()->ComputeAABB(&handBox, handXf, 0);
+    for (b2Body* body : qolVehicleBodies(rider))
+    {
+        if (!_qolSpawnTransforms.count(body))
+        {
+            continue;  // (jointed to the vehicle later, e.g. something the magnet holds)
+        }
+        for (b2Fixture* fixture = body->GetFixtureList(); fixture; fixture = fixture->GetNext())
+        {
+            const b2Shape* shape = fixture->GetShape();
+            for (int32 i = 0; i < shape->GetChildCount(); i++)
+            {
+                b2AABB box;
+                shape->ComputeAABB(&box, body->GetTransform(), i);
+                if (b2TestOverlap(handBox, box) &&
+                    b2TestOverlap(hand->GetShape(), 0, shape, i, handXf, body->GetTransform()))
+                {
+                    return body;
+                }
+            }
+        }
+    }
+    return nullptr;
+}
+
+bool Vehicle::qolLimb(CharacterB2D* character, b2RevoluteJoint* joint)
+{
+    if (!joint)
+    {
+        return false;
+    }
+    b2Body* body = joint->GetBodyB();
+    return body != character->getUpperArm3Body() && body != character->getUpperArm4Body() &&
+           body != character->getUpperLeg3Body() && body != character->getUpperLeg4Body();
+}
+
+bool Vehicle::qolRiderFit(CharacterB2D* character)
+{
+    static const CharacterInjury fatal[] = {CharacterInjuryHeadSmash,  CharacterInjuryChestSmash,
+                                            CharacterInjuryPelvisSmash, CharacterInjuryTorsoBreak,
+                                            CharacterInjuryNeckBreak,  CharacterInjuryDeath};
+    if (!character->qolFit())
+    {
+        return false;
+    }
+    for (CharacterInjury injury : fatal)
+    {
+        if (character->qolHasInjury(injury))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool Vehicle::qolTryRemount(CharacterB2D* character)
+{
+    if (!qol::regrabVehicle() || !character || !qolFrameBody() || !_qolRiderPoses.count(character) ||
+        std::find(_characters.begin(), _characters.end(), character) != _characters.end())
+    {
+        return false;
+    }
+    if (!qolRiderFit(character) || !qolCanRemount(character) || !qolPlanRemount(character))
+    {
+        return false;
+    }
+    qolRemount(character);
+    _qolPlan.clear();
+    if (std::find(_characters.begin(), _characters.end(), character) == _characters.end())
+    {
+        return false;  // a lost limb threw him off again (he is ejected again)
+    }
+    character->qolRemounted();
+    return true;
+}
+
+// The rider's bodies and where they go: his parts back into their starting pose relative to the
+// frame; whatever else hangs on him (a dislocated stub, a ligament, an arrow) moves along with
+// the part it hangs from. Refused when he is pinned to the level or would end up inside it.
+bool Vehicle::qolPlanRemount(CharacterB2D* character)
+{
+    _qolPlan.clear();
+    b2Body* frame = qolFrameBody();
+    const QolRiderPose& pose = _qolRiderPoses[character];
+    b2Body* chest = character->getChestBody();
+    if (!chest || !pose.bodies.count(chest))
+    {
+        return false;
+    }
+    // spawn space -> now: rotate by the frame's turn since the start, about the frame.
+    const QolXf now = {frame->GetPosition(), frame->GetAngle()};
+    const float turn = now.a - pose.frame.a;
+    const b2Rot rot(turn);
+    auto toNow = [&](const QolXf& x) {
+        return QolXf{b2Mul(rot, x.p - pose.frame.p) + now.p, x.a + turn};
+    };
+
+    std::vector<b2Body*> vehicle = qolVehicleBodies(character);
+    std::set<b2Body*> ignore(vehicle.begin(), vehicle.end());
+    QolXf chestSpawn = pose.bodies.at(chest);
+    _qolPlan.push_back({chest, chestSpawn, toNow(chestSpawn)});
+    for (size_t i = 0; i < _qolPlan.size(); i++)
+    {
+        b2Body* body = _qolPlan[i].body;
+        for (b2JointEdge* edge = body->GetJointList(); edge; edge = edge->next)
+        {
+            b2Body* other = edge->other;
+            if (character->qolIsGripJoint(edge->joint) || ignore.count(other))
+            {
+                continue;
+            }
+            bool planned = false;
+            for (const QolPlanBody& p : _qolPlan)
+            {
+                planned = planned || p.body == other;
+            }
+            if (planned)
+            {
+                continue;
+            }
+            if (other->GetType() != b2_dynamicBody || _qolPlan.size() >= 64)
+            {
+                _qolPlan.clear();
+                return false;
+            }
+            QolXf spawn;
+            auto cached = pose.bodies.find(other);
+            if (cached != pose.bodies.end() && pose.bodies.count(body))
+            {
+                spawn = cached->second;  // a skeleton joint: his starting pose
+            }
+            else
+            {
+                b2Vec2 local = b2MulT(body->GetTransform(), other->GetPosition());
+                const QolXf& parent = _qolPlan[i].spawn;
+                spawn = {b2Mul(b2Rot(parent.a), local) + parent.p,
+                         parent.a + (other->GetAngle() - body->GetAngle())};
+            }
+            _qolPlan.push_back({other, spawn, toNow(spawn)});
+        }
+    }
+
+    for (const QolPlanBody& p : _qolPlan)
+    {
+        ignore.insert(p.body);
+    }
+    for (const QolPlanBody& p : _qolPlan)
+    {
+        b2Transform xf = qolTransform(p.target.p, p.target.a);
+        for (b2Fixture* fixture = p.body->GetFixtureList(); fixture; fixture = fixture->GetNext())
+        {
+            if (fixture->IsSensor())
+            {
+                continue;
+            }
+            for (int32 child = 0; child < fixture->GetShape()->GetChildCount(); child++)
+            {
+                QolOverlapQuery query;
+                query.fixture = fixture;
+                query.child = child;
+                query.xf = xf;
+                query.ignore = &ignore;
+                b2AABB box;
+                fixture->GetShape()->ComputeAABB(&box, xf, child);
+                getWorld()->QueryAABB(&query, box);
+                if (query.hit)
+                {
+                    _qolPlan.clear();
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
+}
+
+void Vehicle::qolMount(CharacterB2D* character, const std::function<void()>& attach)
+{
+    b2Body* frame = qolFrameBody();
+    const QolRiderPose& pose = _qolRiderPoses[character];
+    const QolXf now = {frame->GetPosition(), frame->GetAngle()};
+    const float turn = now.a - pose.frame.a;
+    const b2Rot rot(turn);
+    const b2Rot back(-turn);
+
+    character->qolBeginRemount();
+
+    std::vector<b2Body*> vehicle = qolVehicleBodies(character);
+    std::vector<b2Body*> reset;
+    qolRemountResetBodies(&reset);
+    std::vector<QolXf> saved;
+    for (b2Body* body : vehicle)
+    {
+        saved.push_back({body->GetPosition(), body->GetAngle()});
+    }
+    auto isReset = [&](b2Body* body) {
+        return _qolSpawnTransforms.count(body) &&
+               std::find(reset.begin(), reset.end(), body) != reset.end();
+    };
+
+    // Spawn space: the vehicle as it is, turned and moved so the frame is where it started (the
+    // reset bodies exactly as they started), the rider in his starting pose.
+    for (size_t i = 0; i < vehicle.size(); i++)
+    {
+        b2Body* body = vehicle[i];
+        if (isReset(body))
+        {
+            const QolXf& start = _qolSpawnTransforms[body];
+            body->SetTransform(start.p, start.a);
+        }
+        else
+        {
+            body->SetTransform(b2Mul(back, saved[i].p - now.p) + pose.frame.p, saved[i].a - turn);
+        }
+    }
+    for (const QolPlanBody& p : _qolPlan)
+    {
+        p.body->SetTransform(p.spawn.p, p.spawn.a);
+    }
+
+    // The attach code sets filters / sensors on his limbs; the lost ones keep what their injury
+    // gave them (a severed leg masked off like a seated one would fall through the level).
+    std::vector<b2Fixture*> lost = character->qolLostFixtures();
+    std::vector<std::pair<b2Filter, bool>> lostState;
+    for (b2Fixture* fixture : lost)
+    {
+        lostState.push_back({fixture->GetFilterData(), fixture->IsSensor()});
+    }
+
+    attach();
+
+    for (size_t i = 0; i < lost.size(); i++)
+    {
+        lost[i]->SetFilterData(lostState[i].first);
+        lost[i]->SetSensor(lostState[i].second);
+    }
+
+    // Back: the vehicle bodies exactly where they were (the reset ones follow the frame), the
+    // rider on it, moving with the frame.
+    for (size_t i = 0; i < vehicle.size(); i++)
+    {
+        b2Body* body = vehicle[i];
+        if (isReset(body))
+        {
+            const QolXf& start = _qolSpawnTransforms[body];
+            body->SetTransform(b2Mul(rot, start.p - pose.frame.p) + now.p, start.a + turn);
+        }
+        else
+        {
+            body->SetTransform(saved[i].p, saved[i].a);
+        }
+    }
+    const float angularVelocity = frame->GetAngularVelocity();
+    for (const QolPlanBody& p : _qolPlan)
+    {
+        p.body->SetTransform(p.target.p, p.target.a);
+        p.body->SetLinearVelocity(frame->GetLinearVelocityFromWorldPoint(p.body->GetWorldCenter()));
+        p.body->SetAngularVelocity(angularVelocity);
+        p.body->SetAwake(true);
+    }
+    frame->SetAwake(true);
+    character->qolSetRiding();
+}
+
+// The vehicle's fixtures get their riding filters back (the ejects zero them or move them out of
+// the riders' group).
+void Vehicle::qolRestoreFilters(CharacterB2D* rider)
+{
+    for (b2Body* body : qolVehicleBodies(rider))
+    {
+        for (b2Fixture* fixture = body->GetFixtureList(); fixture; fixture = fixture->GetNext())
+        {
+            auto it = _qolFilters.find(fixture);
+            if (it != _qolFilters.end())
+            {
+                fixture->SetFilterData(it->second);
+            }
+        }
+    }
+}
+
+void Vehicle::qolReplayInjuries(CharacterB2D* character)
+{
+    // A copy: handleInjury may throw him off again (then the list does not change either).
+    std::vector<CharacterInjury> injuries = character->qolInjuries();
+    for (CharacterInjury injury : injuries)
+    {
+        switch (injury)
+        {
+        case CharacterInjuryFoot1Smash:
+        case CharacterInjuryFoot2Smash:
+        case CharacterInjuryShoulder1Break:
+        case CharacterInjuryShoulder2Break:
+        case CharacterInjuryElbow1Break:
+        case CharacterInjuryElbow2Break:
+        case CharacterInjuryHip1Break:
+        case CharacterInjuryHip2Break:
+        case CharacterInjuryKnee1Break:
+        case CharacterInjuryKnee2Break:
+            if (std::find(_characters.begin(), _characters.end(), character) != _characters.end())
+            {
+                handleInjury(injury, character);
+            }
+            break;
+        default:
+            break;
         }
     }
 }

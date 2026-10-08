@@ -9,6 +9,7 @@
 #include "LevelB2D.h"
 #include "Session.h"
 #include "Sound.h"
+#include "online/FlashPhysics.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -226,17 +227,24 @@ void PogoStick::addCharacter(CharacterB2D* character)
     b2World* world = getWorld();
 
     // Limit the rider's joints around the riding pose (relative to the current angles).
+    // QOL (PC addition): qolLimb - a re-mounted rider (re-grab vehicle) may have lost limbs.
     float angle = character->getUpperLeg1Body()->GetAngle() - character->getPelvisBody()->GetAngle();
+    if (qolLimb(character, character->getHipJoint1()))
     character->getHipJoint1()->SetLimits(-angle, 1.74532926f - angle);
     angle = character->getUpperLeg2Body()->GetAngle() - character->getPelvisBody()->GetAngle();
+    if (qolLimb(character, character->getHipJoint2()))
     character->getHipJoint2()->SetLimits(-angle, 1.74532926f - angle);
     angle = character->getUpperArm1Body()->GetAngle() - character->getChestBody()->GetAngle();
+    if (qolLimb(character, character->getShoulderJoint1()))
     character->getShoulderJoint1()->SetLimits(-angle, 2.09439516f - angle);
     angle = character->getUpperArm2Body()->GetAngle() - character->getChestBody()->GetAngle();
+    if (qolLimb(character, character->getShoulderJoint2()))
     character->getShoulderJoint2()->SetLimits(-angle, 2.09439516f - angle);
     angle = character->getLowerArm1Body()->GetAngle() - character->getUpperArm1Body()->GetAngle();
+    if (qolLimb(character, character->getElbowJoint1()))
     character->getElbowJoint1()->SetLimits(-angle, 1.04719758f - angle);
     angle = character->getLowerArm2Body()->GetAngle() - character->getUpperArm2Body()->GetAngle();
+    if (qolLimb(character, character->getElbowJoint2()))
     character->getElbowJoint2()->SetLimits(-angle, 1.04719758f - angle);
     angle = character->getHeadBody()->GetAngle() - character->getChestBody()->GetAngle();
     character->getNeckJoint()->SetLimits(-0.0872664601f - angle, -angle);
@@ -782,6 +790,11 @@ void PogoStick::actions()
     if (_jumpFrames != 0) {
         _jumpFrames--;
     }
+    // ONLINE (PC addition): _jumpFrames counts 60 Hz steps; a browser physics step (1/30,
+    // online/FlashPhysics.h) is two of them.
+    if (_jumpFrames != 0 && online::stepsPerFlashFrame() == 1) {
+        _jumpFrames--;
+    }
     Vehicle::actions();
 }
 
@@ -826,4 +839,33 @@ void PogoStick::postSolve(b2Fixture* fixture, b2Fixture* otherFixture, b2Contact
             LevelItem::_contactResultBufferDict[_frameShape].impulse = normalImpulse;
         }
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// QOL (PC addition): re-grab vehicle (Vehicle.h). Not in the original.
+// ---------------------------------------------------------------------------------------------
+
+b2Body* PogoStick::qolFrameBody()
+{
+    return _frameBody;
+}
+
+// checkStateOfCharacter: off once both hands have let go.
+bool PogoStick::qolCanRemount(CharacterB2D* character)
+{
+    return !_frameSmashed && _frameBody && _pogoJoint &&
+           !(character->qolLostLowerArm(1) && character->qolLostLowerArm(2));
+}
+
+// ejectCharacter: the spring is let out and locked (as while riding), the pose reset, frame and
+// rod zero-filtered (qolRestoreFilters), the joint-limit scaling undone (addCharacter scales them
+// again). The centre-of-mass list is rebuilt by addCharacter (the lost limbs leave it again in
+// the replayed injuries) and measured where he is now.
+void PogoStick::qolRemount(CharacterB2D* character)
+{
+    qolRestoreFilters(character);
+    _COMArray.clear();
+    qolMount(character, [this, character]() { addCharacter(character); });
+    qolReplayInjuries(character);
+    _prevCOM = getCenterOfMass();
 }

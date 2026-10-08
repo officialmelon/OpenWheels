@@ -13,6 +13,7 @@
 #include "Session.h"
 #include "Settings.h"
 #include "StageCamera.h"
+#include "online/FlashPhysics.h"
 #include "online/HWApi.h"
 #include "online/OnlineLevelBrowser.h"
 #include "online/OnlinePlay.h"
@@ -227,9 +228,10 @@ bool localBase() {
     return b.compare(0, 17, "http://127.0.0.1:") == 0 || b.compare(0, 17, "http://localhost:") == 0;
 }
 
-// A deterministic input pattern per 30 Hz frame (both steps of a frame get the same byte).
+// A deterministic input pattern per 30 Hz frame (both steps of a frame get the same byte on the
+// 1/60 profile; one step per frame with browser physics, online/FlashPhysics.h).
 uint8_t pattern(int step) {
-    const int f = step / 2;
+    const int f = step / stepsPerFlashFrame();
     uint8_t b = 0x01;                          // accelerate
     if ((f / 20) % 3 == 1) b |= 0x08;          // lean back for a while
     if ((f / 25) % 4 == 2) b |= 0x04;          // lean forward
@@ -415,9 +417,7 @@ void runTjfTestScenario(const std::string& scenario) {
                 g_driver->gotReplayed = true;
             }
         });
-        BrowserState& st = OnlineLevelBrowser::state();
-        st.returnPending = true;
-        st.parkedScene = scene();
+        OnlineLevelBrowser::levelStarting(0);
         playOnlineLevel(g_driver->runLevel, false, nullptr);
     });
     add("playing", []() { return inGameplay(); }, 30.0f);

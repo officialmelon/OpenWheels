@@ -15,6 +15,8 @@
 #include "IrresponsibleMom.h"
 #include "LawnMowerMan.h"
 #include "SantaClaus.h"
+#include "online/FlashLevelConverter.h"
+#include "tinyxml2/tinyxml2.h"
 
 USING_NS_CC;
 
@@ -171,6 +173,109 @@ void appendCharacters(ValueVector& characters)
             characters.push_back(entry);
         }
     }
+}
+
+void appendChapters(ValueVector& chapters)
+{
+    const std::string manifest = "levels/restored/chapters.plist";
+    FileUtils* fileUtils = FileUtils::getInstance();
+    if (!fileUtils->isFileExist(manifest))
+    {
+        return;
+    }
+    ValueMap root = fileUtils->getValueMapFromFile(manifest);
+    if (root["chapters"].getType() != Value::Type::VECTOR)
+    {
+        return;
+    }
+    for (const Value& entry : root["chapters"].asValueVector())
+    {
+        if (entry.getType() != Value::Type::MAP)
+        {
+            continue;
+        }
+        ValueMap chapter = entry.asValueMap();
+        const int index = chapter["index"].asInt();
+        const int characterId = chapter["characterIndex"].asInt();
+        // The levels force their character (info f="t"): no chapter without it.
+        if (!isCampaignChapter(index) || (characterId != -1 && !hasCharacter(characterId)))
+        {
+            continue;
+        }
+        bool duplicate = false;
+        for (const Value& existing : chapters)
+        {
+            if (existing.getType() == Value::Type::MAP)
+            {
+                const ValueMap& other = existing.asValueMap();
+                auto it = other.find("index");
+                duplicate = duplicate || (it != other.end() && it->second.asInt() == index);
+            }
+        }
+        if (duplicate || chapter["levels"].getType() != Value::Type::VECTOR)
+        {
+            continue;
+        }
+        // Progress is keyed by level position: a missing file ends the chapter rather than
+        // shifting the levels after it.
+        ValueVector levels;
+        for (const Value& level : chapter["levels"].asValueVector())
+        {
+            if (level.getType() != Value::Type::MAP)
+            {
+                break;
+            }
+            ValueMap levelData = level.asValueMap();
+            const std::string dataFile = levelData["dataFile"].asString();
+            if (dataFile.empty() || !fileUtils->isFileExist("levels/" + dataFile))
+            {
+                log("restored: campaign level levels/%s not found, chapter %d ends there", dataFile.c_str(), index);
+                break;
+            }
+            levelData["format"] = "flash";
+            levelData["unlock_after_previous"] = true;
+            levelData["locked"] = !levels.empty();
+            levels.push_back(Value(levelData));
+        }
+        if (levels.empty())
+        {
+            continue;
+        }
+        chapter["levels"] = Value(levels);
+        chapters.push_back(Value(chapter));
+    }
+}
+
+std::string playableLevelXml(const std::string& xml, bool browserFormat)
+{
+    if (!browserFormat)
+    {
+        // Same test as the editor's flashed::isBrowserLevelXml (src/editor is optional).
+        tinyxml2::XMLDocument doc;
+        if (doc.Parse(xml.c_str(), xml.size()) != tinyxml2::XML_SUCCESS)
+        {
+            return xml;
+        }
+        const tinyxml2::XMLElement* root = doc.RootElement();
+        const tinyxml2::XMLElement* info = root ? root->FirstChildElement("info") : nullptr;
+        if (!info || info->Attribute("src") || info->Attribute("fm") || info->Attribute("ptm"))
+        {
+            return xml;
+        }
+        if (!info->Attribute("ow") && info->FloatAttribute("x") <= 330.0f &&
+            info->FloatAttribute("y") <= 170.0f)
+        {
+            return xml;
+        }
+    }
+    online::ConversionReport report;
+    std::string mobile = online::FlashLevelConverter::toMobile(xml, &report);
+    if (!report.ok)
+    {
+        log("restored: campaign level not converted: %s", report.error.c_str());
+        return xml;
+    }
+    return mobile;
 }
 
 bool hasCharacter(int characterId)

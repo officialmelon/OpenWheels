@@ -27,6 +27,9 @@
 #include "Vehicle.h"
 #include "platform/compat/Box2DFloat.h"
 #include "online/FlashRuntime.h"  // ONLINE (PC addition)
+#include "online/vehicles/UserVehicle.h"  // ONLINE (PC addition)
+#include "GameplayControls.h"  // QOL (PC addition): re-grab vehicle
+#include "qol/QoL.h"           // QOL (PC addition): re-grab vehicle
 
 USING_NS_CC;
 
@@ -601,6 +604,11 @@ void CharacterB2D::actions()
         }
     }
     handleContactResults();
+    // QOL (PC addition): re-grab vehicle - time off the vehicle, and a hand on it.
+    if (_ejected) {
+        _qolEjectedTime += LevelItem::s_timeStep;
+        qolCheckRemount();
+    }
     if (_showGore) {
         checkJoints();
     }
@@ -699,15 +707,18 @@ void CharacterB2D::handleContactResults()
     if (_contactResultBufferDict[_lowerArm1Fixture].impulse > 0.0f) {
         _contactResultBufferDict[_lowerArm1Fixture].impulse = 0.0f;
         // ONLINE (PC addition): a browser user-vehicle handle attaches the rider (Flash grabAction).
-        if (!online::flashLevel() ||
-            !onlineGrabUserVehicle(1, _contactResultBufferDict[_lowerArm1Fixture].otherFixture))
+        // QOL (PC addition): re-grab vehicle - his own vehicle puts him back on it.
+        if ((!online::flashLevel() ||
+             !onlineGrabUserVehicle(1, _contactResultBufferDict[_lowerArm1Fixture].otherFixture)) &&
+            !qolGrabRemount(1, _contactResultBufferDict[_lowerArm1Fixture].otherFixture->GetBody()))
         grabAction1(_contactResultBufferDict[_lowerArm1Fixture].otherFixture->GetBody());
     }
     if (_contactResultBufferDict[_lowerArm2Fixture].impulse > 0.0f) {
         _contactResultBufferDict[_lowerArm2Fixture].impulse = 0.0f;
-        // ONLINE (PC addition): see above.
-        if (!online::flashLevel() ||
-            !onlineGrabUserVehicle(2, _contactResultBufferDict[_lowerArm2Fixture].otherFixture))
+        // ONLINE (PC addition): see above. QOL (PC addition): see above.
+        if ((!online::flashLevel() ||
+             !onlineGrabUserVehicle(2, _contactResultBufferDict[_lowerArm2Fixture].otherFixture)) &&
+            !qolGrabRemount(2, _contactResultBufferDict[_lowerArm2Fixture].otherFixture->GetBody()))
         grabAction2(_contactResultBufferDict[_lowerArm2Fixture].otherFixture->GetBody());
     }
 }
@@ -2167,6 +2178,7 @@ void CharacterB2D::eject()
 {
     if (!_ejected) {
         _ejected = true;
+        _qolEjectedTime = 0.0f;  // QOL (PC addition): re-grab vehicle
         openHand1(true);
         openHand2(true);
         resetJointLimits();
@@ -2179,6 +2191,10 @@ void CharacterB2D::eject()
 // @0059c6a8
 void CharacterB2D::postInjury(CharacterInjury injury)
 {
+    // QOL (PC addition): re-grab vehicle - a re-mount lets go of the same limbs again.
+    if (std::find(_qolInjuries.begin(), _qolInjuries.end(), injury) == _qolInjuries.end()) {
+        _qolInjuries.push_back(injury);
+    }
     // ONLINE (PC addition): a lost arm / death lets go of a browser user vehicle.
     if (online::flashLevel()) {
         onlineUserVehicleInjury(injury);
@@ -3505,5 +3521,166 @@ void CharacterB2D::grindBody(b2Body* body)
         if (_thigh2BloodFlow) {
             _thigh2BloodFlow->stop();
         }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// QOL (PC addition): re-grab vehicle (qol::regrabVehicle, Vehicle::qolTryRemount). Not in the
+// original, where a grabbed vehicle is held like anything else.
+// ---------------------------------------------------------------------------------------------
+
+namespace {
+// Grabs during the first half second after the ejection do not count (summed physics steps).
+const float kQolRemountDelay = 0.5f;
+}  // namespace
+
+bool CharacterB2D::qolHasInjury(CharacterInjury injury) const
+{
+    return std::find(_qolInjuries.begin(), _qolInjuries.end(), injury) != _qolInjuries.end();
+}
+
+bool CharacterB2D::qolLostLowerArm(int arm) const
+{
+    return arm == 1 ? qolHasInjury(CharacterInjuryShoulder1Break) || qolHasInjury(CharacterInjuryElbow1Break)
+                    : qolHasInjury(CharacterInjuryShoulder2Break) || qolHasInjury(CharacterInjuryElbow2Break);
+}
+
+bool CharacterB2D::qolLostUpperLeg(int leg) const
+{
+    return qolHasInjury(leg == 1 ? CharacterInjuryHip1Break : CharacterInjuryHip2Break);
+}
+
+bool CharacterB2D::qolLostLowerLeg(int leg, bool footSmashCounts) const
+{
+    if (leg == 1) {
+        return qolHasInjury(CharacterInjuryHip1Break) || qolHasInjury(CharacterInjuryKnee1Break) ||
+               (footSmashCounts && qolHasInjury(CharacterInjuryFoot1Smash));
+    }
+    return qolHasInjury(CharacterInjuryHip2Break) || qolHasInjury(CharacterInjuryKnee2Break) ||
+           (footSmashCounts && qolHasInjury(CharacterInjuryFoot2Smash));
+}
+
+bool CharacterB2D::qolFit()
+{
+    return !_dead && !_dying && _neckJoint && _waistJoint && _headBody && _chestBody && _pelvisBody;
+}
+
+std::vector<b2Body*> CharacterB2D::qolParts()
+{
+    return {_headBody,      _chestBody,     _upperArm1Body, _upperArm2Body,
+            _lowerArm1Body, _lowerArm2Body, _pelvisBody,    _upperLeg1Body,
+            _upperLeg2Body, _lowerLeg1Body, _lowerLeg2Body};
+}
+
+std::vector<b2Fixture*> CharacterB2D::qolLostFixtures()
+{
+    std::vector<b2Body*> bodies;
+    if (qolHasInjury(CharacterInjuryShoulder1Break)) {
+        bodies.push_back(_upperArm1Body);
+    }
+    if (qolHasInjury(CharacterInjuryShoulder2Break)) {
+        bodies.push_back(_upperArm2Body);
+    }
+    if (qolHasInjury(CharacterInjuryShoulder1Break) || qolHasInjury(CharacterInjuryElbow1Break)) {
+        bodies.push_back(_lowerArm1Body);
+    }
+    if (qolHasInjury(CharacterInjuryShoulder2Break) || qolHasInjury(CharacterInjuryElbow2Break)) {
+        bodies.push_back(_lowerArm2Body);
+    }
+    if (qolHasInjury(CharacterInjuryHip1Break)) {
+        bodies.push_back(_upperLeg1Body);
+    }
+    if (qolHasInjury(CharacterInjuryHip2Break)) {
+        bodies.push_back(_upperLeg2Body);
+    }
+    if (qolHasInjury(CharacterInjuryHip1Break) || qolHasInjury(CharacterInjuryKnee1Break)) {
+        bodies.push_back(_lowerLeg1Body);
+    }
+    if (qolHasInjury(CharacterInjuryHip2Break) || qolHasInjury(CharacterInjuryKnee2Break)) {
+        bodies.push_back(_lowerLeg2Body);
+    }
+    std::vector<b2Fixture*> fixtures;
+    for (b2Body* body : bodies) {
+        if (body && body->GetFixtureList()) {
+            fixtures.push_back(body->GetFixtureList());
+        }
+    }
+    return fixtures;
+}
+
+// The hand is still on his arm (no torn shoulder or dislocated stub, no broken elbow).
+bool CharacterB2D::qolHandFree(int hand) const
+{
+    if (hand == 1) {
+        return _shoulderJoint1 && !_upperArm3Body && _elbowJoint1;
+    }
+    return _shoulderJoint2 && !_upperArm4Body && _elbowJoint2;
+}
+
+bool CharacterB2D::qolGrabRemount(int hand, b2Body* other)
+{
+    if (!_mainCharacter || !_ejected || !_vehicle || !other || _qolEjectedTime < kQolRemountDelay ||
+        !qolHandFree(hand) || !qol::regrabVehicle()) {
+        return false;
+    }
+    // A browser user vehicle he rides now keeps him.
+    if (online::flashLevel()) {
+        online::UserVehicleRider* rider = online::userVehicleRider(this, false);
+        if (rider && rider->vehicle) {
+            return false;
+        }
+    }
+    if (!_vehicle->qolOwnsBody(other, this) || !_vehicle->qolTryRemount(this)) {
+        return false;
+    }
+    // Riding again: the other hand's contact of this step is no grab any more.
+    _contactResultBufferDict[_lowerArm1Fixture].impulse = 0.0f;
+    _contactResultBufferDict[_lowerArm2Fixture].impulse = 0.0f;
+    return true;
+}
+
+// Per step while ejected: an empty grabbing hand that overlaps his vehicle (also the vehicle parts
+// that do not collide with him, e.g. the lawnmower's) re-mounts him. A hand already holding
+// something made its grab earlier (maybe within the first half second) and does not count.
+void CharacterB2D::qolCheckRemount()
+{
+    if (!_grabbing || !_mainCharacter || !_vehicle || _dead || _qolEjectedTime < kQolRemountDelay ||
+        !qol::regrabVehicle()) {
+        return;
+    }
+    for (int hand = 1; hand <= 2 && _ejected; hand++) {
+        if (!qolHandFree(hand) || (hand == 1 ? _gripJoint1 : _gripJoint2)) {
+            continue;
+        }
+        b2Body* touched = _vehicle->qolTouchedBody(hand == 1 ? _lowerArm1Fixture : _lowerArm2Fixture, this);
+        if (touched && qolGrabRemount(hand, touched)) {
+            return;
+        }
+    }
+}
+
+void CharacterB2D::qolBeginRemount()
+{
+    endGrab();
+    setCurrentPose(CharacterPoseNone);
+}
+
+void CharacterB2D::qolSetRiding()
+{
+    _ejected = false;
+    _qolEjectedTime = 0.0f;
+}
+
+void CharacterB2D::qolRemounted()
+{
+    openHand1(false);
+    openHand2(false);
+    if (_mainCharacter) {
+        if (GameplayControls* controls = getSession()->getControls()) {
+            // The ejected layout keeps the boost meter; the driving layout makes a new one.
+            controls->removeMeterBar();
+            controls->addControls((ControlsType)Settings::getInstance()->getSelectedCharacterControlType());
+        }
+        Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("characterRemounted");
     }
 }

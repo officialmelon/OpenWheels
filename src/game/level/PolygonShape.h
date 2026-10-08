@@ -22,6 +22,11 @@ public:
               cocos2d::AffineTransform initialTransform, cocos2d::Color4F innerColor,
               cocos2d::Color4F outlineColor, float opacity, float borderWidth,
               FFDrawNode* drawNode, bool update);
+    // ONLINE (PC addition): like the fixture init, but drawn from `verts` (body-local points:
+    // a browser polygon's own, possibly concave outline) instead of the fixture's convex hull.
+    bool onlineInit(b2Fixture* fixture, float ptmRatio, cocos2d::Color4F innerColor,
+                    cocos2d::Color4F outlineColor, float opacity, float borderWidth,
+                    cocos2d::Vec2* verts, unsigned int count, FFDrawNode* drawNode);
 
     float getArtOpacity() override;                       // +0x10
     cocos2d::AffineTransform getArtTransform() override;  // +0x18
