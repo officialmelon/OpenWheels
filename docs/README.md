@@ -31,6 +31,7 @@
 * [DESKTOP.md](DESKTOP.md) — the Linux and macOS builds, the PC window (resizable, maximized,
   fullscreen without black bars) and the notes on the engine's old prebuilts.
 * [IOS.md](IOS.md) — the iOS build, bundled or Finder-copied game files.
+* [RELEASING.md](RELEASING.md) — the release workflow: every platform's package from a tag push.
 
 ## Work notes
 

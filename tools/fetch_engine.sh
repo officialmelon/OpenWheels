@@ -70,7 +70,8 @@ install_patches() {
     fi
     cd "$repo"
     for p in "${patches[@]}"; do
-        local rel="thirdparty/patches/$(basename "$p")"
+        local rel
+        rel="thirdparty/patches/$(basename "$p")"
         if git apply --check -p1 --directory=thirdparty/cocos2d-x "$rel" 2>/dev/null; then
             git apply -p1 --whitespace=nowarn --directory=thirdparty/cocos2d-x "$rel"
             step "applied $(basename "$p")"
@@ -94,8 +95,8 @@ fi
 [ -e "$engine" ] || install_engine
 install_patches
 
-[ -f "$engine/cocos/cocos2d.h" ] && [ -d "$engine/external/Box2D/prebuilt" ] || {
+if [ ! -f "$engine/cocos/cocos2d.h" ] || [ ! -d "$engine/external/Box2D/prebuilt" ]; then
     echo "engine setup incomplete: $engine" >&2
     exit 1
-}
+fi
 step "engine ready: $engine"

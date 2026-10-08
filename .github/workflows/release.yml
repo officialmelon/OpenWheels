@@ -1,0 +1,359 @@
+# Builds every OpenWheels release package and (optionally) publishes them as a GitHub release.
+#
+#   Windows (Win32)    OpenWheels-windows.zip              required
+#   Android            OpenWheels-release.apk              required
+#   Linux (x86_64)     OpenWheels-linux-x86_64.tar.gz      required
+#   macOS (x86_64)     OpenWheels-macos.zip                best effort (unsigned)
+#   iOS                OpenWheels-ios-unsigned.ipa         best effort (unsigned, sideload)
+#
+# Game files: the repository never contains Happy Wheels assets. The packages are built with the
+# game data of a previous OpenWheels release (its Windows zip: assets/, generated/, ios/ and the
+# tables; see tools/release/extract_game_data.py), by default the latest release, or with a zip at
+# the URL in the OW_GAME_DATA_URL secret.
+#
+# Triggers:
+#   * pushing a tag v*        builds everything and publishes the release for that tag;
+#   * Actions -> Release -> Run workflow: builds everything; with a tag it also creates the
+#     release (as a draft unless "draft" is unticked), without one it only keeps the artifacts.
+#
+# Android signing: set the secrets ANDROID_KEYSTORE_BASE64 (base64 of the .jks / .keystore),
+# ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD to sign with your release
+# key (so the APK installs over earlier releases); without them the APK is debug-signed.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to create (e.g. v0.3.1). Empty = build artifacts only.'
+        required: false
+        default: ''
+      draft:
+        description: 'Create the release as a draft'
+        type: boolean
+        default: true
+      data_release:
+        description: 'Release whose Windows zip provides the game files (empty = latest release)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ENGINE_CACHE_VERSION: 1
+
+jobs:
+  game-data:
+    name: Game data
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download the game data of a previous release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DATA_URL: ${{ secrets.OW_GAME_DATA_URL }}
+          DATA_RELEASE: ${{ inputs.data_release }}
+        run: |
+          set -euo pipefail
+          mkdir -p dl
+          if [ -n "${DATA_URL}" ]; then
+            curl -fsSL -o dl/package.zip "${DATA_URL}"
+          else
+            # The newest published release that has a Windows zip (the tag being built may
+            # already exist as a release without one).
+            tags="${DATA_RELEASE}"
+            if [ -z "${tags}" ]; then
+              tags="$(gh release list -R "${GITHUB_REPOSITORY}" --exclude-drafts --limit 30 --json tagName -q '.[].tagName')"
+            fi
+            for tag in ${tags}; do
+              if gh release download "${tag}" -R "${GITHUB_REPOSITORY}" -p OpenWheels-windows.zip -D dl --clobber; then
+                echo "game data from release ${tag}"
+                mv dl/OpenWheels-windows.zip dl/package.zip
+                break
+              fi
+            done
+            [ -f dl/package.zip ] || { echo "::error::no release with OpenWheels-windows.zip found"; exit 1; }
+          fi
+          python3 tools/release/extract_game_data.py dl/package.zip game-data
+      - name: Draw missing restored-character portraits
+        run: |
+          python3 -m pip install --quiet numpy pillow
+          python3 tools/assets/restored_portraits.py --optional --out game-data/generated/restored
+      - uses: actions/upload-artifact@v4
+        with:
+          name: game-data
+          path: game-data
+          retention-days: 1
+
+  linux:
+    name: Linux
+    needs: game-data
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential cmake ninja-build python3 libx11-dev libxi-dev \
+            libxrandr-dev libxxf86vm-dev libxinerama-dev libxcursor-dev libfontconfig1-dev libgtk-3-dev \
+            zlib1g-dev libpng-dev libglew-dev libgl1-mesa-dev libcurl4-openssl-dev libsqlite3-dev \
+            libopenal-dev libvorbis-dev libmpg123-dev
+      - uses: actions/cache@v4
+        with:
+          path: thirdparty/cocos2d-x
+          key: engine-posix-${{ env.ENGINE_CACHE_VERSION }}-${{ hashFiles('tools/fetch_engine.sh', 'thirdparty/patches/*.patch') }}
+      - name: Fetch cocos2d-x
+        run: tools/fetch_engine.sh
+      - name: Build
+        run: tools/build.sh --config Release --build-dir build-release
+      - uses: actions/download-artifact@v4
+        with:
+          name: game-data
+          path: game-data
+      - name: Package
+        run: |
+          tools/package_linux.sh --no-build --build-dir build-release --out dist \
+            --assets game-data/assets --ios game-data/ios --data game-data
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenWheels-linux
+          path: dist/OpenWheels-linux-x86_64.tar.gz
+
+  windows:
+    name: Windows
+    needs: game-data
+    runs-on: windows-2022
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: thirdparty/cocos2d-x
+          key: engine-win32-${{ env.ENGINE_CACHE_VERSION }}-${{ hashFiles('tools/fetch_engine.ps1', 'thirdparty/patches/*.patch') }}
+      - name: Fetch cocos2d-x
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File tools\fetch_engine.ps1
+      - name: Build
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File tools\build.ps1 -Config Release
+      - uses: actions/download-artifact@v4
+        with:
+          name: game-data
+          path: game-data
+      - name: Package
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File tools\package_windows.ps1 -NoBuild `
+            -Assets game-data\assets -Ios game-data\ios -Data game-data -Out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenWheels-windows
+          path: dist/OpenWheels-windows.zip
+
+  android:
+    name: Android
+    needs: game-data
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install SDK packages
+        run: |
+          yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" \
+            "cmake;3.22.1" "ndk;27.3.13750724" > /dev/null
+      - uses: actions/cache@v4
+        with:
+          path: thirdparty/cocos2d-x
+          key: engine-posix-${{ env.ENGINE_CACHE_VERSION }}-${{ hashFiles('tools/fetch_engine.sh', 'thirdparty/patches/*.patch') }}
+      - name: Fetch cocos2d-x
+        run: tools/fetch_engine.sh
+      - uses: actions/download-artifact@v4
+        with:
+          name: game-data
+          path: game-data
+      - name: Release signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "${KEYSTORE_BASE64}" ]; then
+            echo "::warning::no ANDROID_KEYSTORE_BASE64 secret - the APK is signed with a debug key and won't install over earlier releases"
+            exit 0
+          fi
+          mkdir -p "${RUNNER_TEMP}/signing"
+          echo "${KEYSTORE_BASE64}" | base64 -d > "${RUNNER_TEMP}/signing/release.keystore"
+          {
+            echo "storeFile=${RUNNER_TEMP}/signing/release.keystore"
+            echo "storePassword=${KEYSTORE_PASSWORD}"
+            echo "keyAlias=${KEY_ALIAS}"
+            echo "keyPassword=${KEY_PASSWORD}"
+          } > "${RUNNER_TEMP}/signing/keystore.properties"
+          echo "OW_KEYSTORE_PROPERTIES=${RUNNER_TEMP}/signing/keystore.properties" >> "${GITHUB_ENV}"
+      - name: Build
+        working-directory: android
+        run: |
+          echo "sdk.dir=${ANDROID_HOME}" > local.properties
+          ./gradlew --no-daemon assembleRelease \
+            -POW_GAME_ASSETS="${GITHUB_WORKSPACE}/game-data/assets" \
+            -POW_PREBUILT_DATA="${GITHUB_WORKSPACE}/game-data" \
+            -POW_GAME_RES="${GITHUB_WORKSPACE}/none"
+          mkdir -p "${GITHUB_WORKSPACE}/dist"
+          cp app/build/outputs/apk/release/OpenWheels-release.apk "${GITHUB_WORKSPACE}/dist/"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenWheels-android
+          path: dist/OpenWheels-release.apk
+
+  macos:
+    name: macOS (best effort)
+    needs: game-data
+    # The v3-deps-158 macOS prebuilts are x86_64 only: build on an Intel runner.
+    runs-on: macos-15-intel
+    timeout-minutes: 120
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: thirdparty/cocos2d-x
+          key: engine-posix-${{ env.ENGINE_CACHE_VERSION }}-${{ hashFiles('tools/fetch_engine.sh', 'thirdparty/patches/*.patch') }}
+      - name: Fetch cocos2d-x
+        run: tools/fetch_engine.sh
+      - name: Build
+        run: tools/build.sh --config Release --build-dir build-release
+      - uses: actions/download-artifact@v4
+        with:
+          name: game-data
+          path: game-data
+      - name: Package
+        run: |
+          set -euo pipefail
+          app="$(find build-release/bin -maxdepth 3 -name 'OpenWheels.app' -type d | head -1)"
+          [ -n "${app}" ] || { echo "::error::OpenWheels.app not found"; exit 1; }
+          mkdir -p dist
+          cp -R "${app}" dist/OpenWheels.app
+          mkdir -p dist/OpenWheels.app/Contents/Resources
+          cp -R game-data/assets dist/OpenWheels.app/Contents/Resources/assets
+          cp -R game-data/generated dist/OpenWheels.app/Contents/MacOS/generated
+          [ -d game-data/ios ] && cp -R game-data/ios dist/OpenWheels.app/Contents/MacOS/ios
+          cp game-data/*.tsv dist/OpenWheels.app/Contents/MacOS/ 2>/dev/null || true
+          cp LICENSE NOTICE.md dist/
+          (cd dist && ditto -c -k --keepParent OpenWheels.app OpenWheels-macos.zip)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenWheels-macos
+          path: dist/OpenWheels-macos.zip
+
+  ios:
+    name: iOS (best effort)
+    needs: game-data
+    runs-on: macos-14
+    timeout-minutes: 120
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: thirdparty/cocos2d-x
+          key: engine-posix-${{ env.ENGINE_CACHE_VERSION }}-${{ hashFiles('tools/fetch_engine.sh', 'thirdparty/patches/*.patch') }}
+      - name: Fetch cocos2d-x
+        run: tools/fetch_engine.sh
+      - uses: actions/download-artifact@v4
+        with:
+          name: game-data
+          path: game-data
+      - name: Build (unsigned)
+        run: |
+          set -euo pipefail
+          cmake -S . -B build-ios -G Xcode \
+            -DCMAKE_TOOLCHAIN_FILE="${PWD}/thirdparty/cocos2d-x/cmake/ios.toolchain.cmake" \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DOW_ANDROID_ASSETS="${PWD}/game-data/assets"
+          cmake --build build-ios --config Release -- -sdk iphoneos \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | tail -40
+          exit "${PIPESTATUS[0]}"
+      - name: Package (.ipa for sideloading)
+        run: |
+          set -euo pipefail
+          app="$(find build-ios -name 'OpenWheels.app' -type d -path '*iphoneos*' | head -1)"
+          [ -n "${app}" ] || { echo "::error::OpenWheels.app not found"; exit 1; }
+          mkdir -p dist/Payload
+          cp -R "${app}" dist/Payload/OpenWheels.app
+          cp -R game-data/generated dist/Payload/OpenWheels.app/generated
+          [ -d game-data/ios ] && cp -R game-data/ios dist/Payload/OpenWheels.app/ios
+          cp game-data/*.tsv dist/Payload/OpenWheels.app/ 2>/dev/null || true
+          (cd dist && zip -qry OpenWheels-ios-unsigned.ipa Payload)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenWheels-ios
+          path: dist/OpenWheels-ios-unsigned.ipa
+
+  release:
+    name: Publish release
+    needs: [linux, windows, android, macos, ios]
+    if: >-
+      always() &&
+      needs.linux.result == 'success' && needs.windows.result == 'success' && needs.android.result == 'success' &&
+      (github.event_name == 'push' || inputs.tag != '')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: OpenWheels-*
+          path: packages
+          merge-multiple: true
+      - name: Release notes
+        env:
+          TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+        run: |
+          set -euo pipefail
+          # The CHANGELOG.md section of this version ("## v0.3.0" up to the next "## ").
+          awk -v v="## ${TAG}" '$0 == v {on=1; next} /^## / && on {exit} on' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "OpenWheels ${TAG}" > notes.md
+          {
+            echo
+            echo "## Downloads"
+            echo "- **Windows:** \`OpenWheels-windows.zip\` - unzip and run \`OpenWheels.exe\`."
+            echo "- **Android:** \`OpenWheels-release.apk\`."
+            echo "- **Linux (x86_64):** \`OpenWheels-linux-x86_64.tar.gz\` - unpack and run \`./OpenWheels\`."
+            [ -f packages/OpenWheels-macos.zip ] && echo "- **macOS:** \`OpenWheels-macos.zip\` (unsigned: right-click the app, Open)."
+            [ -f packages/OpenWheels-ios-unsigned.ipa ] && echo "- **iOS:** \`OpenWheels-ios-unsigned.ipa\` (unsigned: sideload with AltStore, Sideloadly or similar)."
+            echo
+            echo "## Legal"
+            echo "OpenWheels is an unofficial fan project. Happy Wheels and its assets belong to Fancy Force / Jim Bonacci. See [NOTICE.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/NOTICE.md)."
+          } >> notes.md
+          (cd packages && sha256sum -- * > SHA256SUMS.txt)
+          ls -la packages
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+          DRAFT: ${{ github.event_name == 'workflow_dispatch' && inputs.draft }}
+        run: |
+          set -euo pipefail
+          args=(--title "OpenWheels ${TAG}" --notes-file notes.md --target "${GITHUB_SHA}")
+          [ "${DRAFT}" = "true" ] && args+=(--draft)
+          if gh release view "${TAG}" -R "${GITHUB_REPOSITORY}" > /dev/null 2>&1; then
+            gh release upload "${TAG}" packages/* -R "${GITHUB_REPOSITORY}" --clobber
+          else
+            gh release create "${TAG}" packages/* -R "${GITHUB_REPOSITORY}" "${args[@]}"
+          fi
