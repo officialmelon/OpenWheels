@@ -20,6 +20,7 @@ namespace {
 
 GLViewImpl* g_view = nullptr;
 int g_windowed[4] = {0, 0, 0, 0};
+bool g_maximizedFullscreen = false;  // fullscreen emulated by maximizing (no monitor information)
 
 // Before the game set its design resolution (i.e. before Application::run), GLViewImpl ignores
 // window size callbacks; read the size GLFW settled on and hand it over ourselves. Window managers
@@ -64,7 +65,7 @@ void setFullscreen(bool on)
 {
     GLFWwindow* window = g_view->getWindow();
     if (!window) return;
-    const bool isFullscreen = glfwGetWindowMonitor(window) != nullptr;
+    const bool isFullscreen = glfwGetWindowMonitor(window) != nullptr || g_maximizedFullscreen;
     if (on == isFullscreen) return;
     int w, h;
     glfwGetWindowSize(window, &w, &h);
@@ -75,8 +76,17 @@ void setFullscreen(bool on)
         g_windowed[3] = h;
         GLFWmonitor* monitor = monitorOf(window);
         const GLFWvidmode* mode = monitor ? glfwGetVideoMode(monitor) : nullptr;
-        if (!mode) return;
-        glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+        if (mode)
+        {
+            glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+        }
+        else
+        {
+            // No monitor information (some X servers without RandR outputs): fill the screen
+            // with a maximized window instead.
+            glfwMaximizeWindow(window);
+            g_maximizedFullscreen = true;
+        }
     }
     else
     {
@@ -87,7 +97,11 @@ void setFullscreen(bool on)
             g_windowed[0] = w / 8;
             g_windowed[1] = h / 8;
         }
-        glfwSetWindowMonitor(window, nullptr, g_windowed[0], g_windowed[1], g_windowed[2], g_windowed[3], 0);
+        if (glfwGetWindowMonitor(window))
+            glfwSetWindowMonitor(window, nullptr, g_windowed[0], g_windowed[1], g_windowed[2], g_windowed[3], 0);
+        else
+            glfwRestoreWindow(window);  // the maximized fallback above
+        g_maximizedFullscreen = false;
     }
     adoptWindowSize(w, h);
 }

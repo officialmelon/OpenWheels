@@ -86,7 +86,7 @@ index b3c58f1..c781af0 100644
  #include <functional>
  #include <memory>
 diff --git a/cocos/audio/win32/AudioEngine-win32.cpp b/cocos/audio/win32/AudioEngine-win32.cpp
-index 3fb0ffc..5760d66 100644
+index 3fb0ffc..d807d3c 100644
 --- a/cocos/audio/win32/AudioEngine-win32.cpp
 +++ b/cocos/audio/win32/AudioEngine-win32.cpp
 @@ -26,7 +26,7 @@
@@ -108,6 +108,24 @@ index 3fb0ffc..5760d66 100644
  
  // log, CCLOG aren't threadsafe, since we uses sub threads for parsing pcm data, threadsafe log output
  // is needed. Define the following macros (ALOGV, ALOGD, ALOGI, ALOGW, ALOGE) for threadsafe log output.
+@@ -75,6 +77,7 @@ static void _winLog(const char *format, va_list args)
+ 
+     strcat(buf, "\n");
+ 
++#ifdef _WIN32
+     int pos = 0;
+     int len = strlen(buf);
+     char tempBuf[MAX_LOG_LENGTH + 1] = { 0 };
+@@ -92,6 +95,9 @@ static void _winLog(const char *format, va_list args)
+         pos += MAX_LOG_LENGTH;
+ 
+     } while (pos < len);
++#else
++    fputs(buf, stdout);
++#endif
+ 
+     delete[] buf;
+ }
 diff --git a/cocos/audio/win32/AudioEngine-win32.h b/cocos/audio/win32/AudioEngine-win32.h
 index 132c662..212d3f7 100644
 --- a/cocos/audio/win32/AudioEngine-win32.h
@@ -122,10 +140,10 @@ index 132c662..212d3f7 100644
  #ifndef __AUDIO_ENGINE_INL_H_
  #define __AUDIO_ENGINE_INL_H_
 diff --git a/cocos/audio/win32/AudioPlayer.cpp b/cocos/audio/win32/AudioPlayer.cpp
-index 4c3e512..b6ffd5b 100644
+index 4c3e512..069f6a3 100644
 --- a/cocos/audio/win32/AudioPlayer.cpp
 +++ b/cocos/audio/win32/AudioPlayer.cpp
-@@ -27,7 +27,7 @@
+@@ -27,12 +27,12 @@
  
  #include "platform/CCPlatformConfig.h"
  
@@ -134,6 +152,12 @@ index 4c3e512..b6ffd5b 100644
  #include "audio/win32/AudioPlayer.h"
  #include "audio/win32/AudioCache.h"
  #include "platform/CCFileUtils.h"
+ #include "audio/win32/AudioDecoderManager.h"
+-#include "audio/win32/Audiodecoder.h"
++#include "audio/win32/AudioDecoder.h"
+ 
+ #define VERY_VERY_VERBOSE_LOGGING
+ #ifdef VERY_VERY_VERBOSE_LOGGING
 diff --git a/cocos/audio/win32/AudioPlayer.h b/cocos/audio/win32/AudioPlayer.h
 index a7f8a57..2c5ae28 100644
 --- a/cocos/audio/win32/AudioPlayer.h
