@@ -1269,10 +1269,16 @@ ShapeItem* LevelB2D::addShape(LevelDataElement* shape, GroupItem* groupItem, Vec
             int onlineCount =
                 online::flashLevel() ? onlinePolygonArtVerts(shape, scaleX, scaleY, onlineVerts) : 0;
             PolygonShape* polygonShape = new (std::nothrow) PolygonShape();
+            // FIX (reconstruction): a static polygon's vertices are local to `pos`, which
+            // PolygonShape::init already applies as the art transform; passing artTransform as
+            // the initial transform too (as this line did) placed it twice as far from the
+            // origin, i.e. off-screen - every static polygon and art shape of a level was
+            // invisible. Rectangles and triangles pass identity here.
+            (void)artTransform;
             polygonShape->init(Vec2(x * _ptmRatio, _ptmRatio * y), angle,
                                onlineCount > 0 ? onlineVerts : verts,
-                               onlineCount > 0 ? onlineCount : count, artTransform, fillColor,
-                               outlineColor, opacity, borderWidth, drawNode, false);
+                               onlineCount > 0 ? onlineCount : count, AffineTransformIdentity,
+                               fillColor, outlineColor, opacity, borderWidth, drawNode, false);
             polygonShape->setIndex(index);
             polygonShape->setDelegate(this);
             polygonShape->setFixtureRef(fixture);
@@ -1353,9 +1359,11 @@ ShapeItem* LevelB2D::addShape(LevelDataElement* shape, GroupItem* groupItem, Vec
                 AffineTransformTranslate(AffineTransformIdentity, x * _ptmRatio, _ptmRatio * y),
                 angle);
             PolygonShape* polygonShape = new (std::nothrow) PolygonShape();
+            // FIX (reconstruction): identity initial transform, see the polygon case above.
+            (void)artTransform;
             polygonShape->init(Vec2(x * _ptmRatio, _ptmRatio * y), angle, verts, count,
-                               artTransform, fillColor, outlineColor, opacity, borderWidth,
-                               drawNode, false);
+                               AffineTransformIdentity, fillColor, outlineColor, opacity,
+                               borderWidth, drawNode, false);
             polygonShape->setIndex(index);
             polygonShape->setDelegate(this);
             polygonShape->setFixtureRef(nullptr);
