@@ -296,6 +296,7 @@ by plays).
 | v <= 1.84: group shapes pick their collision filter by their own "immovable" flag | old levels | converter `fim` attribute, read by `LevelB2D::addShape` |
 | v <= 1.84 joints: limits only when enabled, torque 50 / speed 0 without motor | old levels | converter (+ `LevelB2D::addJoint`) |
 | Spikes, blades, harpoons and arrows stab materials & 6 (food too) | food levels | gated mask |
+| Blade weapons in a group: the mobile port drops the handle's offset, so the handle box sits at the weapon's centre (7 of 12 types miss the drawn handle: the blade hits but the handle can't be grabbed) | sword fights | `BladeWeapon::init` places it like the blade in browser levels |
 | Lawnmower Man (restored character 6) grinds NPCs and food | levels forcing c=6 | `online::Grindable` (Flash grindShape/removeBody), called from `src/restored/LawnMower.cpp` |
 
 Trigger audit (Flash `Trigger`/`TargetAction*` against the mobile code and the converter), fixed in
