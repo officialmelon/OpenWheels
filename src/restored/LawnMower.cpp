@@ -199,7 +199,13 @@ void LawnMower::createBodies()
     def.friction = 0.3f;
     def.restitution = 0.1f;
     def.filter = _zeroFilter;
-    def.filter.groupIndex = -2;
+    // RESTORED (PC addition): the mower's solid shapes share the rider's collision group while he
+    // rides (Flash puts both in one negative group). With the Flash constant -2 here and the
+    // mobile player in group -1, his chest and pelvis collided with his own mower: a hard start
+    // or a bump could smash his chest against the hood (chest impulse 125 against a limit of 17
+    // in a recorded run). ejectCharacter puts the mower back in group -2 so a thrown rider
+    // still hits it; addCharacter (also used by the QoL re-mount) restores the shared group.
+    def.filter.groupIndex = (int16)_groupID;
 
     _mowerBody = world->CreateBody(&bodyDef);
     _handleFixture = addPolygon(_mowerBody, def, "handleVert", 1, 4);
@@ -339,6 +345,7 @@ void LawnMower::addCharacter(CharacterB2D* character)
 {
     Vehicle::addCharacter(character);
     _rider = character;
+    setMowerGroup((int16)_groupID);  // RESTORED (PC addition): see createBodies
     b2World* world = getWorld();
 
     float neckAngle = character->getHeadBody()->GetAngle() - character->getChestBody()->GetAngle();
@@ -366,6 +373,23 @@ void LawnMower::addCharacter(CharacterB2D* character)
     addBodyVehicleJoint(character->getLowerLeg1Body(), world->CreateJoint(&def));
     def.Initialize(_mowerBody, character->getLowerLeg2Body(), foot);
     addBodyVehicleJoint(character->getLowerLeg2Body(), world->CreateJoint(&def));
+}
+
+// RESTORED (PC addition): moves the mower body's rider-group fixtures (the solid hull: handle,
+// shaft, front, base, blade, rear, top, seat) between the rider's group and Flash's -2. The pads
+// and the clearance sensor (group 0) keep their own filter.
+void LawnMower::setMowerGroup(int16 group)
+{
+    if (!_mowerBody) {
+        return;
+    }
+    for (b2Fixture* f = _mowerBody->GetFixtureList(); f; f = f->GetNext()) {
+        b2Filter filter = f->GetFilterData();
+        if (filter.groupIndex != 0 && filter.groupIndex != group) {
+            filter.groupIndex = group;
+            f->SetFilterData(filter);
+        }
+    }
 }
 
 void LawnMower::handleInjury(CharacterInjury injury, CharacterB2D* character)
@@ -398,6 +422,7 @@ bool LawnMower::ejectCharacter(CharacterB2D* character)
     forwardBackButtonsNull();
     leanButtonsNull();
     Vehicle::ejectCharacter(character);
+    setMowerGroup(-2);  // RESTORED (PC addition): the thrown rider collides with the mower again
 
     for (b2Body* leg : {character->getUpperLeg1Body(), character->getUpperLeg2Body(),
                         character->getLowerLeg1Body(), character->getLowerLeg2Body()}) {

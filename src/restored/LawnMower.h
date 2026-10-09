@@ -40,6 +40,7 @@ public:
     void createDictionaries() override;
     void addCharacter(CharacterB2D* character) override;
     void handleInjury(CharacterInjury injury, CharacterB2D* character) override;
+    void setMowerGroup(int16 group);  // RESTORED (PC addition): see LawnMower.cpp
     void checkStateOfCharacter(CharacterB2D* character) override;
     bool ejectCharacter(CharacterB2D* character) override;
 

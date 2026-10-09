@@ -207,6 +207,15 @@ class _ShapeOwner:
         cy = ground - 102 if y is None else y
         return self.sp(17, x, cy, angle, char, sleep, reverse, hold, inter, *pose, destroy)
 
+    # How far each NPC skin's feet hang above `ground` when npc() puts its chest 102 px up
+    # (measured in game, Flash px; the kids and the long-legged skins are shorter).
+    NPC_FEET = {1: 7, 2: 12, 3: 8, 4: 50, 5: 23, 6: 6, 7: 15, 8: 10, 9: 13, 10: 12, 11: 28,
+                12: 8, 13: 15, 14: 51, 15: 62, 16: 10}
+
+    def npc_standing(self, x, ground, char=1, **kw):
+        """A standing NPC whose feet touch `ground` (npc() places every skin's chest 102 px up)."""
+        return self.npc(x, ground, char=char, y=ground - 102 + self.NPC_FEET.get(char, 0), **kw)
+
     def spikes(self, x, y, count=20, rot=0, fixed=True, sleep=False):
         """Spike strip centred on x; y = centre of the spike row (~25 px above its base)."""
         return self.sp(6, x, y, rot, fixed, count, sleep)

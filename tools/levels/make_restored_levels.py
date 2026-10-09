@@ -25,6 +25,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from restored_lib import LEVEL, Level, rgb  # noqa: E402
+import restored_scenery as S  # noqa: E402
 
 G = 5000          # default ground surface (y)
 RIDE = 120        # start point height above the ground for ground vehicles
@@ -214,67 +215,350 @@ def title(L, x, ground, name, lines, color=BLACK, size=16):
 lawn_title = title
 
 
+LAWN_SKY = rgb('9fd0f5')
+TURF = rgb('5c9e2e')
+TURF_DARK = rgb('3f7d22')
+TURF_LIGHT = rgb('86c24a')
+SOIL = rgb('6e4a2c')
+SOIL_DARK = rgb('523520')
+CONCRETE_LIGHT = rgb('c9c6bd')
+CONCRETE_MID = rgb('b3afa5')
+
+
+def _lawn_texture(L, x, y, rng):
+    """Grass tufts on the turf lip, now and then a pebble or a clover patch in the soil."""
+    S.grass_tuft(L, x, y + 3, S.shade(TURF_LIGHT, rng.uniform(0.92, 1.08)), h=rng.uniform(14, 26))
+    if rng.random() < 0.3:
+        S.pebble(L, x + 30, y + rng.uniform(40, 120), S.shade(SOIL, 1.3), r=rng.uniform(5, 9),
+                 seed=int(x))
+    if rng.random() < 0.18:
+        S.flower(L, x + 18, y + 2, rng.uniform(16, 24), rng.choice([0xffffff, rgb('f6d548')]), r=5)
+
+
+def _lawn(L, profile, bottom, seed):
+    S.terrain(L, profile, bottom, SOIL,
+              strata=[(26, 70, S.shade(SOIL, 1.12)), (130, 150, SOIL_DARK), (230, 244, SOIL_DARK)],
+              lip=TURF, lip_depth=22, texture=_lawn_texture, seed=seed)
+    S.band_below(L, profile, 14, 24, TURF_DARK)
+    S.band_below(L, profile, -1, 6, TURF_LIGHT)
+
+
+def _pavement(L, x1, x2, bottom, color=CONCRETE_LIGHT, joint=150, kerb=True, y=G, solid=True):
+    S.terrain(L, [(x1, y), (x2, y)], bottom, rgb('8f8a80'), solid=solid,
+              strata=[(0, 34, color), (34, 46, S.shade(color, 0.8)), (46, 120, rgb('7a6f62'))])
+    x = x1 + joint
+    while x < x2:
+        L.box(x - 2, y, x + 2, y + 34, color=S.shade(color, 0.78), inter=False)
+        x += joint
+    if kerb:
+        L.box(x2 - 30, y - 3, x2, y + 40, color=S.shade(color, 1.1), inter=False)
+
+
+def _speech(L, x, y, w, h, caption, size=20, color=rgb('8e1b12')):
+    """A speech bubble that appears when triggered: plate, tail and text all start invisible.
+    Returns the trigger targets that show it."""
+    plate = L.art([(x, y), (x + w, y), (x + w, y + h), (x + 40, y + h), (x + 18, y + h + 34),
+                   (x + 22, y + h), (x, y + h)], color=0xffffff, opacity=0)
+    t = L.text(x + 14, y + 10, caption, size=size, color=color, font=5, opacity=0)
+    return [(plate, [(3, 92, 0.25)]), (t, [(0, 100, 0.25)])]
+
+
+def _sunbather(L, profile, x, char, towel, stripe=0xffffff):
+    """An NPC lying feet first along the ground at x, on a towel that follows the slope."""
+    y = S.y_at(profile, x)
+    ang = math.degrees(math.atan2(S.y_at(profile, x + 20) - S.y_at(profile, x - 20), 40))
+    if towel is None:
+        return L.npc(x, y, char=char, angle=round(90 + ang, 2), y=y - 17)
+    L.rect(x, y - 3, 190, 6, rot=round(ang, 2), color=towel, inter=False)
+    for k in (-60, 0, 60):
+        L.rect(x + k * math.cos(math.radians(ang)), y - 3 + k * math.sin(math.radians(ang)), 10, 6,
+               rot=round(ang, 2), color=stripe, inter=False)
+    return L.npc(x, y, char=char, angle=round(90 + ang, 2), y=y - 17)
+
+
+def _loose_planks(L, x1, x2, ground, h, color, w=22, gap=2, density=0.6):
+    """A wall of loose, sleeping planks standing on the ground: the first knock topples them."""
+    refs = []
+    x = x1
+    k = 0
+    while x + w <= x2:
+        c = S.shade(color, 0.92 + 0.08 * (k % 3) / 2.0)
+        top = h - (k % 2) * 6
+        refs.append(L.rect(x + w / 2.0, ground - top / 2.0, w, top, color=c, fixed=False, sleep=True,
+                           density=density))
+        x += w + gap
+        k += 1
+    return refs
+
+
 def lm_01():
-    """Lawn and Order (easy): a sunny suburban lawn. Teaches driving, the blade (sunbathers and a
-    picnic to grind), a gentle hill, a kiddie-pool dip, a see-saw, and a text that pops in."""
-    L = Level('06_lawnmower_man/01_lawn_and_order.xml', 'Lawn and Order', 6, (500, G - RIDE),
-              bg=1, bgc=SKY)
-    cloud(L, 1500, 3900, 360)
-    cloud(L, 4200, 3800, 420)
-    cloud(L, 6900, 3950, 300)
-    house(L, 80, G, 560, 320)
-    tree(L, 1100, G, 360)
-    picket_fence(L, 1250, 2500, G)
-    house(L, 2700, G, 600, 340, wall=rgb('c9e0f2'), roof=rgb('3b4f7a'))
-    tree(L, 4150, G - 150, 330)
-    house(L, 5300, G, 640, 360, wall=rgb('f2d0c9'), roof=rgb('6b3b2b'))
-    picket_fence(L, 6100, 7300, G, color=rgb('f5f5f5'))
-    lawn_title(L, 180, G, 'LAWN AND ORDER',
-               'The homeowners association says your grass is "a cry for help".\n'
-               'Mow everything. They did say EVERYTHING.\n'
-               'Arrows drive and lean. Space lifts the deck.')
-    # ground: driveway, lawn, a gentle hill, the kiddie-pool dip, lawn to the end
-    L.box(0, G, 900, G + 600, color=CONCRETE)                       # driveway
-    L.ground([(900, G), (2600, G)], bottom=G + 600, color=GRASS)
-    L.ground(hill_profile(2600, 4400, G, 150, 1.0, 200), bottom=G + 600, color=GRASS)
-    # kiddie pool: a shallow dip with sloped sides and water art
-    L.ground([(4300, G), (4460, G + 40), (4840, G + 40), (5000, G)], bottom=G + 600, color=GRASS)
-    L.box(4400, G + 12, 4900, G + 40, color=WATER, opacity=60, inter=False)
-    L.ground([(5000, G), (7600, G)], bottom=G + 600, color=GRASS)
-    L.box(7600, G - 400, 7700, G + 600, color=HEDGE)                # end wall (hedge)
-    # Grass tufts along the lawn (the "tall grass" you are here to mow)
-    for k in range(18):
-        x = 1000 + k * 360
-        if 4280 < x < 5020:
-            continue
-        L.roof(x + 10, G, 20, 28, color=GRASS_LIGHT)
-        L.roof(x + 28, G, 20, 20, color=GRASS_LIGHT)
-    # sunbathers standing on their towels (sleeping NPCs stay put until hit) -> blade fodder
-    for x, c in [(1500, 3), (1800, 7), (2150, 5)]:
-        L.box(x - 80, G - 4, x + 80, G, color=rgb('e74c3c') if c != 7 else rgb('3498db'), inter=False)
-        L.npc(x, G, char=c, sleep=True, reverse=(c == 7))
-    # picnic on the hill top: table with food, a chair
-    L.table(3500, G - 150)
-    L.food(3470, G - 150 - 75, kind=1)
-    L.food(3540, G - 150 - 75, kind=2)
-    L.chair(3640, G - 148, reverse=True)
-    L.token(3500, G - 420, 1)
-    # see-saw after the pool: a plank pinned to a static wedge
-    L.tri(5600, G - 15, 70, 46, color=WOOD_DARK)
-    g = L.group()        # starts tipped, near end on the grass (the ground limits it both ways)
-    g.rect(5600, G - 55, 520, 20, rot=-10, color=WOOD_LIGHT, outline=WOOD_DARK, fixed=False, density=2)
-    L.pin(5600, G - 55, g, LEVEL)
-    # Mrs. Henderson guards her prize begonias; her complaint pops in when you arrive
-    L.sign(6450, G, kind=3)
-    L.npc(6700, G, char=12, sleep=True, hold=True, pose=(0, -150, -40, -60, 0, 0, 0, 0, 0))
-    L.table(6880, G)                          # her prize-winning produce, at deck height
-    for x in (6840, 6920):
-        L.food(x, G - 78, kind=3)
-    yell = L.text(6250, G - 330, 'HEY! THOSE BEGONIAS ARE\nIN THE HOA BYLAWS!', size=26, color=RED_DARK,
-                  font=3, opacity=0)
-    L.trigger(6200, G - 150, 200, 300, [show_text(yell)])
-    L.finish(7300, G)
-    L.text(6950, 4600, 'Mrs. Henderson has\nwithdrawn her complaint.', size=16, color=BLACK)
+    """Lawn and Order (easy): Saturday morning on Maple Court. Out of the garage, across the
+    neighbours' sunbathing lawn and picnic (the blade grinds people and food), over Lemonade Hill,
+    through an inflatable kiddie pool whose rims catch the deck unless you lift it (space), across
+    a koi pond on a pivoting seesaw, into Mrs. Henderson's prize garden (glass greenhouse panes, a
+    prize pumpkin she reacts to), then through a loose fence and the garden shed, and a hedge jump
+    onto the street. Finish in front of the HOA office."""
+    L = Level('06_lawnmower_man/01_lawn_and_order.xml', 'Lawn and Order', 6, (430, G - RIDE),
+              bg=1, bgc=LAWN_SKY)
+    BOT = G + 420
+    # ---- sky dressing and the far street (pale, behind everything) -------------------------
+    for k, (x, y, w) in enumerate([(900, 4560, 300), (2600, 4500, 360), (4700, 4440, 280),
+                                   (6900, 4520, 340), (9300, 4470, 300), (11800, 4540, 380),
+                                   (13900, 4480, 320)]):
+        S.cloud(L, x, y, w, seed=k)
+    S.distant_houses(L, 1300, 3900, G - 6, LAWN_SKY, seed=1, t=0.55, scale=0.5)
+    S.distant_houses(L, 6100, 8000, G - 6, LAWN_SKY, seed=2, t=0.55, scale=0.5)
+    S.distant_houses(L, 11700, 15000, G - 6, LAWN_SKY, seed=3, t=0.55, scale=0.5)
+
+    # ---- 1. Home: the garage, the driveway and the street ------------------------------------
+    S.tree(L, 700, G, 470, seed=4, leaf=rgb('4a8a2c'))
+    S.suburban_house(L, 50, G, 600, 250, wall=rgb('f1e2c2'), roof_c=rgb('5a5f6e'), door_c=rgb('2f6b4f'),
+                     shutters=rgb('2f6b4f'), garage=True, garage_c=rgb('f4efe4'), chimney=True, seed=5)
+    S.shrub(L, 680, G, 120, seed=6, flowers=rgb('e86a8a'))
+    S.station_wagon(L, 880, G, color=rgb('3d6fb0'), facing=-1)
+    S.mailbox(L, 1160, G, color=rgb('3d6fb0'))
+    L.text(1130, G - 186, '42', size=14, color=0xffffff, font=3)
+    S.lamp_post(L, 1240, G)
+    _pavement(L, 0, 1110, BOT, color=CONCRETE_MID, joint=185, kerb=False)
+    _pavement(L, 1110, 1280, BOT, joint=85)
+    L.text(150, G - 300, 'LAWN AND ORDER', size=34, color=rgb('24331b'), font=5)
+    L.text(152, G - 258, 'Space lifts the mower deck. The blade does the rest.', size=15,
+           color=rgb('24331b'), font=2)
+
+    # ---- 2. The sunbathers and the picnic (blade fodder) -------------------------------------
+    # The back lawn runs gently downhill from the street: every victim lies feet first on that
+    # slope, where the blade throws what it cannot catch forward, away from the rider (tested in
+    # game: on the flat a kicked limb can kill him).
+    lawn_a = S.smooth_profile([(1280, G), (1400, G), (3250, G + 120), (3550, G + 120), (3900, G + 140),
+                               (4000, G + 140)], 50)
+    S.board_fence(L, 1290, 3620, G + 120, 150 + 120, color=rgb('b98a57'), seed=7)
+    S.tree(L, 1520, S.y_at(lawn_a, 1520) + 4, 430, seed=8, leaf=rgb('5d9a32'))
+    S.tree(L, 3100, S.y_at(lawn_a, 3100) + 4, 520, seed=9, leaf=rgb('3f7f2a'), fruit=rgb('e0452b'))
+    S.shrub(L, 2300, S.y_at(lawn_a, 2300) + 4, 150, seed=10)
+    for x, (ua, ub) in ((1860, (rgb('e8463c'), 0xffffff)), (2420, (rgb('2e86de'), rgb('f6d548')))):
+        S.umbrella(L, x, S.y_at(lawn_a, x) + 2, 240, 250, ua, ub)
+    _sunbather(L, lawn_a, 1950, 3, rgb('e8463c'))
+    _sunbather(L, lawn_a, 2330, 7, rgb('2e86de'), rgb('f6d548'))
+    _sunbather(L, lawn_a, 2720, 16, rgb('8e44ad'), rgb('f39cc0'))
+    L.boombox(2150, S.y_at(lawn_a, 2150) - 24)
+    # the picnic at the bottom: blanket, basket, a laid table and two chairs
+    P = G + 120
+    L.box(3260, P - 6, 3540, P, color=rgb('d63a2a'), inter=False)
+    for k in range(5):
+        L.box(3260 + k * 56, P - 6, 3288 + k * 56, P, color=0xffffff, inter=False)
+    L.art([(3240, P - 6), (3300, P - 6), (3306, P - 46), (3234, P - 46)], color=rgb('b07a45'))
+    for k in range(3):
+        L.box(3238, P - 40 + k * 12, 3302, P - 36 + k * 12, color=rgb('8a5a33'), inter=False)
+    L.art(S.ellipse(3270, P - 46, 32, 22, 12, 180, 360), color=rgb('8a5a33'))
+    L.table(3420, P)                                                      # the picnic table, laid
+    L.food(3390, P - 80, kind=1)
+    L.food(3450, P - 80, kind=3)
+    L.chair(3510, P, reverse=True)
+    S.bbq_grill(L, 3600, S.y_at(lawn_a, 3600) + 2)
+    _sunbather(L, lawn_a, 3740, 5, rgb('27ae60'))             # the chef, napping by his grill
+    _lawn(L, lawn_a, BOT, 11)
+
+    # ---- 3. Lemonade Hill: a real climb, a crest stand, a long run down ---------------------
+    hill = S.smooth_profile([(4000, G + 140), (5500, G - 60), (5800, G - 60), (6600, G)])
+    S.picket_fence(L, 4060, 4640, S.y_at(hill, 4350), 90)
+    S.tree(L, 4400, S.y_at(hill, 4400) + 4, 400, seed=12, leaf=rgb('4f8f2f'))
+    S.tree(L, 6000, S.y_at(hill, 6000) + 4, 460, seed=13, leaf=rgb('568f2c'), lean=0.2)
+    S.shrub(L, 5100, S.y_at(hill, 5100) + 4, 140, seed=14, flowers=rgb('f6d548'))
+    for x in (4720, 4780, 6150):
+        S.gnome(L, x, S.y_at(hill, x) + 2)
+    S.flamingo(L, 6350, S.y_at(hill, 6350) + 2)
+    S.flamingo(L, 6410, S.y_at(hill, 6410) + 2)
+    top = G - 60
+    # the lemonade stand: art booth, counter and jugs; the vendor stands on the way down
+    S.plank_rect(L, 5540, top - 150, 5552, top, rgb('c8a26b'))
+    S.plank_rect(L, 5748, top - 150, 5760, top, rgb('c8a26b'))
+    L.art([(5520, top - 150), (5780, top - 150), (5760, top - 196), (5540, top - 196)], color=rgb('f2d14b'))
+    for k in range(5):
+        L.art([(5540 + k * 44, top - 196), (5562 + k * 44, top - 196), (5562 + k * 44, top - 150),
+               (5540 + k * 44, top - 150)], color=0xffffff)
+    L.text(5558, top - 140, 'LEMONADE 25c', size=14, color=rgb('b0302a'), font=5)
+    S.plank_rect(L, 5550, top - 70, 5750, top - 60, rgb('e8d3a2'))           # counter (art)
+    L.box(5570, top - 60, 5730, top, color=rgb('c8a26b'), inter=False)
+    for x in (5590, 5650, 5710):                                             # lemonade jugs
+        L.art([(x - 14, top - 70), (x + 14, top - 70), (x + 16, top - 112), (x - 16, top - 112)],
+              color=rgb('f6e27a'))
+        L.box(x - 16, top - 118, x + 16, top - 110, color=0xffffff, inter=False)
+    L.npc_standing(6200, S.y_at(hill, 6200), char=15, sleep=True, reverse=True)   # the vendor
+    _lawn(L, hill, BOT, 15)
+
+    # ---- 4. The kiddie pool: inflatable rims catch the deck unless you lift it ---------------
+    pool = [(6600, G), (6660, G)] + S.smooth_profile([(6660, G), (6720, G - 24), (6760, G - 24)], 20)[1:] + \
+        S.smooth_profile([(6760, G - 24), (6880, G + 46)], 20)[1:] + [(7300, G + 46)] + \
+        S.smooth_profile([(7300, G + 46), (7560, G - 24)], 20)[1:] + \
+        S.smooth_profile([(7560, G - 24), (7600, G - 24), (7660, G)], 20)[1:] + [(7750, G)]
+    S.solid_profile(L, pool, BOT)
+    # deck boards around it (art), the pool tub, its water and the inflatable rims
+    for x1, x2 in ((6600, 6670), (7650, 7750)):
+        L.box(x1, G, x2, BOT, color=rgb('8a5a33'), inter=False)
+        bx = x1
+        while bx < x2:
+            L.box(bx, G, bx + 3, G + 40, color=rgb('5e3b1a'), inter=False)
+            bx += 24
+    tub_in = [(x, y) for x, y in pool if 6740 <= x <= 7580]
+    S.art_strip(L, tub_in, [(x, BOT) for x, _ in tub_in], rgb('4ba3d6'))
+    S.band_below(L, tub_in, 0, 10, rgb('2d7fb8'))
+    L.box(6670, G, 6740, BOT, color=rgb('8a5a33'), inter=False)
+    L.box(7580, G, 7650, BOT, color=rgb('8a5a33'), inter=False)
+    for cx in (6740, 7580):
+        L.art(S.ellipse(cx, G - 6, 52, 22, 18), color=rgb('2e86de'))
+        L.art(S.ellipse(cx - 10, G - 14, 22, 7, 10), color=rgb('9fd3ff'))
+    wet = [p for p in tub_in if p[1] >= G - 4]
+    L.art(wet + [(wet[-1][0], G - 4), (wet[0][0], G - 4)], color=rgb('7fd0f2'), opacity=60)
+    L.box(6780, G - 6, 7540, G - 2, color=0xffffff, inter=False, opacity=70)
+    # a pool float with a snoozing swimmer (loose: it all ends up in the blade), a beach ball
+    L.art(S.ellipse(6960, G + 30, 22, 16, 12), color=rgb('f6d548'))           # rubber duck
+    L.circle(6976, G + 12, 22, color=rgb('f6d548'), inter=False)
+    L.art([(6994, G + 10), (7010, G + 14), (6994, G + 18)], color=rgb('f08a24'))
+    _sunbather(L, pool, 6825, 12, None)                     # a snorkeller on the sloping side
+    L.soccer(7320, G + 30)
+    S.umbrella(L, 7700, G, 230, 220, rgb('f6d548'), rgb('27ae60'))
+    L.sign(6520, G, kind=5)                                      # SLOW: pool ahead
+
+    # ---- 5. The koi pond and the seesaw ------------------------------------------------------
+    PB = G + 170
+    lawn_b = [(7750, G), (8260, G)]
+    _lawn(L, lawn_b, BOT, 16)
+    pond = [(8260, G), (8310, PB), (8950, PB), (9000, G)]
+    S.solid_profile(L, pond, BOT)
+    S.art_strip(L, pond, [(x, BOT) for x, _ in pond], rgb('5b6f73'))
+    L.art([(8285, G + 34), (8975, G + 34), (8950, PB), (8310, PB)], color=rgb('2f7f86'), opacity=85)
+    L.box(8285, G + 30, 8975, G + 36, color=rgb('9fe0e6'), inter=False, opacity=80)
+    for k, (x, y) in enumerate([(8450, PB - 40), (8680, PB - 70), (8820, PB - 30)]):
+        L.art(S.blob(x, y, 30, 11, k, 12, 0.08), color=rgb('f08a24'))
+        L.art([(x + 26, y), (x + 46, y - 12), (x + 46, y + 12)], color=rgb('f08a24'))
+    for x in (8380, 8890):
+        L.art(S.blob(x, G + 34, 46, 10, 3, 12, 0.1), color=rgb('3e8a3a'))
+    S.board_fence(L, 7770, 8160, G, 120, color=rgb('a6764a'), seed=17)
+    L.sign(7960, G, kind=10)                                     # seesaw warning sign
+    # the seesaw: a plank on a stump, pinned at its middle; a kid holds the near end down
+    px, py = 8630, G - 48
+    L.art([(px - 30, PB), (px + 30, PB), (px + 18, py + 6), (px - 18, py + 6)], color=rgb('6b4423'))
+    L.circle(px, py, 30, color=rgb('5e3b1a'), inter=False)
+    plank = L.group()
+    ang = -4.7
+    plank.rect(px, py, 900, 24, rot=ang, color=rgb('c08a52'), fixed=False, density=1.5)
+    for k in range(-4, 5):
+        dx = k * 100
+        plank.rect(px + dx * math.cos(math.radians(ang)), py + dx * math.sin(math.radians(ang)), 4, 24,
+                   rot=ang, color=rgb('8a5a33'), inter=False)
+    L.pin(px, py, plank, LEVEL, limit=True, lower=-10, upper=10)
+    # a little boarding ramp up to the plank's resting end (the plank lifts away from it)
+    end_x = px - 450 * math.cos(math.radians(ang)) + 2
+    end_top = py - 450 * math.sin(math.radians(ang)) - 12 / math.cos(math.radians(ang)) + 1
+    L.poly([(end_x - 130, G), (end_x, end_top), (end_x, G)], color=rgb('8a5a33'))
+    L.art([(end_x - 130, G), (end_x, end_top), (end_x, end_top + 6), (end_x - 110, G)], color=rgb('b07a45'))
+    L.food(8235, G - 58, kind=1)                                   # ammunition for the seesaw
+    L.circle(px, py, 12, color=rgb('9aa3ab'), inter=False)
+
+    # ---- 6. Mrs. Henderson's garden ----------------------------------------------------------
+    T = G - 40
+    garden = S.smooth_profile([(9000, G), (10020, G), (10140, T), (10940, T), (11060, T - 44),
+                               (11300, T - 44), (11420, T), (11600, T), (11720, G), (12420, G)])
+    S.hedge(L, 9040, 9380, G, 170, seed=18)
+    S.arbor(L, 9420, G, 230, 300, seed=19)
+    S.flower_bed(L, 9680, 10000, G, [rgb('e84a6f'), rgb('f6d548'), rgb('ffffff'), rgb('b05bd6')], seed=20)
+    for x in (9720, 9820, 9920):
+        S.gnome(L, x, G - 10, hat=rgb('d63a2a') if x != 9820 else rgb('2e86de'))
+    S.topiary(L, 10090, G - 20, 0)
+    S.greenhouse(L, 10200, 10820, T, 250)
+    for x in range(10240, 10800, 70):
+        S.flower(L, x, T - 4, 70 + (x % 3) * 12, rgb('e84a6f') if x % 140 else rgb('f6d548'))
+    # the prize display: a ribboned show stand (solid, with ramps), the prize pumpkin on it, and
+    # its owner. The stand is part of the ground profile; its art is the red skirt and boards.
+    stand = [(x, y) for x, y in garden if 10940 <= x <= 11420]
+    S.art_strip(L, stand, [(x, T) for x, _ in stand], rgb('b0302a'))
+    for k in range(10):
+        bx = 11070 + k * 23
+        L.art([(bx, T - 44), (bx + 23, T - 44), (bx + 11.5, T - 22)], color=0xffffff if k % 2 else rgb('2a5aa8'))
+    L.box(10990, T - 300, 11360, T - 250, color=rgb('2a5aa8'), inter=False)
+    L.text(11006, T - 296, 'COUNTY FAIR WINNER', size=17, color=0xffffff, font=5)
+    S.plank_rect(L, 11000, T - 250, 11010, T - 44, rgb('6b4423'))
+    S.plank_rect(L, 11340, T - 250, 11350, T - 44, rgb('6b4423'))
+    L.art([(11316, T - 180), (11344, T - 180), (11352, T - 130), (11330, T - 146), (11308, T - 130)],
+          color=rgb('2a5aa8'))
+    L.circle(11330, T - 200, 26, color=rgb('f6d548'), inter=False)
+    pumpkin = L.food(11180, T - 76, kind=2)
+    henderson = L.npc_standing(11370, S.y_at(garden, 11370), char=13, sleep=True, reverse=True, hold=True,
+                               pose=(0, 0, -90, -120, -60, 0, 0, 0, 0))
+    hey = _speech(L, 11200, T - 330, 330, 74, 'Young man! Those are\nPRIZE vegetables!', size=18)
+    L.trigger(10600, T - 120, 120, 240, hey)
+    gasp = _speech(L, 11340, T - 330, 250, 74, 'MY PUMPKIN!\n*faints*', size=20)
+    # b=4: only the pumpkin trips these. The three zones surround its resting place (left, right,
+    # above), so it fires as soon as the pumpkin is knocked off or pulled up into the deck.
+    for zx, zy, zw, zh in ((11060, T - 100, 140, 120), (11300, T - 100, 140, 120),
+                           (11180, T - 190, 120, 100)):
+        L.trigger(zx, zy, zw, zh, [(pumpkin, [])] + gasp + [(henderson, [(0,)])], by=4)
+    S.birdbath(L, 11850, G)
+    S.topiary(L, 12000, G, 1)
+    for x in (12100, 12150, 12200, 12250):
+        S.gnome(L, x, G, hat=rgb('d63a2a') if x % 100 else rgb('27ae60'))
+    S.hedge(L, 11630, 11800, G, 120, seed=21)
+    _lawn(L, garden, BOT, 22)
+
+    # ---- 7. The vegetable patch, the fence, the hedge jump and the street --------------------
+    S.tree(L, 12350, G, 500, seed=23, leaf=rgb('3f7f2a'))
+    # the scarecrow and the patch: a row of real produce for the blade
+    S.seg(L, 12650, G, 12650, G - 210, 10, rgb('6b4423'))
+    S.seg(L, 12570, G - 160, 12730, G - 160, 9, rgb('6b4423'))
+    L.art([(12615, G - 170), (12685, G - 170), (12700, G - 90), (12600, G - 90)], color=rgb('6a8fbf'))
+    L.circle(12650, G - 196, 46, color=rgb('e8c98a'), inter=False)
+    L.art([(12610, G - 210), (12690, G - 210), (12670, G - 250), (12630, G - 250)], color=rgb('7a5230'))
+    L.box(12596, G - 214, 12704, G - 204, color=rgb('7a5230'), inter=False)
+    L.art(S.blob(12650, G - 4, 220, 14, 40, 20, 0.05), color=rgb('4a2f1a'))
+    for x, kind in ((12480, 2), (12620, 1), (12760, 3)):
+        L.food(x, G - 30, kind=kind)
+    # the garden shed (backdrop) with its sign, and the rickety boundary fence in front of it:
+    # light loose boards that scatter
+    sx1, sx2 = 12860, 13160
+    L.box(sx1, G - 230, sx2, G, color=rgb('a9744a'), inter=False)
+    for bx in range(sx1, sx2, 24):
+        L.box(bx, G - 230, bx + 3, G, color=rgb('7a5230'), inter=False)
+    L.art([(sx1 - 30, G - 230), (sx2 + 30, G - 230), (sx2 + 10, G - 262), (sx1 - 10, G - 262)], color=rgb('7a3b32'))
+    L.box(sx1 + 120, G - 170, sx1 + 240, G, color=rgb('6b4a30'), inter=False)
+    S.text_plate(L, sx1 + 112, G - 222, 136, 30, 0xffffff, rgb('7a3b32'))
+    L.text(sx1 + 122, G - 218, 'NO MOWERS', size=16, color=rgb('7a3b32'), font=5)
+    L.box(12930, G - 8, 13110, G, color=rgb('5e3b1a'), inter=False)
+    lawn_c = S.smooth_profile([(12420, G), (13180, G), (13920, G - 120), (13980, G - 120)])
+    _lawn(L, lawn_c, BOT, 24)
+    # the hedge: a solid, round-topped hump you either jump or crawl over
+    hedge_pts = S.smooth_profile([(13980, G - 120), (14110, G - 150), (14190, G - 150), (14300, G - 90)], 20)
+    street = S.smooth_profile([(14300, G - 90), (14500, G + 30)], 25) + [(15800, G + 30)]
+    S.solid_profile(L, hedge_pts + street[1:], BOT)
+    S.art_strip(L, hedge_pts, [(x, BOT) for x, _ in hedge_pts], SOIL)
+    L.art(S.blob(14140, G - 112, 165, 60, 30, 24, 0.07, flat_bottom=True), color=rgb('2f6b2a'))
+    S.art_strip(L, hedge_pts, [(x, y + 40) for x, y in hedge_pts], rgb('2f6b2a'))
+    L.art(S.blob(14110, G - 150, 90, 20, 31, 16, 0.1), color=rgb('4c8f3a'))
+    # the rickety boundary fence along the hedge top: light loose boards that fall down the bank
+    _loose_planks(L, 14112, 14188, G - 150, 140, rgb('d9b98a'), density=0.15)
+    bank = street[:-1]
+    S.art_strip(L, bank, [(x, BOT) for x, _ in bank], SOIL)
+    S.band_below(L, bank, -1, 18, TURF)
+    _pavement(L, 14500, 14820, BOT, joint=80, y=G + 30, solid=False)
+    road = [(14820, G + 30), (15800, G + 30)]
+    S.art_strip(L, road, [(x, BOT) for x, _ in road], rgb('4a4a4f'))
+    L.box(14820, G + 30, 15800, G + 36, color=rgb('3a3a3e'), inter=False)
+    for x in range(14900, 15800, 160):
+        L.box(x, G + 60, x + 70, G + 66, color=rgb('f1c40f'), inter=False)
+    # the HOA office and the finish
+    S.suburban_house(L, 14860, G + 30, 560, 230, wall=rgb('d7e3ee'), roof_c=rgb('34495e'),
+                     door_c=rgb('7b2e2e'), shutters=rgb('34495e'), chimney=False, porch=True, hip=True, seed=25)
+    L.box(14920, G - 214, 15360, G - 174, color=rgb('f4efe4'), inter=False)
+    L.text(14960, G - 210, 'MAPLE COURT H.O.A.', size=20, color=rgb('34495e'), font=5)
+    S.plank_rect(L, 14560, G - 120, 14570, G + 30, rgb('6b4423'))
+    S.plank_rect(L, 14690, G - 120, 14700, G + 30, rgb('6b4423'))
+    S.text_plate(L, 14540, G - 190, 180, 70, rgb('2a5aa8'), 0xffffff)
+    L.text(14554, G - 184, 'LAWN OF\nTHE MONTH', size=18, color=0xffffff, font=5)
+    L.finish(14960, G + 30)
+    # the inspection committee waits just past the finish line: you win first, then mow them
+    for k, (x, c) in enumerate(((15220, 2), (15290, 7), (15360, 9))):
+        L.npc_standing(x, G + 30, char=c, sleep=True, reverse=True, hold=True,
+                       pose=(0, 0, -70, -100, -40, 0, 0, 0, 0))
+    L.box(15680, G - 600, 15720, BOT, color=rgb('4a4a4f'), opacity=0)            # stage end
     return L
 
 
@@ -815,54 +1099,344 @@ def ex_02():
     return L
 
 
+TEMPLE_SKY = rgb('a6d8c4')
+TSTONE = rgb('b79c68')          # sunlit sandstone
+TSTONE_DARK = rgb('6f5a3a')
+TINTERIOR = rgb('5a4831')       # torch-lit interior walls
+TFLOOR = rgb('8d7550')
+JSOIL = rgb('5b3f2a')
+JMOSS = rgb('4f8a3a')
+CRYSTAL = rgb('62c9e0')
+
+
+def _jungle_texture(L, x, y, rng):
+    if rng.random() < 0.55:
+        S.grass_tuft(L, x, y + 3, S.shade(JMOSS, rng.uniform(0.9, 1.2)), h=rng.uniform(14, 30))
+    if rng.random() < 0.3:
+        S.pebble(L, x + 20, y + rng.uniform(30, 120), S.shade(JSOIL, 1.35), r=rng.uniform(5, 10), seed=int(x))
+    if rng.random() < 0.15:
+        S.polyline_art(L, [(x, y + 10), (x + 30, y + 40), (x + 70, y + 46)], 6, S.shade(JSOIL, 0.7))
+
+
+def _floor_texture(L, x, y, rng):
+    L.box(x, y + 2, x + 3, y + 30, color=S.shade(TFLOOR, 0.6), inter=False)
+    if rng.random() < 0.25:
+        S.polyline_art(L, [(x + 20, y + 4), (x + 34, y + 14), (x + 30, y + 26)], 3, S.shade(TFLOOR, 0.55))
+
+
+def _jungle_ground(L, profile, bottom, seed):
+    S.terrain(L, profile, bottom, JSOIL,
+              strata=[(30, 90, S.shade(JSOIL, 1.15)), (160, 176, S.shade(JSOIL, 0.75))],
+              lip=JMOSS, lip_depth=20, texture=_jungle_texture, seed=seed)
+    S.band_below(L, profile, -1, 6, S.shade(JMOSS, 1.25))
+
+
+def _stone_floor(L, profile, bottom, seed, color=TFLOOR):
+    S.terrain(L, profile, bottom, S.shade(color, 0.55),
+              strata=[(0, 34, color), (34, 40, S.shade(color, 0.6)), (90, 96, S.shade(color, 0.45))],
+              texture=_floor_texture, seed=seed)
+    S.band_below(L, profile, -1, 5, S.shade(color, 1.2))
+
+
+def _ceiling(L, line, top, color=TSTONE_DARK, solid=True, trim=None):
+    """A ceiling whose underside follows `line` (left to right): invisible collision quads from
+    the underside up to `top`, a stone fill and a lit lower lip."""
+    if solid:
+        for (x1, y1), (x2, y2) in zip(line, line[1:]):
+            if y1 == y2:
+                L.box(x1, top, x2, y1, color=color, opacity=0)
+            else:
+                L.poly([(x1, top), (x2, top), (x2, y2), (x1, y1)], color=color, opacity=0)
+    S.art_strip(L, [(x, top) for x, _ in line], line, color)
+    S.band_below(L, line, -14, 0, trim if trim is not None else S.shade(color, 0.7))
+
+
+def _pendulum_axe(L, px, py, arm, start_deg, head=rgb('9aa3ab'), wood=rgb('6b4423')):
+    """A great axe on a free pin: handle + crescent blade, built already swung `start_deg` from
+    vertical (positive = to the right) so gravity starts the swing. Returns its group."""
+    a = math.radians(start_deg)
+    ux, uy = math.sin(a), math.cos(a)          # along the arm, pointing away from the pivot
+    vx, vy = uy, -ux                            # across the arm
+
+    def P(along, across):
+        return (px + ux * along + vx * across, py + uy * along + vy * across)
+    g = L.group()
+    hx, hy = P(arm / 2.0, 0)
+    g.rect(hx, hy, 18, arm, rot=-start_deg, color=wood, fixed=False, density=1.0)
+    blade = [P(arm - 70, -10), P(arm - 90, -60), P(arm - 60, -110), P(arm, -122), P(arm + 60, -110),
+             P(arm + 90, -60), P(arm + 70, -10)]
+    g.poly(blade, color=head, fixed=False, density=6.0)
+    g.poly([P(arm - 60, -20), P(arm - 74, -60), P(arm - 50, -96), P(arm, -106), P(arm + 50, -96),
+            P(arm + 74, -60), P(arm + 60, -20)], color=S.shade(head, 1.18), inter=False)
+    g.poly([P(arm - 36, -14), P(arm + 36, -14), P(arm + 30, 14), P(arm - 30, 14)], color=rgb('4a4a4a'),
+           fixed=False, density=4.0)
+    L.pin(px, py, g, LEVEL)
+    return g
+
+
 def ex_03():
-    """Idol Hands (medium): the idol chamber. Grab the golden idol from its pedestal and the
-    temple turns on you: dart guns in the walls, a boulder, spikes popping through the floor
-    (glass covers that shatter), swinging axes (wrecking balls) and a rail over the final pit."""
-    L = Level('07_explorer_guy/03_idol_hands.xml', 'Idol Hands', 7, (450, G - RIDE), bg=0,
-              bgc=rgb('3a2e1c'))
-    title(L, 160, G, 'IDOL HANDS', 'The Golden Idol of Ka-Ching.\n'
-          'Legend says whoever takes it will be cursed.\nLegend also says it is worth $40 million.',
-          color=rgb('f6e7b0'))
-    temple_wall(L, 0, 9000, G - 700, G)
-    L.box(0, G - 760, 9000, G - 640, color=TEMPLE, outline=TEMPLE_DARK)          # ceiling
-    L.ground([(0, G), (2600, G)], bottom=G + 600, color=TEMPLE)
-    for x in (900, 1500):
-        L.box(x, G - 640, x + 60, G, color=TEMPLE, inter=False)
-    # the idol on its pedestal: a loose gold block over a trigger plate
-    L.box(2370, G - 120, 2430, G, color=TEMPLE_DARK, inter=False)               # pedestal (art)
-    idol = L.rect(2400, G - 150, 40, 60, color=GOLD, outline=rgb('8a6d00'), fixed=False, sleep=True, density=2)
-    L.text(2200, G - 330, 'Drive into the idol.\nWhat could go wrong?', size=16, color=GOLD)
-    # traps, armed by the idol plate (the player OR the idol leaving it)
-    darts = [L.arrow_gun(x, G - 540, rot=90, fixed=True, rate=4) for x in (3000, 3500, 4000)]
-    boulder = L.circle(1200, G - 560, 200, color=STONE, outline=STONE_DARK, sleep=True, density=5)
-    L.box(1000, G - 450, 1400, G - 420, color=TEMPLE)
-    note = L.text(2700, G - 330, 'The idol was the load-bearing\npart of the temple. Classic.', size=16,
-                  color=RED, opacity=0)
-    L.trigger(2400, G - 60, 160, 120, [(boulder, [(0,), (4, 5, 0, 1)]), show_text(note, 0.2)], by=1)
-    # dart corridor (guns in the ceiling shoot down)
-    L.ground([(2600, G), (4600, G)], bottom=G + 600, color=TEMPLE)
-    # pop-up spikes under glass covers: the glass shatters when you roll over it
-    for x in (3300, 4300):
-        L.glass(x, G - 150, w=14, h=300, strength=3)
-    pit(L, 4600, 5400, G, depth=400, color=TEMPLE_DARK, walls=TEMPLE)
-    rail_span(L, 4580, 5420, G)
-    L.text(4300, G - 330, 'Crystal doors and a spike pit.\nAncient engineering was mostly vibes.', size=15,
-           color=rgb('f6e7b0'))
-    # axes: wrecking balls swinging from the ceiling, released by a trigger
-    L.ground([(5400, G), (7000, G)], bottom=G + 600, color=TEMPLE)
-    axes = [L.wrecking_ball(x, G - 640, rope=500) for x in (5800, 6250, 6700)]
-    L.trigger(5500, G - 100, 100, 200, [(a, []) for a in axes])
-    # final pit with a rail and the exit ramp into daylight
-    pit(L, 7000, 7900, G, depth=500, color=TEMPLE_DARK, walls=TEMPLE)
-    rail_span(L, 6980, 7920, G)
-    L.ground([(7900, G), (9000, G), (9600, G - 200), (11000, G - 200)], bottom=G + 600, color=TEMPLE)
-    L.box(9000, G - 760, 9060, G - 300, color=TEMPLE)
-    L.finish(10300, G - 200)
-    L.text(9800, G - 520, 'Idol acquired. Curse acquired.\nNet worth: complicated.', size=16, color=BLACK)
-    L.box(11000, G - 800, 11100, G + 600, color=STONE_DARK)
-    for x in (9900, 10050):
-        L.token(x, G - 260, 6)
+    """Idol Hands (medium): the Temple of the Grasping Hand. A jungle approach past the explorer's
+    camp, a causeway to a carved face whose mouth is the door, and the idol chamber. The way on is
+    sealed; knock the golden idol off its dais (only the idol trips the trap, b=4 triggers) and the
+    temple wakes: the stone door grinds open and a boulder drops from its alcove behind you. Outrun
+    it down a dipping corridor and duck under a low arch it cannot pass, run a dart corridor (wall
+    and ceiling dart guns that aim), cross the crystal hall (glass panes, a spike pit on a rail),
+    time two swinging axes, and escape a collapsing gallery through a cracked wall into the sunset."""
+    L = Level('07_explorer_guy/03_idol_hands.xml', 'Idol Hands', 7, (360, G - RIDE), bg=0, bgc=TEMPLE_SKY)
+    BOT = G + 900
+    T1 = G - 120            # temple terrace / idol chamber floor
+    T2 = G + 300            # lower galleries
+    # ---- far layers: the lost city on the horizon, mist, the canopy -------------------------
+    L.box(0, G - 900, 2600, G + 100, color=S.shade(TEMPLE_SKY, 1.05), inter=False)
+    S.far_ruins(L, 60, 2500, G - 40, TEMPLE_SKY, seed=1, t=0.62)
+    for k, x in enumerate((320, 820, 1300, 1820, 2350)):
+        S.jungle_tree(L, x, G - 10, 560 + (k % 2) * 80, seed=k, haze_to=TEMPLE_SKY, haze_t=0.45)
+    L.box(0, G - 160, 2600, G - 40, color=0xffffff, opacity=18, inter=False)       # ground mist
+
+    # ---- 1. Jungle approach: the camp, a causeway up to the temple face ----------------------
+    jungle = S.smooth_profile([(0, G), (650, G), (950, G - 24), (1250, G + 12), (1500, G),
+                               (1950, T1), (2420, T1)], 50)
+    for k, x in enumerate((420, 1080, 1600)):
+        S.jungle_tree(L, x, S.y_at(jungle, x) + 6, 600 + k * 40, seed=10 + k, leaf=rgb('2f7a3a'))
+    # expedition camp: tent, crates, lantern, a map table
+    L.art([(40, G), (300, G), (170, G - 190)], color=rgb('c9b27a'))
+    L.art([(170, G), (230, G), (170, G - 120)], color=rgb('6b5a3a'))
+    L.art([(40, G), (60, G), (170, G - 190), (160, G - 190)], color=rgb('a8925c'))
+    for bx, by, w in ((520, G, 70), (590, G, 60), (545, G - 64, 56)):
+        L.box(bx - w / 2.0, by - w, bx + w / 2.0, by, color=rgb('9c7444'), inter=False)
+        L.box(bx - w / 2.0, by - w * 0.55, bx + w / 2.0, by - w * 0.45, color=rgb('6e4f2c'), inter=False)
+    S.seg(L, 640, G, 640, G - 110, 6, rgb('3a3a3a'))
+    L.circle(640, G - 120, 22, color=rgb('ffd36b'), inter=False)
+    L.circle(640, G - 120, 70, color=rgb('ffd36b'), opacity=18, inter=False)
+    L.text(250, G - 330, 'IDOL HANDS', size=34, color=rgb('3a2a14'), font=5)
+    L.text(252, G - 288, 'Space clamps to rails. Ctrl crouches.', size=15, color=rgb('3a2a14'), font=2)
+    for x, h in ((820, 70), (900, 110), (1350, 90), (1430, 60), (1700, 80)):
+        S.fern(L, x, S.y_at(jungle, x) + 4, h, seed=x)
+    # fallen masonry and a toppled column along the causeway
+    L.art([(1180, G - 6), (1330, G - 34), (1350, G - 4), (1200, G + 20)], color=S.shade(TSTONE, 0.9))
+    for x, s in ((1560, 1.0), (1640, 0.7)):
+        L.art(S.blob(x, S.y_at(jungle, x) - 18 * s, 40 * s, 26 * s, int(x), 10, 0.15), color=S.shade(TSTONE, 0.85))
+    # causeway balustrade
+    for x in range(1560, 1960, 70):
+        y = S.y_at(jungle, x)
+        L.box(x - 10, y - 70, x + 10, y, color=S.shade(TSTONE, 0.9), inter=False)
+    S.polyline_art(L, [(x, S.y_at(jungle, x) - 76) for x in range(1540, 1980, 40)], 12, TSTONE)
+    _jungle_ground(L, [p for p in jungle if p[0] <= 1500], BOT, 2)
+    causeway = [p for p in jungle if p[0] >= 1500]
+    S.terrain(L, causeway, BOT, S.shade(TSTONE, 0.6), strata=[(0, 30, TSTONE), (30, 36, TSTONE_DARK)])
+    for x in range(1520, 2420, 64):
+        y = S.y_at(causeway, x)
+        L.box(x, y + 2, x + 3, y + 30, color=TSTONE_DARK, inter=False)
+
+    # ---- the temple facade: a stepped front around a great carved mask whose mouth is the door
+    FX1, FX2 = 1980, 2600
+    for k in range(5):
+        inset = k * 60
+        L.box(FX1 + inset, T1 - 260 - k * 120, FX2 - inset, T1 - 140 - k * 120, color=S.shade(TSTONE, 1 - 0.04 * k),
+              inter=False)
+        L.box(FX1 + inset, T1 - 150 - k * 120, FX2 - inset, T1 - 140 - k * 120, color=TSTONE_DARK, inter=False)
+    S.stone_wall(L, FX1, T1 - 260, FX2, T1, TSTONE, seed=3, bh=52)
+    S.stone_face(L, 2300, T1 - 440, 440, 320, S.shade(TSTONE, 0.95))
+    S.carved_band(L, FX1, FX2, T1 - 300, 40, S.shade(TSTONE, 0.9), kind=0)
+    for x in (2030, 2610):
+        S.column(L, x, T1 - 300, T1, 66, S.shade(TSTONE, 1.05))
+        S.vine(L, x + 20, T1 - 300, 220, seed=x)
+    S.vine(L, 2150, T1 - 640, 300, seed=4)
+    S.vine(L, 2470, T1 - 600, 360, seed=5)
+    # the mouth: the way in, a dark throat under the mask's teeth
+    L.art([(2370, T1), (2370, T1 - 250), (2400, T1 - 280), (2560, T1 - 280), (2590, T1 - 250), (2590, T1)],
+          color=rgb('241b10'))
+    for k in range(6):
+        tx = 2380 + k * 34
+        L.art([(tx, T1 - 280), (tx + 30, T1 - 280), (tx + 15, T1 - 246)], color=S.shade(TSTONE, 1.05))
+
+    # ---- 2. Entrance passage and the idol chamber --------------------------------------------
+    # The mouth: a dark doorway 300 px tall. Interior walls are torch-lit masonry.
+    S.stone_wall(L, 2640, T1 - 700, 4500, T1, TINTERIOR, seed=6, bw=(110, 170), bh=60, vary=0.1)
+    # chamber architecture: pillars, recesses with statues, a frieze, the light well
+    S.carved_band(L, 2900, 4300, T1 - 520, 46, S.shade(TINTERIOR, 1.2), kind=1)
+    for x in (2980, 4220):
+        S.column(L, x, T1 - 470, T1, 80, S.shade(TINTERIOR, 1.35))
+    for nx in (3250, 4000):
+        L.box(nx - 70, T1 - 330, nx + 70, T1 - 60, color=S.shade(TINTERIOR, 0.6), inter=False)
+        L.art(S.ellipse(nx, T1 - 330, 70, 50, 12, 180, 360), color=S.shade(TINTERIOR, 0.6))
+        # a kneeling guardian statue in the niche, its hands raised
+        st = S.shade(TINTERIOR, 1.45)
+        L.art([(nx - 40, T1 - 60), (nx + 40, T1 - 60), (nx + 30, T1 - 180), (nx - 30, T1 - 180)], color=st)
+        L.circle(nx, T1 - 210, 46, color=st, inter=False)
+        L.box(nx - 28, T1 - 222, nx + 28, T1 - 212, color=S.shade(st, 0.6), inter=False)
+        for s in (-1, 1):
+            S.seg(L, nx + s * 30, T1 - 170, nx + s * 52, T1 - 260, 16, st)
+        S.torch(L, nx + 120, T1 - 230)
+    S.light_shaft(L, 3700, T1 - 640, 3700, T1 - 40, 120, 300)
+    for x, w in ((3420, 150), (3990, 170)):
+        S.gold_pile(L, x, T1, w, 46, seed=x)
+    # the dais: a ramped plinth in the floor, the idol on top
+    chamber = S.smooth_profile([(2420, T1), (3480, T1), (3600, T1 - 40), (3800, T1 - 40), (3920, T1),
+                                (4600, T1)], 40)
+    dais = [p for p in chamber if 3480 <= p[0] <= 3920]
+    S.art_strip(L, dais, [(x, T1 + 2) for x, _ in dais], S.shade(TSTONE, 0.85))
+    S.carved_band(L, 3600, 3800, T1 - 40, 36, S.shade(TSTONE, 0.75), kind=2)
+    idol = L.group()
+    idol.rect(3700, T1 - 40 - 34, 44, 68, color=rgb('e5b80b'), fixed=False, density=2.0)
+    idol.art([(3682, T1 - 108), (3718, T1 - 108), (3724, T1 - 134), (3700, T1 - 150), (3676, T1 - 134)], color=rgb('e5b80b'))
+    idol.art([(3684, T1 - 98), (3716, T1 - 98), (3712, T1 - 80), (3688, T1 - 80)], color=rgb('b8860b'))
+    idol.circle(3692, T1 - 126, 8, color=rgb('c0392b'), inter=False)
+    idol.circle(3708, T1 - 126, 8, color=rgb('c0392b'), inter=False)
+    idol.art([(3678, T1 - 60), (3722, T1 - 60), (3716, T1 - 44), (3684, T1 - 44)], color=rgb('ffe08a'))
+    # the boulder, waiting in its alcove above the entrance
+    L.box(2660, T1 - 420, 3080, T1 - 380, color=S.shade(TSTONE, 0.7))                     # alcove ledge
+    L.box(2660, T1 - 700, 3080, T1 - 640, color=TSTONE_DARK, inter=False)
+    boulder = L.circle(2830, T1 - 380 - 128, 256, color=rgb('8a7f70'), sleep=True, density=3.0)
+    # the sealed way on: a stone slab on a slide, held down by its motor until the idol moves
+    door = L.group()
+    door.rect(4340, T1 - 165, 90, 330, color=S.shade(TSTONE, 0.8), fixed=False, density=3.0)
+    door.rect(4340, T1 - 165, 50, 250, color=S.shade(TSTONE, 0.65), inter=False)
+    door.circle(4340, T1 - 200, 40, color=rgb('e5b80b'), inter=False)
+    dj = L.slider(4340, T1 - 165, door, LEVEL, axis=-90, lower=0, upper=360, motor=True, force=5e6, speed=0)
+    L.box(4280, T1 - 700, 4400, T1 - 330, color=TSTONE_DARK, inter=False)                # door lintel (art)
+    _stone_floor(L, chamber, BOT, 7)
+    L.box(2370, T1 - 900, 2600, T1 - 280, color=TSTONE_DARK, opacity=0)                  # solid roof of the mouth
+    _ceiling(L, [(2600, T1 - 700), (4300, T1 - 700)], T1 - 900, solid=False)
+    rumble = L.text(3560, T1 - 330, '...it was load-bearing.', size=18, color=rgb('ffd36b'), font=5, opacity=0)
+    # The trap: one master trigger (b=5, fired by the idol triggers below), in this order:
+    # the door motor lifts the slab, the boulder rolls off its ledge, the line appears.
+    trap = L.trigger(3700, T1 - 200, 40, 40, [(dj, [(1, 4, 0.4)]),
+                                               (boulder, [(0,), (4, 3, 0, 1)]),
+                                               (rumble, [(0, 100, 0.3)])], by=5)
+    # b=4: only the idol body trips these. Left, right and above its resting place.
+    for zx, zy, zw, zh in ((3610, T1 - 110, 110, 130), (3790, T1 - 110, 110, 130), (3700, T1 - 230, 120, 90)):
+        L.trigger(zx, zy, zw, zh, [(idol, []), (trap, [(0,)])], by=4)
+
+    # ---- 3. Boulder run: down, over a hump, down again, then a low arch only you fit under ---
+    run = S.smooth_profile([(4600, T1), (4700, T1), (5350, G + 200), (5650, G + 130), (6200, T2), (7000, T2)], 50)
+    run_ceiling = [(x, y - 400) for x, y in run]
+    S.stone_wall(L, 4500, T1 - 700, 7000, T2, S.shade(TINTERIOR, 0.9), seed=8, bw=(120, 200), bh=64)
+    for k, x in enumerate(range(4800, 6900, 420)):
+        y = S.y_at(run, x)
+        S.torch(L, x, y - 230, lit=(k % 2 == 0))
+    for x in (5000, 5900):
+        y = S.y_at(run, x)
+        L.box(x - 60, y - 320, x + 60, y - 120, color=S.shade(TINTERIOR, 0.6), inter=False)
+        S.skull(L, x - 20, y - 140)
+        S.skull(L, x + 22, y - 140, 0.9)
+    # the low arch: you fit if you crouch, the boulder (256) never will
+    AX = 6720
+    L.box(AX - 70, T2 - 520, AX + 70, T2 - 205, color=S.shade(TSTONE, 0.75))
+    L.art(S.ellipse(AX, T2 - 205, 70, 24, 12, 0, 180), color=S.shade(TSTONE, 0.75))
+    S.carved_band(L, AX - 70, AX + 70, T2 - 300, 40, S.shade(TSTONE, 0.6), kind=1)
+    for k in range(3):
+        S.skull(L, AX - 120 + k * 40, T2 - 16, 0.8)
+    L.sign(AX - 260, T2, kind=7)                                         # falling-boulder warning
+    _stone_floor(L, run, BOT, 9)
+    _ceiling(L, run_ceiling, T2 - 1000)
+
+    # ---- 4. The dart corridor: guns in carved faces in the ceiling and in the end wall --------
+    D1, D2 = 7000, 8600
+    S.stone_wall(L, D1, T2 - 400, D2, T2, rgb('6e4b36'), seed=10, bw=(70, 110), bh=44, vary=0.12)
+    S.carved_band(L, D1, D2, T2 - 400, 50, rgb('8a5a3a'), kind=0)
+    for x in range(D1 + 120, D2, 220):
+        L.box(x, T2 - 40, x + 90, T2 - 30, color=rgb('9c6a46'), inter=False)            # pressure tiles
+    for k, x in enumerate((7350, 7750, 8150)):
+        S.stone_face(L, x, T2 - 362, 150, 76, rgb('9c6a46'), mouth=False, eye=rgb('ff5533'))
+        L.arrow_gun(x, T2 - 330, rot=180, rate=2 + k)
+    # a fallen explorer pinned by darts, as a warning
+    L.art([(7500, T2 - 8), (7600, T2 - 14), (7610, T2), (7500, T2)], color=rgb('c9b27a'))
+    S.skull(L, 7490, T2 - 18, 0.8)
+    for k in range(3):
+        S.seg(L, 7530 + k * 25, T2 - 12, 7520 + k * 25, T2 - 60, 3, rgb('5a4030'))
+    darts = [(7000, T2), (8600, T2)]
+    _stone_floor(L, darts, BOT, 11, color=rgb('8a6a4a'))
+    _ceiling(L, [(D1, T2 - 400), (D2, T2 - 400)], T2 - 1000, color=rgb('4a3324'))
+
+    # ---- 5. The crystal hall: glass panes, a spike pit on a rail, crystal spikes overhead ----
+    C1, C2 = 8600, 10500
+    L.box(C1, T2 - 520, C2, T2, color=rgb('1f3340'), inter=False)
+    S.stone_wall(L, C1, T2 - 520, C2, T2 - 330, rgb('2c4a58'), seed=12, bw=(90, 160), bh=60)
+    for k, x in enumerate(range(C1 + 80, C2, 160)):
+        S.crystal(L, x, T2 - 10 - (k % 3) * 30, 90 + (k * 37) % 80, rgb('62c9e0') if k % 2 else rgb('8fe3f0'))
+    for x in (9000, 9120, 9900, 10150):
+        S.crystal(L, x, T2 - 480, 120, rgb('9fe8f5'), rot=180)
+    hall = [(C1, T2), (9300, T2)]
+    _stone_floor(L, hall, BOT, 13, color=rgb('3d5a66'))
+    L.glass(9000, T2 - 130, w=16, h=260, strength=3, sleep=True)
+    L.glass(9180, T2 - 130, w=16, h=260, strength=3, sleep=True)
+    # the pit: spikes at the bottom, a rail across (clamp on or roll it), a dart gun in the far wall
+    pit = [(9300, T2), (9320, T2 + 400), (9980, T2 + 400), (10000, T2)]
+    L.box(9300, T2 - 2, 10000, T2 + 400, color=rgb('16262e'), inter=False)              # pit depths
+    S.solid_profile(L, pit, BOT)
+    S.art_strip(L, pit, [(x, BOT) for x, _ in pit], rgb('243a44'))
+    L.spikes_on(9650, T2 + 400, count=40)
+    for k, x in enumerate(range(9360, 9960, 90)):
+        S.crystal(L, x, T2 + 380, 60 + (k % 3) * 20, rgb('8fe3f0'))
+    rail_span(L, 9280, 10020, T2)
+    for x in (9400, 9650, 9900):
+        S.seg(L, x, T2 + 9, x, T2 + 380, 10, rgb('5a6a70'))
+    hall2 = [(10000, T2), (C2, T2)]
+    _stone_floor(L, hall2, BOT, 14, color=rgb('3d5a66'))
+    L.spikes(10300, T2 - 300, count=30, rot=180)                       # crystal spikes in the roof
+    _ceiling(L, [(C1, T2 - 520), (10150, T2 - 520), (10200, T2 - 285), (10450, T2 - 285), (C2, T2 - 400)],
+             T2 - 1000, color=rgb('2c4a58'))
+
+    # ---- 6. The axe hall: two great axes on pins, out of step ---------------------------------
+    A1, A2 = 10500, 12000
+    S.stone_wall(L, A1, T2 - 640, A2, T2, S.shade(TINTERIOR, 1.05), seed=15, bw=(140, 220), bh=70)
+    for x in (10620, 11250, 11880):
+        S.column(L, x, T2 - 560, T2, 70, S.shade(TINTERIOR, 1.3), broken=(x == 11250), seed=x)
+    S.torch(L, 10900, T2 - 260)
+    S.torch(L, 11600, T2 - 260)
+    _pendulum_axe(L, 10950, T2 - 600, 420, 55)
+    _pendulum_axe(L, 11500, T2 - 600, 420, -35)
+    for x in (10950, 11500):
+        L.box(x - 30, T2 - 640, x + 30, T2 - 586, color=rgb('3a3a3a'), inter=False)
+    axes_floor = [(A1, T2), (A2, T2)]
+    _stone_floor(L, axes_floor, BOT, 16)
+    _ceiling(L, [(A1, T2 - 640), (A2, T2 - 640)], T2 - 1100)
+
+    # ---- 7. The collapsing gallery and the way out -------------------------------------------
+    out = S.smooth_profile([(12000, T2), (12300, T2), (12900, G + 40), (13300, G + 40)], 50)
+    S.stone_wall(L, 12000, G - 500, 13400, T2, S.shade(TINTERIOR, 0.95), seed=17, bw=(100, 160), bh=58)
+    gallery_ceiling = [(x, y - 330) for x, y in out]
+    # ceiling blocks that drop behind you, one after another
+    blocks = []
+    for k, x in enumerate(range(12150, 13200, 110)):
+        y = S.y_at(out, x) - 330 + 32
+        blocks.append(L.rect(x, y, 96, 60, color=S.shade(TSTONE, 0.8 + 0.05 * (k % 3)), fixed=False,
+                             sleep=True, density=1.2))
+    for k, x in enumerate(range(12150, 13200, 220)):
+        y = S.y_at(out, x)
+        L.trigger(x + 60, y - 120, 60, 240, [(blocks[min(len(blocks) - 1, 2 * k)], [(0,)]),
+                                              (blocks[min(len(blocks) - 1, 2 * k + 1)], [(0,)])], delay=0.4)
+    _stone_floor(L, out, BOT, 18)
+    _ceiling(L, gallery_ceiling, G - 700)
+    # the cracked outer wall: loose, light blocks in the doorway
+    for row in range(4):
+        for col in range(2):
+            L.rect(13330 + col * 52, G + 40 - 34 - row * 66, 50, 64, color=S.shade(TSTONE, 0.9 + 0.04 * ((row + col) % 2)),
+                   fixed=False, sleep=True, density=0.25)
+    L.box(13300, G - 600, 13440, G - 230, color=TSTONE_DARK)                         # wall above the breach
+
+    # ---- outside: sunset over the canopy, a slope down to the clearing and the jeep ----------
+    L.box(13440, G - 900, 15400, G + 100, color=rgb('f6b26b'), inter=False)
+    L.box(13440, G - 900, 15400, G - 560, color=rgb('e07a5f'), inter=False)
+    L.box(13440, G - 560, 15400, G - 420, color=rgb('f2a65a'), inter=False)
+    S.sun(L, 14700, G - 470, 70, rgb('ffe39a'))
+    S.far_ruins(L, 13500, 15300, G - 60, rgb('f6b26b'), seed=19, t=0.55)
+    for k, x in enumerate((13700, 14350, 15050)):
+        S.jungle_tree(L, x, G + 60, 520, seed=30 + k, haze_to=rgb('f6b26b'), haze_t=0.35)
+    clearing = S.smooth_profile([(13300, G + 40), (13600, G + 40), (14050, G + 120), (15400, G + 120)], 50)
+    _jungle_ground(L, clearing, BOT, 20)
+    # the getaway jeep
+    jx = 14900
+    L.art([(jx - 160, G + 80), (jx - 160, G + 30), (jx - 60, G + 30), (jx - 30, G - 20), (jx + 150, G - 20),
+           (jx + 170, G + 30), (jx + 170, G + 80)], color=rgb('6b7a3a'))
+    L.box(jx - 20, G - 70, jx + 120, G - 20, color=rgb('a7d3ea'), opacity=70, inter=False)
+    for wx in (jx - 100, jx + 110):
+        L.circle(wx, G + 84, 70, color=rgb('222222'), inter=False)
+        L.circle(wx, G + 84, 30, color=rgb('9a9a7a'), inter=False)
+    L.finish(14500, G + 120)
+    L.text(14260, G - 220, 'Idol: lost.  Explorer: mostly intact.', size=16, color=rgb('3a2014'), font=5)
+    L.box(15380, G - 900, 15420, BOT, color=TSTONE_DARK, opacity=0)
     return L
 
 
@@ -1828,36 +2402,226 @@ def drop_zone(L, x, ground, w=220, targets=(), label='DROP ZONE', color=RED):
     return L.trigger(x, ground - 60, w, 110, list(targets), by=3)
 
 
+AIR_SKY = rgb('a9d4f5')
+HANGAR_WALL = rgb('9fb2bf')
+HANGAR_DARK = rgb('5b6b77')
+STEEL = rgb('7d8b96')
+FLOOR = rgb('8e9399')
+SAFETY = rgb('f2c12e')
+
+
+def _hangar_floor(L, x1, x2, y, bottom, seed):
+    def tex(L, x, yy, rng):
+        L.box(x, yy + 2, x + 3, yy + 26, color=S.shade(FLOOR, 0.8), inter=False)
+        if rng.random() < 0.2:
+            L.art(S.blob(x + 30, yy + 2, 26, 3, int(x), 8, 0.2), color=S.shade(FLOOR, 0.7), opacity=60)
+    S.terrain(L, [(x1, y), (x2, y)], bottom, S.shade(FLOOR, 0.6),
+              strata=[(0, 26, FLOOR), (26, 32, S.shade(FLOOR, 0.65))], texture=tex, seed=seed)
+
+
+def _apron(L, x1, x2, y, bottom, seed):
+    S.terrain(L, [(x1, y), (x2, y)], bottom, rgb('6f6f6a'),
+              strata=[(0, 22, rgb('9a9a92')), (22, 28, rgb('5d5d58'))])
+
+
+def _delivery_bay(L, cx, floor, w=260, label='BAY 1'):
+    """A marked cargo bay: low solid curbs (they keep a dropped load in), hazard stripes, a sign
+    and a status lamp pair (red now, green when the bay is served). Returns (red, green) refs."""
+    for sx in (cx - w / 2.0 - 14, cx + w / 2.0 + 14):
+        L.box(sx - 14, floor - 26, sx + 14, floor, color=S.shade(SAFETY, 0.9))
+        S.warning_stripes(L, sx - 14, floor - 26, sx + 14, floor, w=10)
+    L.box(cx - w / 2.0, floor - 4, cx + w / 2.0, floor, color=SAFETY, inter=False)
+    S.warning_stripes(L, cx - w / 2.0, floor + 4, cx + w / 2.0, floor + 20, w=16)
+    L.box(cx - 3, floor - 300, cx + 3, floor - 200, color=rgb('333333'), inter=False)
+    S.text_plate(L, cx - 70, floor - 340, 140, 44, rgb('2d3e50'), SAFETY)
+    L.text(cx - 52, floor - 334, label, size=22, color=SAFETY, font=5)
+    red = L.circle(cx + 100, floor - 318, 30, color=rgb('e74c3c'), inter=False)
+    green = L.circle(cx + 100, floor - 318, 30, color=rgb('2ecc71'), inter=False, opacity=0)
+    return red, green
+
+
+def _lift_door(L, x, floor, h, top_y, color=rgb('c0392b')):
+    """A hangar door: ribbed steel panel on a prismatic joint, held shut by its motor until a
+    trigger runs the motor (action 1). Returns the joint."""
+    d = L.group()
+    d.rect(x, floor - h / 2.0, 70, h, color=color, fixed=False, density=2.0)
+    for k in range(int(h / 60)):
+        d.rect(x, floor - h + 30 + k * 60, 64, 6, color=S.shade(color, 0.75), inter=False)
+    d.rect(x, floor - 26, 70, 20, color=SAFETY, inter=False)
+    j = L.slider(x, floor - h / 2.0, d, LEVEL, axis=-90, lower=0, upper=h + 40, motor=True, force=5e6, speed=0)
+    L.box(x - 46, top_y, x - 36, floor, color=rgb('3d4a54'), inter=False)            # door guides
+    L.box(x + 36, top_y, x + 46, floor, color=rgb('3d4a54'), inter=False)
+    return j
+
+
+def _hanging_hook(L, px, py, length, start_deg):
+    """A crane hook swinging on its cable (a free pin): the hook block is solid."""
+    a = math.radians(start_deg)
+    ux, uy = math.sin(a), math.cos(a)
+    g = L.group()
+    g.rect(px + ux * length / 2.0, py + uy * length / 2.0, 6, length, rot=-start_deg, color=rgb('333333'),
+           fixed=False, density=0.4)
+    hx, hy = px + ux * length, py + uy * length
+    g.rect(hx, hy + 22 * uy, 56, 44, rot=-start_deg, color=SAFETY, fixed=False, density=2.0)
+    g.circle(hx + ux * 60, hy + uy * 60, 34, color=rgb('555555'), fixed=False, density=1.0, cutout=50)
+    L.pin(px, py, g, LEVEL)
+    return g
+
+
 def he_01():
-    """Lift Off (easy): flight school. Take off from the pad, pick up the crate with the magnet,
-    drop it on the red pad to open the hangar door, and land inside on the finish."""
-    L = Level('11_helicopter_man/01_lift_off.xml', 'Lift Off', 11, (500, G - 130), bg=1, bgc=SKY)
-    for x in (1200, 3600, 6000):
-        cloud(L, x, 3700, 420)
-    title(L, 160, G, 'LIFT OFF', 'Flight school, lesson one. Up: climb. Left / right: tilt.\n'
-          'SPACE: magnet on / off. Shift / ctrl: reel the rope in / out.\n'
-          'Bring the crate to the red pad to open the hangar.')
-    L.ground([(0, G), (7600, G)], bottom=G + 500, color=GRASS)
-    L.box(0, G, 7600, G + 6, color=CONCRETE, inter=False)
-    helipad(L, 500, G)
-    L.box(900, G - 300, 912, G, color=METAL, inter=False)                       # wind sock
-    L.tri(950, G - 285, 30, 80, rot=90, color=ORANGE, inter=False)
-    c = crate(L, 1700, G, label='CRATE')
-    L.text(1500, G - 330, 'Hover over the crate,\nlower it onto the magnet, SPACE.', size=15)
-    # the drop pad on a little tower (so the crate has to be lifted, not pushed)
-    L.box(3000, G - 250, 3400, G, color=CONCRETE, outline=METAL_DARK)
-    # the hangar: closed room with a door (gate) on the left
-    hx1, hx2, top = 4600, 6800, G - 700
-    L.box(hx1, top, hx2 + 60, top + 60, color=METAL_DARK)                       # roof
-    L.box(hx2, top, hx2 + 60, G, color=METAL_DARK)                              # back wall
-    L.box(hx1 + 60, top + 60, hx2, G, color=rgb('d6d6d0'), inter=False)         # inside
-    door = gate(L, hx1 + 30, top + 60, G, w=60, color=rgb('b03030'), outline=BLACK)
-    L.text(hx1 + 100, top + 100, 'HANGAR 1', size=26, color=METAL_DARK, font=5)
-    opened = L.text(3000, G - 600, 'Hangar door: open!', size=18, color=GREEN, font=3, opacity=0)
-    drop_zone(L, 3200, G - 250, 300, [open_gate(door), show_text(opened)])
-    helipad(L, 5900, G, 500)
-    L.finish(5900, G)
-    L.text(5300, G - 330, 'Land here. Gently.\nThe instructor is watching.', size=15)
+    """Lift Off (easy): the Skyhook Air Freight depot. Hangar 1: lift a crate with the magnet
+    (space) and set it in Bay 1; only a crate in the bay opens the hangar door (b=4 triggers on
+    the crates). Hangar 2: take the engine crate through the overhead line (gantry beam, ducting,
+    swinging hooks, a floor fan's updraft) up to Bay 2 on the mezzanine, which opens the main
+    door. Fly out over the apron, under the power lines and land on the tower helipad. Spare crates
+    sit in both hangars, so a lost load can be replaced."""
+    L = Level('11_helicopter_man/01_lift_off.xml', 'Lift Off', 11, (420, G - 130), bg=1, bgc=AIR_SKY)
+    BOT = G + 420
+    H1T = G - 640          # hangar 1 ceiling
+    H2T = G - 900          # hangar 2 ceiling
+    MZ = G - 420           # mezzanine deck
+
+    # ---- Hangar 1 ----------------------------------------------------------------------------
+    S.corrugated(L, 0, H1T, 2440, G, HANGAR_WALL)
+    # windows onto the airfield
+    for wx in (300, 1250):
+        L.box(wx - 8, G - 520, wx + 508, G - 300, color=rgb('3d4a54'), inter=False)
+        L.box(wx, G - 512, wx + 500, G - 308, color=AIR_SKY, inter=False)
+        L.art(S.blob(wx + 200, G - 330, 300, 50, wx, 16, 0.1), color=S.haze(rgb('5c9e2e'), AIR_SKY, 0.4))
+        L.box(wx, G - 330, wx + 500, G - 308, color=S.haze(rgb('9a9a92'), AIR_SKY, 0.3), inter=False)
+        S.cloud(L, wx + 330, G - 460, 160, seed=wx)
+        for k in range(1, 4):
+            L.box(wx + k * 125 - 4, G - 512, wx + k * 125 + 4, G - 308, color=rgb('3d4a54'), inter=False)
+    S.control_tower(L, 1460, G - 312, 150, S.haze(rgb('d8d4c8'), AIR_SKY, 0.3))
+    S.storage_rack(L, 860, 1180, G, 330, 3, seed=1)
+    S.storage_rack(L, 1820, 2080, G, 300, 3, seed=2)
+    S.plane_art(L, 620, G, s=0.75)
+    S.toolbox(L, 1240, G)
+    L.text(60, H1T + 66, 'SKYHOOK AIR FREIGHT', size=26, color=rgb('2d3e50'), font=5)
+    L.text(60, H1T + 104, 'HANGAR 1', size=18, color=rgb('2d3e50'), font=5)
+    S.truss(L, 0, 2440, H1T + 10, 70, STEEL)
+    for x in range(200, 2400, 500):
+        S.hazard_lamp(L, x, H1T + 92, rgb('fff2b0'))
+    # floor: the start pad, crates, Bay 1
+    _hangar_floor(L, 0, 2440, G, BOT, 1)
+    L.box(330, G - 4, 510, G, color=SAFETY, inter=False)
+    L.text(404, G - 34, 'H', size=24, color=SAFETY, font=5)
+    L.text(150, G - 300, 'LIFT OFF', size=34, color=rgb('2d3e50'), font=5)
+    L.text(152, G - 258, 'Space: magnet.  Shift / ctrl: reel the rope.', size=15, color=rgb('2d3e50'), font=2)
+    crate1 = L.rect(1050, G - 40, 80, 80, color=rgb('b07a45'), fixed=False, density=0.5)
+    spare1 = L.rect(1500, G - 35, 70, 70, color=rgb('a06a3a'), fixed=False, density=0.5)
+    S.crate_art(L, 2200, G, 90, 60)
+    red1, green1 = _delivery_bay(L, 1800, G, 240, 'BAY 1')
+    door1 = _lift_door(L, 2440, G, 640, H1T)
+    L.box(0, H1T - 400, 2400, H1T, color=HANGAR_DARK)                                 # roof (solid)
+    L.box(2480, H1T - 400, 2520, H1T, color=HANGAR_DARK, inter=False)
+    L.box(0, G - 900, 12, G, color=HANGAR_DARK, opacity=0)                          # stage wall
+    bay1 = [(door1, [(1, 3, 0.6)]), (red1, [(3, 0, 0.3)]), (green1, [(3, 100, 0.3)])]
+    for crate in (crate1, spare1):
+        L.trigger(1800, G - 50, 220, 90, [(crate, [])] + bay1, by=4)
+
+    # ---- Hangar 2: the assembly hall -----------------------------------------------------------
+    X2, X3 = 2440, 5800
+    S.corrugated(L, X2, H2T, X3, G, S.shade(HANGAR_WALL, 0.92))
+    S.truss(L, X2, X3, H2T + 10, 90, STEEL, panel=110)
+    L.text(2600, H2T + 120, 'HANGAR 2  -  ASSEMBLY', size=22, color=rgb('2d3e50'), font=5)
+    for x in range(2700, 5700, 600):
+        S.i_beam_art(L, x - 14, H2T + 100, x + 14, G, STEEL)
+    S.storage_rack(L, 2560, 2960, G, 360, 3, seed=3)
+    S.plane_art(L, 3400, G, color=rgb('d6dde3'), trim=rgb('2e86de'), s=0.9)
+    engine = L.group()
+    engine.rect(3050, G - 45, 150, 90, color=rgb('6d7b85'), fixed=False, density=0.45)
+    engine.art(S.ellipse(3050, G - 45, 40, 40, 14), color=rgb('3d4a54'))
+    engine.art(S.ellipse(3050, G - 45, 22, 22, 10), color=rgb('9aa3ab'))
+    engine.rect(3050, G - 92, 120, 8, color=SAFETY, inter=False)
+    spare2 = L.group()
+    spare2.rect(3300, G - 40, 120, 80, color=rgb('6d7b85'), fixed=False, density=0.45)
+    spare2.rect(3300, G - 84, 100, 8, color=SAFETY, inter=False)
+    _hangar_floor(L, X2, X3, G, BOT, 2)
+    # the overhead line: a gantry beam, a duct, two swinging hooks, a floor fan's updraft
+    L.box(3700, G - 620, 3760, H2T + 100, color=rgb('4d5963'), inter=False)
+    L.box(3700, G - 640, 4300, G - 600, color=rgb('e67e22'))                           # gantry beam
+    S.i_beam_art(L, 3700, G - 640, 4300, G - 600, rgb('e67e22'))
+    L.box(4240, G - 620, 4300, H2T + 100, color=rgb('4d5963'), inter=False)
+    _hanging_hook(L, 3550, H2T + 100, 330, 30)
+    _hanging_hook(L, 4500, H2T + 100, 390, -30)
+    L.box(4700, H2T + 100, 4900, G - 470, color=rgb('8c99a3'))                          # ducting
+    for yy in range(int(H2T + 120), int(G - 470), 60):
+        L.box(4700, yy, 4900, yy + 6, color=rgb('6d7b85'), inter=False)
+    L.box(4680, G - 490, 4920, G - 470, color=rgb('6d7b85'), inter=False)
+    L.fan(4150, G, rot=0)
+    S.warning_stripes(L, 4080, G - 4, 4220, G + 10, w=12)
+    for x, w, h in ((4620, 110, 100), (4740, 90, 70), (4950, 120, 130)):
+        L.box(x - w / 2.0, G - h, x + w / 2.0, G, color=rgb('a06a3a'))
+        S.crate_art(L, x, G, w, h, rgb('a06a3a'))
+    # the mezzanine with Bay 2
+    L.box(5100, MZ, 5800, MZ + 30, color=STEEL)
+    S.i_beam_art(L, 5100, MZ, 5800, MZ + 30, STEEL)
+    for x in (5140, 5460, 5760):
+        S.i_beam_art(L, x - 12, MZ + 30, x + 12, G, STEEL)
+    for x in range(5130, 5780, 40):
+        L.box(x, MZ + 34, x + 3, MZ + 60, color=rgb('4d5963'), inter=False)
+    L.box(5100, MZ - 90, 5108, MZ, color=SAFETY, inter=False)
+    L.box(5100, MZ - 92, 5180, MZ - 84, color=SAFETY, inter=False)
+    red2, green2 = _delivery_bay(L, 5450, MZ, 260, 'BAY 2')
+    door2 = _lift_door(L, X3, G, 900, H2T)
+    L.box(X2 + 40, H2T - 400, X3 - 40, H2T, color=HANGAR_DARK)                       # roof (solid)
+    L.box(X2 + 40, H2T, X2 + 80, H1T, color=HANGAR_DARK)                              # step up in the roof
+    L.box(X2 - 40, H2T, X2 + 40, H1T, color=S.shade(HANGAR_DARK, 1.2), inter=False)  # door 1 housing
+    L.box(X3 - 40, H2T - 400, X3 + 40, H2T, color=S.shade(HANGAR_DARK, 1.2), inter=False)
+    bay2 = [(door2, [(1, 3, 0.8)]), (red2, [(3, 0, 0.3)]), (green2, [(3, 100, 0.3)])]
+    for cargo in (engine, spare2):
+        L.trigger(5450, MZ - 55, 240, 100, [(cargo, [])] + bay2, by=4)
+
+    # ---- Outside: the apron, power lines, the tower helipad ------------------------------------
+    O1, O2 = X3, 9400
+    for k, (x, y, w) in enumerate(((6200, 4400, 320), (7300, 4300, 380), (8500, 4380, 300))):
+        S.cloud(L, x, y, w, seed=40 + k)
+    S.control_tower(L, 8600, G, 520)
+    S.windsock(L, 6250, G)
+    # the hangar's outer skin around the door
+    S.corrugated(L, X3 + 40, G - 1300, X3 + 120, G, S.shade(HANGAR_WALL, 1.05))
+    L.box(X3 + 40, G - 1300, X3 + 130, G - 1280, color=HANGAR_DARK, inter=False)
+    L.text(X3 + 52, G - 520, 'SKY\nHOOK', size=18, color=rgb('2d3e50'), font=5)
+    # the parked trainer, its engine still running: the blast pushes you back (fan blowing left)
+    S.plane_art(L, 6900, G, color=rgb('ffffff'), trim=rgb('27ae60'), s=1.0)
+    L.fan(6640, G - 30, rot=-90)
+    for k in range(4):
+        L.art([(6600 - k * 70, G - 140 + k * 6), (6560 - k * 70, G - 150 + k * 6), (6560 - k * 70, G - 136 + k * 6)],
+              color=0xffffff, opacity=50)
+    # fuel bowser, cones, a baggage cart
+    L.art([(6060, G - 30), (6060, G - 150), (6180, G - 150), (6200, G - 110), (6250, G - 110), (6260, G - 30)],
+          color=rgb('e67e22'))
+    L.art(S.ellipse(6110, G - 150, 52, 14, 10, 180, 360), color=rgb('d35400'))
+    L.box(6064, G - 100, 6176, G - 92, color=rgb('ffffff'), inter=False)
+    for wx in (6100, 6220):
+        L.circle(wx, G - 26, 48, color=rgb('222222'), inter=False)
+    for x in (7300, 7360, 8340, 8400):
+        L.art([(x - 14, G), (x + 14, G), (x + 4, G - 44), (x - 4, G - 44)], color=rgb('ff7a1a'))
+        L.box(x - 9, G - 28, x + 9, G - 20, color=0xffffff, inter=False)
+    _apron(L, O1, O2, G, BOT, 3)
+    for x in range(O1 + 100, O2, 240):
+        L.box(x, G - 3, x + 120, G, color=rgb('f1f1f1'), inter=False)
+    for x in range(O1 + 60, O2, 300):
+        L.circle(x, G - 6, 14, color=rgb('4aa3ff'), inter=False)
+        L.circle(x, G - 6, 40, color=rgb('4aa3ff'), opacity=15, inter=False)
+    # power lines: two poles with three live cables (thin solid lines: the blades break on them)
+    for px in (7500, 8100):
+        L.box(px - 9, G - 560, px + 9, G, color=rgb('6b4423'), inter=False)
+        L.box(px - 60, G - 540, px + 60, G - 528, color=rgb('6b4423'), inter=False)
+    for k, y in enumerate((G - 535, G - 520)):
+        L.box(7440 + k * 120, y, 8160 - k * 120, y + 4, color=rgb('222222'))
+    L.sign(7380, G, kind=12)
+    # the helipad on the tower's annex roof
+    L.box(8800, G - 260, 9240, G, color=rgb('d8d4c8'))
+    for wx in range(8830, 9230, 90):
+        L.box(wx, G - 200, wx + 50, G - 140, color=rgb('6fb6d6'), inter=False)
+    L.box(8790, G - 270, 9250, G - 256, color=rgb('5d5d58'), inter=False)
+    L.box(8900, G - 274, 9140, G - 268, color=SAFETY, inter=False)
+    L.text(9000, G - 330, 'H', size=40, color=SAFETY, font=5)
+    L.finish(9020, G - 260)
+    L.text(8700, G - 420, 'Delivery complete. Pilot: off the clock.', size=16, color=rgb('2d3e50'), font=5)
+    L.box(O2 - 20, G - 1200, O2 + 20, BOT, color=STEEL, opacity=0)
     return L
 
 
