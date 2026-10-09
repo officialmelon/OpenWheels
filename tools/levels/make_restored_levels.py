@@ -254,15 +254,6 @@ def _pavement(L, x1, x2, bottom, color=CONCRETE_LIGHT, joint=150, kerb=True, y=G
         L.box(x2 - 30, y - 3, x2, y + 40, color=S.shade(color, 1.1), inter=False)
 
 
-def _speech(L, x, y, w, h, caption, size=20, color=rgb('8e1b12')):
-    """A speech bubble that appears when triggered: plate, tail and text all start invisible.
-    Returns the trigger targets that show it."""
-    plate = L.art([(x, y), (x + w, y), (x + w, y + h), (x + 40, y + h), (x + 18, y + h + 34),
-                   (x + 22, y + h), (x, y + h)], color=0xffffff, opacity=0)
-    t = L.text(x + 14, y + 10, caption, size=size, color=color, font=5, opacity=0)
-    return [(plate, [(3, 92, 0.25)]), (t, [(0, 100, 0.25)])]
-
-
 def _sunbather(L, profile, x, char, towel, stripe=0xffffff):
     """An NPC lying feet first along the ground at x, on a towel that follows the slope."""
     y = S.y_at(profile, x)
@@ -321,9 +312,6 @@ def lm_01():
     S.lamp_post(L, 1240, G)
     _pavement(L, 0, 1110, BOT, color=CONCRETE_MID, joint=185, kerb=False)
     _pavement(L, 1110, 1280, BOT, joint=85)
-    L.text(150, G - 300, 'LAWN AND ORDER', size=34, color=rgb('24331b'), font=5)
-    L.text(152, G - 258, 'Space lifts the mower deck. The blade does the rest.', size=15,
-           color=rgb('24331b'), font=2)
 
     # ---- 2. The sunbathers and the picnic (blade fodder) -------------------------------------
     # The back lawn runs gently downhill from the street: every victim lies feet first on that
@@ -485,14 +473,12 @@ def lm_01():
     pumpkin = L.food(11180, T - 76, kind=2)
     henderson = L.npc_standing(11370, S.y_at(garden, 11370), char=13, sleep=True, reverse=True, hold=True,
                                pose=(0, 0, -90, -120, -60, 0, 0, 0, 0))
-    hey = _speech(L, 11200, T - 330, 330, 74, 'Young man! Those are\nPRIZE vegetables!', size=18)
-    L.trigger(10600, T - 120, 120, 240, hey)
-    gasp = _speech(L, 11340, T - 330, 250, 74, 'MY PUMPKIN!\n*faints*', size=20)
     # b=4: only the pumpkin trips these. The three zones surround its resting place (left, right,
-    # above), so it fires as soon as the pumpkin is knocked off or pulled up into the deck.
+    # above), so it fires as soon as the pumpkin is knocked off or pulled up into the deck, and
+    # Mrs. Henderson (asleep, posed) wakes: her ragdoll goes limp and she keels over.
     for zx, zy, zw, zh in ((11060, T - 100, 140, 120), (11300, T - 100, 140, 120),
                            (11180, T - 190, 120, 100)):
-        L.trigger(zx, zy, zw, zh, [(pumpkin, [])] + gasp + [(henderson, [(0,)])], by=4)
+        L.trigger(zx, zy, zw, zh, [(pumpkin, []), (henderson, [(0,)])], by=4)
     S.birdbath(L, 11850, G)
     S.topiary(L, 12000, G, 1)
     for x in (12100, 12150, 12200, 12250):
@@ -1208,8 +1194,6 @@ def ex_03():
     S.seg(L, 640, G, 640, G - 110, 6, rgb('3a3a3a'))
     L.circle(640, G - 120, 22, color=rgb('ffd36b'), inter=False)
     L.circle(640, G - 120, 70, color=rgb('ffd36b'), opacity=18, inter=False)
-    L.text(250, G - 330, 'IDOL HANDS', size=34, color=rgb('3a2a14'), font=5)
-    L.text(252, G - 288, 'Space clamps to rails. Ctrl crouches.', size=15, color=rgb('3a2a14'), font=2)
     for x, h in ((820, 70), (900, 110), (1350, 90), (1430, 60), (1700, 80)):
         S.fern(L, x, S.y_at(jungle, x) + 4, h, seed=x)
     # fallen masonry and a toppled column along the causeway
@@ -1272,18 +1256,18 @@ def ex_03():
     for x, w in ((3420, 150), (3990, 170)):
         S.gold_pile(L, x, T1, w, 46, seed=x)
     # the dais: a ramped plinth in the floor, the idol on top
-    chamber = S.smooth_profile([(2420, T1), (3480, T1), (3600, T1 - 40), (3800, T1 - 40), (3920, T1),
+    chamber = S.smooth_profile([(2420, T1), (3420, T1), (3640, T1 - 24), (3760, T1 - 24), (3980, T1),
                                 (4600, T1)], 40)
-    dais = [p for p in chamber if 3480 <= p[0] <= 3920]
+    dais = [p for p in chamber if 3420 <= p[0] <= 3980]
     S.art_strip(L, dais, [(x, T1 + 2) for x, _ in dais], S.shade(TSTONE, 0.85))
-    S.carved_band(L, 3600, 3800, T1 - 40, 36, S.shade(TSTONE, 0.75), kind=2)
+    S.carved_band(L, 3620, 3780, T1 - 24, 22, S.shade(TSTONE, 0.75), kind=2)
     idol = L.group()
-    idol.rect(3700, T1 - 40 - 34, 44, 68, color=rgb('e5b80b'), fixed=False, density=2.0)
-    idol.art([(3682, T1 - 108), (3718, T1 - 108), (3724, T1 - 134), (3700, T1 - 150), (3676, T1 - 134)], color=rgb('e5b80b'))
-    idol.art([(3684, T1 - 98), (3716, T1 - 98), (3712, T1 - 80), (3688, T1 - 80)], color=rgb('b8860b'))
-    idol.circle(3692, T1 - 126, 8, color=rgb('c0392b'), inter=False)
-    idol.circle(3708, T1 - 126, 8, color=rgb('c0392b'), inter=False)
-    idol.art([(3678, T1 - 60), (3722, T1 - 60), (3716, T1 - 44), (3684, T1 - 44)], color=rgb('ffe08a'))
+    idol.rect(3700, T1 - 24 - 34, 44, 68, color=rgb('e5b80b'), fixed=False, density=0.5)
+    idol.art([(3682, T1 - 92), (3718, T1 - 92), (3724, T1 - 118), (3700, T1 - 134), (3676, T1 - 118)], color=rgb('e5b80b'))
+    idol.art([(3684, T1 - 82), (3716, T1 - 82), (3712, T1 - 64), (3688, T1 - 64)], color=rgb('b8860b'))
+    idol.circle(3692, T1 - 110, 8, color=rgb('c0392b'), inter=False)
+    idol.circle(3708, T1 - 110, 8, color=rgb('c0392b'), inter=False)
+    idol.art([(3678, T1 - 44), (3722, T1 - 44), (3716, T1 - 28), (3684, T1 - 28)], color=rgb('ffe08a'))
     # the boulder, waiting in its alcove above the entrance
     L.box(2660, T1 - 420, 3080, T1 - 380, color=S.shade(TSTONE, 0.7))                     # alcove ledge
     L.box(2660, T1 - 700, 3080, T1 - 640, color=TSTONE_DARK, inter=False)
@@ -1293,23 +1277,26 @@ def ex_03():
     door.rect(4340, T1 - 165, 90, 330, color=S.shade(TSTONE, 0.8), fixed=False, density=3.0)
     door.rect(4340, T1 - 165, 50, 250, color=S.shade(TSTONE, 0.65), inter=False)
     door.circle(4340, T1 - 200, 40, color=rgb('e5b80b'), inter=False)
-    dj = L.slider(4340, T1 - 165, door, LEVEL, axis=-90, lower=0, upper=360, motor=True, force=5e6, speed=0)
+    dj = L.slider(4340, T1 - 165, door, LEVEL, axis=90, lower=0, upper=360, motor=True, force=5e6, speed=0)
     L.box(4280, T1 - 700, 4400, T1 - 330, color=TSTONE_DARK, inter=False)                # door lintel (art)
     _stone_floor(L, chamber, BOT, 7)
     L.box(2370, T1 - 900, 2600, T1 - 280, color=TSTONE_DARK, opacity=0)                  # solid roof of the mouth
     _ceiling(L, [(2600, T1 - 700), (4300, T1 - 700)], T1 - 900, solid=False)
-    rumble = L.text(3560, T1 - 330, '...it was load-bearing.', size=18, color=rgb('ffd36b'), font=5, opacity=0)
+    # loose chunks of the frieze (on an invisible ledge along it) that the trap shakes down
+    L.box(2900, T1 - 476, 4300, T1 - 470, color=TSTONE_DARK, opacity=0)
+    chunks = [L.rect(x, T1 - 476 - 13, 34, 26, color=S.shade(TINTERIOR, 1.25), fixed=False, sleep=True, density=0.3)
+              for x in (3060, 3330, 3480, 3920, 4080)]
     # The trap: one master trigger (b=5, fired by the idol triggers below), in this order:
     # the door motor lifts the slab, the boulder rolls off its ledge, the line appears.
-    trap = L.trigger(3700, T1 - 200, 40, 40, [(dj, [(1, 4, 0.4)]),
+    trap = L.trigger(3700, T1 - 200, 40, 40, [(dj, [(1, 6, 0.3)]),
                                                (boulder, [(0,), (4, 3, 0, 1)]),
-                                               (rumble, [(0, 100, 0.3)])], by=5)
+                                               ] + [(c, [(0,), (4, 0, -1, 2)]) for c in chunks], by=5)
     # b=4: only the idol body trips these. Left, right and above its resting place.
     for zx, zy, zw, zh in ((3610, T1 - 110, 110, 130), (3790, T1 - 110, 110, 130), (3700, T1 - 230, 120, 90)):
         L.trigger(zx, zy, zw, zh, [(idol, []), (trap, [(0,)])], by=4)
 
     # ---- 3. Boulder run: down, over a hump, down again, then a low arch only you fit under ---
-    run = S.smooth_profile([(4600, T1), (4700, T1), (5350, G + 200), (5650, G + 130), (6200, T2), (7000, T2)], 50)
+    run = S.smooth_profile([(4600, T1), (4700, T1), (5700, G + 180), (5950, G + 120), (6550, T2), (7000, T2)], 50)
     run_ceiling = [(x, y - 400) for x, y in run]
     S.stone_wall(L, 4500, T1 - 700, 7000, T2, S.shade(TINTERIOR, 0.9), seed=8, bw=(120, 200), bh=64)
     for k, x in enumerate(range(4800, 6900, 420)):
@@ -1394,7 +1381,7 @@ def ex_03():
     _ceiling(L, [(A1, T2 - 640), (A2, T2 - 640)], T2 - 1100)
 
     # ---- 7. The collapsing gallery and the way out -------------------------------------------
-    out = S.smooth_profile([(12000, T2), (12300, T2), (12900, G + 40), (13300, G + 40)], 50)
+    out = S.smooth_profile([(12000, T2), (12150, T2), (13050, G + 40), (13300, G + 40)], 50)
     S.stone_wall(L, 12000, G - 500, 13400, T2, S.shade(TINTERIOR, 0.95), seed=17, bw=(100, 160), bh=58)
     gallery_ceiling = [(x, y - 330) for x, y in out]
     # ceiling blocks that drop behind you, one after another
@@ -1403,10 +1390,12 @@ def ex_03():
         y = S.y_at(out, x) - 330 + 32
         blocks.append(L.rect(x, y, 96, 60, color=S.shade(TSTONE, 0.8 + 0.05 * (k % 3)), fixed=False,
                              sleep=True, density=1.2))
+    # each pair of blocks lets go once you are 250 px past it: the gallery caves in behind you
     for k, x in enumerate(range(12150, 13200, 220)):
-        y = S.y_at(out, x)
-        L.trigger(x + 60, y - 120, 60, 240, [(blocks[min(len(blocks) - 1, 2 * k)], [(0,)]),
-                                              (blocks[min(len(blocks) - 1, 2 * k + 1)], [(0,)])], delay=0.4)
+        tx = min(13280, x + 250)
+        y = S.y_at(out, tx)
+        L.trigger(tx, y - 120, 60, 240, [(blocks[min(len(blocks) - 1, 2 * k)], [(0,)]),
+                                          (blocks[min(len(blocks) - 1, 2 * k + 1)], [(0,)])], delay=0.1)
     _stone_floor(L, out, BOT, 18)
     _ceiling(L, gallery_ceiling, G - 700)
     # the cracked outer wall: loose, light blocks in the doorway
@@ -1435,7 +1424,6 @@ def ex_03():
         L.circle(wx, G + 84, 70, color=rgb('222222'), inter=False)
         L.circle(wx, G + 84, 30, color=rgb('9a9a7a'), inter=False)
     L.finish(14500, G + 120)
-    L.text(14260, G - 220, 'Idol: lost.  Explorer: mostly intact.', size=16, color=rgb('3a2014'), font=5)
     L.box(15380, G - 900, 15420, BOT, color=TSTONE_DARK, opacity=0)
     return L
 
@@ -2506,8 +2494,6 @@ def he_01():
     _hangar_floor(L, 0, 2440, G, BOT, 1)
     L.box(330, G - 4, 510, G, color=SAFETY, inter=False)
     L.text(404, G - 34, 'H', size=24, color=SAFETY, font=5)
-    L.text(150, G - 300, 'LIFT OFF', size=34, color=rgb('2d3e50'), font=5)
-    L.text(152, G - 258, 'Space: magnet.  Shift / ctrl: reel the rope.', size=15, color=rgb('2d3e50'), font=2)
     crate1 = L.rect(1050, G - 40, 80, 80, color=rgb('b07a45'), fixed=False, density=0.5)
     spare1 = L.rect(1500, G - 35, 70, 70, color=rgb('a06a3a'), fixed=False, density=0.5)
     S.crate_art(L, 2200, G, 90, 60)
@@ -2620,7 +2606,6 @@ def he_01():
     L.box(8900, G - 274, 9140, G - 268, color=SAFETY, inter=False)
     L.text(9000, G - 330, 'H', size=40, color=SAFETY, font=5)
     L.finish(9020, G - 260)
-    L.text(8700, G - 420, 'Delivery complete. Pilot: off the clock.', size=16, color=rgb('2d3e50'), font=5)
     L.box(O2 - 20, G - 1200, O2 + 20, BOT, color=STEEL, opacity=0)
     return L
 
