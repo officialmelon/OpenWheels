@@ -32,6 +32,11 @@ whether text boxes sit where the camera can see them. Terrain is built from rect
 slabs for slopes), and rails sit flush with the ground. The finish strip is sunk into the ground
 because a raised strip wrecks carts and bikes.
 
+Lawn and Order, Idol Hands and Lift Off are built to the detail level of the original campaign
+with `tools/levels/restored_scenery.py` (terrain with invisible collision under layered art,
+houses, temple masonry, hangars and props); the other 27 levels are still the simple first pass.
+`artifacts/level-review/README.md` has their screenshots and test report.
+
 ## License
 
 Original OpenWheels content under the repository's MIT license (`LICENSE`). No Happy Wheels

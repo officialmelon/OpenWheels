@@ -1,0 +1,174 @@
+diff --git a/src/platform/desktop/WorldDumpRunner.cpp b/src/platform/desktop/WorldDumpRunner.cpp
+index d4e5a21..97bad0d 100644
+--- a/src/platform/desktop/WorldDumpRunner.cpp
++++ b/src/platform/desktop/WorldDumpRunner.cpp
+@@ -3,18 +3,22 @@
+ #include "platform/desktop/WorldDumpRunner.h"
+ 
+ #include <cstdio>
++#include <array>
++#include <cmath>
+ #include <cstdlib>
+ #include <sstream>
+ #include <string>
+ #include <vector>
+ 
+ #include "cocos2d.h"
++#include "base/ccUtils.h"
+ #include "Gameplay.h"
+ #include "ReplayData.h"
+ #include "Session.h"
+ #include "Settings.h"
+ #include "platform/debug/WorldDump.h"
+ #include "qol/QoL.h"
++#include "Box2D/Box2D.h"
+ 
+ USING_NS_CC;
+ 
+@@ -48,11 +52,126 @@ int runWorldDump(const std::string& outPath, const std::string& levelPath, int f
+     }
+     auto replay = new ReplayData();
+     int state = 0;
++    std::vector<unsigned char> base0;
+     for (int f = 0; f < frames + 8; ++f) {
+         for (auto& c : changes)
+             if (c.first == f) state = c.second;
+         replay->addEntry((unsigned char)state);
++        base0.push_back((unsigned char)state);
+     }
++    // LOCAL TEST PATCH: OW_AUTOPILOT="x,y,act;x,y,act;..." (Flash px) flies a helicopter so that its
++    // magnet reaches each point in turn; act 1 toggles the magnet there, act 0 just passes through,
++    // act 2 waits ~2 s there. Logs one line per reached waypoint and every 60 frames.
++    std::vector<std::array<float, 3>> wps;
++    if (const char* ap = std::getenv("OW_AUTOPILOT")) {
++        std::stringstream ws(ap);
++        std::string w;
++        while (std::getline(ws, w, ';')) {
++            float x = 0, y = 0, act = 0;
++            if (std::sscanf(w.c_str(), "%f,%f,%f", &x, &y, &act) >= 2) wps.push_back({x, y, act});
++        }
++    }
++    size_t wpi = 0;
++    int settle = 0, pressSpace = 0;
++    auto autopilot = [&](int f) {
++        if (wps.empty() || wpi >= wps.size()) {
++            if (!wps.empty()) { unsigned char* d = replay->getData(); for (int k = f; k < f + 3 && k < 18000; ++k) d[k] = 0; }
++            return;
++        }
++        Session* s = Settings::getInstance()->getCurrentSession();
++        if (!s || !s->getWorld()) return;
++        b2Body* copter = nullptr; int bestN = 0;
++        for (b2Body* b = s->getWorld()->GetBodyList(); b; b = b->GetNext()) {
++            if (b->GetType() != b2_dynamicBody) continue;
++            int n = 0;
++            for (b2Fixture* fx = b->GetFixtureList(); fx; fx = fx->GetNext()) ++n;
++            if (n > bestN) { bestN = n; copter = b; }
++        }
++        if (!copter) return;
++        b2Body* magnet = nullptr;
++        for (b2Joint* j = s->getWorld()->GetJointList(); j; j = j->GetNext())
++            if (j->GetType() == e_ropeJoint && (j->GetBodyA() == copter || j->GetBodyB() == copter))
++                magnet = j->GetBodyA() == copter ? j->GetBodyB() : j->GetBodyA();
++        b2Body* ref = magnet ? magnet : copter;
++        const float px = ref->GetPosition().x * 62.5f, py = 10000.0f - ref->GetPosition().y * 62.5f;
++        const float vx = ref->GetLinearVelocity().x * 62.5f, vy = -copter->GetLinearVelocity().y * 62.5f;
++        auto w = wps[wpi];
++        if (w[2] >= 3) {
++            // act 3: home on the loose body (0.4..10 kg, not the copter or magnet) nearest to the
++            // waypoint's x; its top + the y offset in the waypoint is the target (like aiming by eye)
++            b2Body* best = nullptr; float bd = 1e9f;
++            for (b2Body* b = s->getWorld()->GetBodyList(); b; b = b->GetNext()) {
++                if (b->GetType() != b2_dynamicBody || b == copter || b == magnet) continue;
++                if (b->GetMass() < 0.4f || b->GetMass() > 10.0f) continue;
++                const float bx = b->GetPosition().x * 62.5f;
++                if (std::fabs(bx - w[0]) < bd) { bd = std::fabs(bx - w[0]); best = b; }
++            }
++            if (best && bd < 400.0f) {
++                b2AABB box; box.lowerBound.Set(1e9f, 1e9f); box.upperBound.Set(-1e9f, -1e9f);
++                for (b2Fixture* fx = best->GetFixtureList(); fx; fx = fx->GetNext()) box.Combine(fx->GetAABB(0));
++                w[0] = best->GetPosition().x * 62.5f;
++                w[1] = 10000.0f - box.upperBound.y * 62.5f + w[1];
++            }
++        }
++        const float dx = w[0] - px, dy = w[1] - py;
++        unsigned char v = 0;
++        // vertical: aim for a speed proportional to the error, climb / sink / hover around it
++        const float wantVy = std::max(-160.0f, std::min(160.0f, dy * 1.0f));
++        if (vy > wantVy + 25.0f) v |= 0x01;          // falling faster than wanted (y down): climb
++        else if (vy < wantVy - 25.0f) v |= 0x02;
++        // horizontal: lean toward the speed we want, tilt limited to ~0.3 rad
++        const float wantVx = std::max(-220.0f, std::min(220.0f, dx * 0.6f));
++        const float wantAng = std::max(-0.3f, std::min(0.3f, -(wantVx - vx) * 0.004f));  // Box2D: right = negative
++        float a = copter->GetAngle();
++        while (a > 3.14159f) a -= 6.28318f;
++        while (a < -3.14159f) a += 6.28318f;
++        if (a > wantAng + 0.04f) v |= 0x04;
++        else if (a < wantAng - 0.04f) v |= 0x08;
++        const bool there = std::fabs(dx) < 35.0f && std::fabs(dy) < 30.0f && std::fabs(vx) < 90.0f && std::fabs(vy) < 80.0f;
++        const bool pass = (w[2] == 0) && std::fabs(dx) < 60.0f && std::fabs(dy) < 60.0f;
++        if (f < (std::getenv("OW_REEL") ? std::atoi(std::getenv("OW_REEL")) : 240)) v |= 0x40;                          // reel the rope out to its full length
++        if (pressSpace > 0) { v |= (pressSpace > 2 ? 0x10 : 0); --pressSpace; }
++        if (settle > 0) {
++            if (--settle == 0) ++wpi;
++        } else if (there || pass) {
++            cocos2d::log("autopilot: wp %d (%.0f,%.0f) reached at frame %d, magnet (%.0f,%.0f)", (int)wpi, w[0], w[1], f, px, py);
++            if (w[2] == 1 || w[2] == 4) { pressSpace = 5; settle = 40; }
++            else if (w[2] == 2) settle = 120;
++            else ++wpi;
++        }
++        if (f % 60 == 0)
++            cocos2d::log("autopilot: f %d wp %d magnet (%.0f,%.0f) copter v (%.0f,%.0f) ang %.2f", f, (int)wpi, px, py, vx, vy, a);
++        unsigned char* d = replay->getData();
++        for (int k = f; k < f + 3 && k < 18000; ++k) d[k] = v;
++    };
++
++    // LOCAL TEST PATCH: OW_AUTOBALANCE=1 leans like a player keeping the vehicle level.
++    const bool balance = std::getenv("OW_AUTOBALANCE") != nullptr;
++    auto autobalance = [&](int f) {
++        if (!balance) return;
++        Session* s = Settings::getInstance()->getCurrentSession();
++        if (!s || !s->getWorld()) return;
++        b2Body* best = nullptr; int bestN = 0;
++        for (b2Body* b = s->getWorld()->GetBodyList(); b; b = b->GetNext()) {
++            if (b->GetType() != b2_dynamicBody) continue;
++            int n = 0;
++            for (b2Fixture* fx = b->GetFixtureList(); fx; fx = fx->GetNext())
++                if (fx->GetFilterData().categoryBits == 0x202) ++n;
++            if (n > bestN) { bestN = n; best = b; }
++        }
++        if (!best) return;
++        float a = best->GetAngle();
++        while (a > 3.14159f) a -= 6.28318f;
++        while (a < -3.14159f) a += 6.28318f;
++        const float p = a + 0.25f * best->GetAngularVelocity();
++        unsigned char* d = replay->getData();
++        for (int k = f; k < f + 3 && k < (int)base0.size() && k < 18000; ++k) {
++            unsigned char v = base0[k] & ~0x0c;
++            if (p > 0.30f) v |= 0x04;
++            else if (p < -0.30f) v |= 0x08;
++            d[k] = v;
++        }
++    };
+     replay->resetPosition();
+ 
+     const std::string xml = FileUtils::getInstance()->getStringFromFile(levelPath);
+@@ -84,7 +203,19 @@ int runWorldDump(const std::string& outPath, const std::string& levelPath, int f
+     director->mainLoop(loopDt);
+     dumpExtra(0);
+     for (int f = 0; f < frames; f += ticksPerLoop) {
++        autobalance(f);
++        autopilot(f);
+         director->mainLoop(loopDt);
++        // LOCAL TEST PATCH: OW_SHOTS="dir:f1,f2,..." captures the rendered frame after those ticks
++        if (const char* sh = std::getenv("OW_SHOTS")) {
++            std::string spec(sh);
++            const size_t c = spec.find(':');
++            std::stringstream fs(spec.substr(c + 1));
++            std::string it;
++            while (std::getline(fs, it, ','))
++                if (std::atoi(it.c_str()) == f + ticksPerLoop)
++                    utils::captureScreen(nullptr, spec.substr(0, c) + "/shot_" + std::to_string(f + ticksPerLoop) + ".png");
++        }
+         dumpExtra(f + ticksPerLoop);
+     }
+ 

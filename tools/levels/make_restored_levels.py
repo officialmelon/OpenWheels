@@ -478,10 +478,11 @@ def lm_01():
                                pose=(0, 0, -90, -120, -60, 0, 0, 0, 0))
     # b=4: only the pumpkin trips these. The three zones surround its resting place (left, right,
     # above), so it fires as soon as the pumpkin is knocked off or pulled up into the deck, and
-    # Mrs. Henderson (asleep, posed) wakes: her ragdoll goes limp and she keels over.
+    # Mrs. Henderson (asleep, posed) wakes, lets go of her pose and swoons over backwards (waking
+    # alone kept her standing in her held pose).
     for zx, zy, zw, zh in ((11060, T - 100, 140, 120), (11300, T - 100, 140, 120),
                            (11180, T - 190, 120, 100)):
-        L.trigger(zx, zy, zw, zh, [(pumpkin, []), (henderson, [(0,)])], by=4)
+        L.trigger(zx, zy, zw, zh, [(pumpkin, []), (henderson, [(0,), (3,), (1, 2.5, -1.5, 0)])], by=4)
     S.birdbath(L, 11850, G)
     S.topiary(L, 12000, G, 1)
     for x in (12100, 12150, 12200, 12250):
@@ -1188,8 +1189,8 @@ def ex_03():
     """Idol Hands (medium): the Temple of the Grasping Hand. A jungle approach past the explorer's
     camp, a causeway to a carved face whose mouth is the door, and the idol chamber. The way on is
     sealed; knock the golden idol hanging from the great stone hand (only the idol trips the trap,
-    b=4 triggers) and the temple wakes: the stone door grinds open and a boulder drops from its
-    alcove behind you. Outrun it down a long descent to a low arch it cannot pass, run a dart corridor (wall
+    b=4 triggers) and the temple wakes: the stone door grinds open. At the top of the long descent
+    a boulder drops from the roof behind you; outrun it to a low arch it cannot pass, run a dart corridor (wall
     and ceiling dart guns that aim), cross the crystal hall (glass panes, a spike pit on a rail),
     time two swinging axes, and escape a collapsing gallery through a cracked wall into the sunset."""
     L = Level('07_explorer_guy/03_idol_hands.xml', 'Idol Hands', 7, (360, G - RIDE), bg=0, bgc=TEMPLE_SKY)
@@ -1281,8 +1282,9 @@ def ex_03():
     # clips it; hit below its pivot it swings up and away, so it never ends up under the wheels.
     chamber = S.smooth_profile([(2420, T1), (4700, T1)], 40)
     HX, HP = 3700, T1 - 168                 # the fist's pin
-    arm = S.shade(TINTERIOR, 1.45)
-    arm_dark = S.shade(TINTERIOR, 1.1)
+    S.light_shaft(L, HX, T1 - 640, HX, T1 - 40, 120, 300)              # behind the arm
+    arm = S.shade(TINTERIOR, 1.3)
+    arm_dark = S.shade(TINTERIOR, 0.95)
     L.art([(HX - 58, T1 - 700), (HX + 58, T1 - 700), (HX + 44, T1 - 420), (HX + 40, T1 - 236),
            (HX - 40, T1 - 236), (HX - 46, T1 - 420)], color=arm)
     L.art([(HX + 18, T1 - 700), (HX + 58, T1 - 700), (HX + 44, T1 - 420), (HX + 40, T1 - 236),
@@ -1298,8 +1300,7 @@ def ex_03():
     L.art(S.ellipse(HX - 58, T1 - 214, 18, 30, 10, 200, 400), color=S.shade(arm, 1.08))   # thumb
     idol = L.group()
     IY = T1 - 100 - 34                      # the idol's centre: bottom edge 100 px above the floor
-    # collision 4 (on the idol and the boulder): the two never touch; the boulder rolls under
-    idol.rect(HX, IY, 44, 68, color=rgb('e5b80b'), fixed=False, density=0.5, collision=4)
+    idol.rect(HX, IY, 44, 68, color=rgb('e5b80b'), fixed=False, density=0.5)
     idol.art([(HX - 16, IY - 2), (HX + 16, IY - 2), (HX + 22, IY + 20), (HX + 16, IY + 34),
               (HX - 16, IY + 34), (HX - 22, IY + 20)], color=rgb('d4a20a'))
     idol.art([(HX - 14, IY - 30), (HX + 14, IY - 30), (HX + 10, IY - 12), (HX - 10, IY - 12)], color=rgb('b8860b'))
@@ -1307,13 +1308,8 @@ def ex_03():
     idol.circle(HX + 8, IY - 18, 6, color=rgb('c0392b'), inter=False)
     idol.art([(HX - 18, IY + 8), (HX + 18, IY + 8), (HX + 14, IY + 18), (HX - 14, IY + 18)], color=rgb('ffe08a'))
     L.pin(HX, HP, idol, LEVEL, collide=True)       # collide: the b=4 sensors live on the level body
-    S.light_shaft(L, HX, T1 - 640, HX, T1 - 40, 120, 300)
     for x, w in ((3460, 170), (3950, 190)):
         S.gold_pile(L, x, T1, w, 46, seed=x)
-    # the boulder, waiting in its alcove above the entrance
-    L.box(2660, T1 - 420, 3080, T1 - 380, color=S.shade(TSTONE, 0.7))                     # alcove ledge
-    L.box(2660, T1 - 700, 3080, T1 - 640, color=TSTONE_DARK, inter=False)
-    boulder = L.circle(2830, T1 - 420 - 128, 256, color=rgb('8a7f70'), sleep=True, density=3.0, collision=4)
     # the sealed way on: a stone slab on a slide, held down by its motor until the idol moves
     door = L.group()
     door.rect(4340, T1 - 165, 90, 330, color=S.shade(TSTONE, 0.8), fixed=False, density=3.0)
@@ -1324,33 +1320,55 @@ def ex_03():
     L.box(2370, T1 - 900, 2600, T1 - 280, color=TSTONE_DARK, opacity=0)                  # solid roof of the mouth
     _ceiling(L, [(2600, T1 - 700), (4300, T1 - 700)], T1 - 900, solid=False)
     # loose chunks of the frieze (on an invisible ledge along it) that the trap shakes down
-    # (each on its own little shelf, all clear of the boulder's fall from its alcove)
+    # (each on its own little shelf)
     chunks = []
     for x in (3460, 3600, 3880, 4020, 4160):
         L.box(x - 20, T1 - 476, x + 20, T1 - 470, color=TSTONE_DARK, opacity=0)
         chunks.append(L.rect(x, T1 - 476 - 13, 34, 26, color=S.shade(TINTERIOR, 1.25), fixed=False, sleep=True,
                              density=0.3))
-    # The trap: one master trigger (b=5, fired by the idol triggers below), in this order:
-    # the door motor lifts the slab, the boulder rolls off its ledge, the line appears.
-    trap = L.trigger(3700, T1 - 200, 40, 40, [(dj, [(1, 20, 0.1)]),
-                                               (boulder, [(0,), (4, 9, 0, -4)]),
-                                               ] + [(c, [(0,), (4, 0, -1, 2)]) for c in chunks], by=5)
+    # The trap: one master trigger (b=5, fired by the idol triggers below): the door motor lifts
+    # the slab and the frieze sheds its loose chunks.
+    trap = L.trigger(3700, T1 - 200, 40, 40, [(dj, [(1, 20, 0.1)])] +
+                     [(c, [(0,), (4, 0, -1, 2)]) for c in chunks], by=5)
     # b=4: only the idol body trips these. Left, right and above its resting place.
     for zx, zy, zw, zh in ((HX - 70, HP, 60, 120), (HX + 70, HP, 60, 120), (HX, HP - 70, 140, 50)):
         L.trigger(zx, zy, zw, zh, [(idol, []), (trap, [(0,)])], by=4)
 
     # ---- 3. Boulder run: one long descent, then a low arch only you fit under ---------------
     run = S.smooth_profile([(4700, T1), (6150, T2), (7000, T2)], 50)
-    run_ceiling = [(x, y - 400) for x, y in run]
-    S.stone_wall(L, 4500, T1 - 700, 7000, T2, S.shade(TINTERIOR, 0.9), seed=8, bw=(120, 200), bh=64)
+    # the boulder waits in a niche in the roof at the top of the descent, on a stone trapdoor.
+    # Ride under it and the trapdoor goes: it drops onto the slope right behind you and follows
+    # you down. (From the idol chamber it rolled in far behind and never came into view.)
+    NX1, NX2 = 4840, 5120
+    c1, c2 = S.y_at(run, NX1) - 400, S.y_at(run, NX2) - 400
+    NX3 = NX2 + 300                         # the niche's far side slopes down: it rolls out forwards
+    run_ceiling = [(x, y - 400) for x, y in run if x < NX1] + [(NX1, c1), (NX1 + 10, T1 - 720),
+                                                              (NX2 - 10, T1 - 720)] + \
+        [(x, y - 400) for x, y in run if x >= NX3]
+    # (two pieces: one rectangle down to T2 covered the chamber floor before the descent)
+    S.stone_wall(L, 4500, T1 - 700, 4700, T1, S.shade(TINTERIOR, 0.9), seed=8, bw=(120, 200), bh=64)
+    S.stone_wall(L, 4700, T1 - 700, 7000, T2, S.shade(TINTERIOR, 0.9), seed=8, bw=(120, 200), bh=64)
     for k, x in enumerate(range(4800, 6900, 420)):
         y = S.y_at(run, x)
         S.torch(L, x, y - 230, lit=(k % 2 == 0))
-    for x in (5000, 5900):
+    for x in (5560, 6000):
         y = S.y_at(run, x)
         L.box(x - 60, y - 320, x + 60, y - 120, color=S.shade(TINTERIOR, 0.6), inter=False)
         S.skull(L, x - 20, y - 140)
         S.skull(L, x + 22, y - 140, 0.9)
+    # the slab hangs on chains low enough that the boulder sits in plain view overhead (the
+    # camera shows ~330 px above the rider) and lands just behind the cart when it drops
+    TD = max(c1, c2) + 120
+    for cx in (NX1 + 20, NX2 - 20):
+        S.hanging_chain(L, cx, T1 - 700, TD - (T1 - 700))
+    trapdoor = L.box(NX1 - 6, TD, NX2 + 6, TD + 26, color=S.shade(TSTONE, 0.7))
+    S.polyline_art(L, [(NX1, TD + 13), (NX2, TD + 13)], 3, S.shade(TSTONE, 0.5))
+    for cx in (NX1 + 20, NX2 - 20):
+        L.box(cx - 14, TD - 6, cx + 14, TD + 30, color=rgb('3a3a3a'), inter=False)
+    BX = (NX1 + NX2) / 2.0
+    boulder = L.circle(BX, TD - 128 - 2, 256, color=rgb('8a7f70'), sleep=True, density=3.0)
+    L.trigger(NX2 + 140, S.y_at(run, NX2 + 140) - 150, 60, 300,
+              [(trapdoor, [(6,)]), (boulder, [(0,), (4, 10, 0, -5)])])
     # the low arch: you fit if you crouch, the boulder (256) never will
     AX = 6720
     L.box(AX - 70, T2 - 520, AX + 70, T2 - 205, color=S.shade(TSTONE, 0.75))
@@ -1360,7 +1378,7 @@ def ex_03():
         S.skull(L, AX - 120 + k * 40, T2 - 16, 0.8)
     L.sign(AX - 260, T2, kind=7)                                         # falling-boulder warning
     _stone_floor(L, run, BOT, 9)
-    _ceiling(L, run_ceiling, T2 - 1000)
+    _ceiling(L, run_ceiling, T1 - 900)
 
     # ---- 4. The dart corridor: guns in carved faces in the ceiling and in the end wall --------
     D1, D2 = 7000, 8600
@@ -1405,7 +1423,7 @@ def ex_03():
         S.seg(L, x, T2 + 9, x, T2 + 380, 10, rgb('5a6a70'))
     hall2 = [(10000, T2), (C2, T2)]
     _stone_floor(L, hall2, BOT, 14, color=rgb('3d5a66'))
-    L.spikes(10300, T2 - 300, count=30, rot=180)                       # crystal spikes in the roof
+    L.spikes(10300, T2 - 284, count=30, rot=180)                       # crystal spikes in the roof
     _ceiling(L, [(C1, T2 - 520), (10150, T2 - 520), (10200, T2 - 285), (10450, T2 - 285), (C2, T2 - 400)],
              T2 - 1000, color=rgb('2c4a58'))
 
@@ -1444,10 +1462,10 @@ def ex_03():
         S.urn(L, x, T1, 64, rgb('a0522d'))
     S.cobweb(L, 2650, T1 - 300, 70, 0)
     # boulder run: serpent reliefs following the descent, roots through the roof, a fallen urn
-    for x, kind in ((5080, 0), (5850, 2), (6350, 0)):
+    for x, kind in ((5800, 2), (6350, 0)):
         y = S.y_at(run, x)
         S.relief_panel(L, x - 120, y - 300, 240, 100, S.shade(RUN_WALL, 1.25), kind=kind)
-    for x in (4900, 5500, 6200):
+    for x in (5400, 6200):
         S.roots(L, x, S.y_at(run, x) - 400, 140, seed=x)
     S.rubble(L, 6560, T2, 160, seed=3)
     S.hanging_chain(L, 5300, S.y_at(run, 5300) - 400, 160)
@@ -1474,11 +1492,11 @@ def ex_03():
     # ---- 7. The collapsing gallery and the way out -------------------------------------------
     out = S.smooth_profile([(12000, T2), (12150, T2), (13050, G + 40), (13300, G + 40)], 50)
     S.stone_wall(L, 12000, G - 500, 13300, T2, S.shade(TINTERIOR, 0.95), seed=17, bw=(100, 160), bh=58)
-    gallery_ceiling = [(x, y - 330) for x, y in out]
+    gallery_ceiling = [(x, y - 420) for x, y in out]         # room to pop over the crest at speed
     # ceiling blocks that drop behind you, one after another
     blocks = []
     for k, x in enumerate(range(12150, 13200, 110)):
-        y = S.y_at(out, x) - 330 + 32
+        y = S.y_at(out, x) - 420 + 32
         blocks.append(L.rect(x, y, 96, 60, color=S.shade(TSTONE, 0.8 + 0.05 * (k % 3)), fixed=False,
                              sleep=True, density=1.2))
     # each pair of blocks lets go once you are 250 px past it: the gallery caves in behind you
@@ -1491,13 +1509,13 @@ def ex_03():
     _ceiling(L, gallery_ceiling, G - 700)
     # the outer wall, already burst open: broken block edges around the breach, its blocks lying
     # outside as rubble (art only: loose blocks in the doorway wedged under the cart)
-    L.box(13290, G - 240, 13440, G + 100, color=rgb('f6b26b'), inter=False)        # sunset through the breach
-    L.box(13300, G - 600, 13440, G - 230, color=TSTONE_DARK)                         # wall above the breach
+    L.box(13290, G - 370, 13440, G + 100, color=rgb('f6b26b'), inter=False)        # sunset through the breach
+    L.box(13300, G - 600, 13440, G - 360, color=TSTONE_DARK)                         # wall above the breach
     for k, (dy, dx) in enumerate(((0, 0), (52, 26), (104, 8), (156, 30))):
-        L.box(13300, G - 230 + dy, 13318 + dx, G - 230 + dy + 50, color=S.shade(TSTONE, 0.8 + 0.05 * (k % 2)),
+        L.box(13300, G - 360 + dy, 13318 + dx, G - 360 + dy + 50, color=S.shade(TSTONE, 0.8 + 0.05 * (k % 2)),
               inter=False)
-    L.art([(13300, G - 230), (13440, G - 230), (13420, G - 212), (13380, G - 220), (13350, G - 200),
-           (13320, G - 214)], color=TSTONE_DARK)
+    L.art([(13300, G - 360), (13440, G - 360), (13420, G - 342), (13380, G - 350), (13350, G - 330),
+           (13320, G - 344)], color=TSTONE_DARK)
     for k, (bx, rot) in enumerate(((13480, 12), (13540, -20), (13600, 35), (13690, -8))):
         L.box(bx - 24, S.y_at(clearing_line, bx) - 36, bx + 24, S.y_at(clearing_line, bx) + 2,
               color=S.shade(TSTONE, 0.85 + 0.05 * (k % 2)), inter=False)
@@ -1522,8 +1540,8 @@ def ex_03():
         L.circle(wx, G + 84, 30, color=rgb('9a9a7a'), inter=False)
     L.finish(14500, G + 120)
     # the temple's outer wall around the breach: sunlit stone, a broken edge, vines
-    S.stone_wall(L, 13300, G - 900, 13440, G - 230, TSTONE, seed=21, bw=(50, 80), bh=48)
-    L.art([(13440, G - 900), (13440, G - 230), (13470, G - 260), (13455, G - 330), (13480, G - 420),
+    S.stone_wall(L, 13300, G - 900, 13440, G - 360, TSTONE, seed=21, bw=(50, 80), bh=48)
+    L.art([(13440, G - 900), (13440, G - 360), (13470, G - 390), (13455, G - 440), (13480, G - 420),
            (13462, G - 520), (13488, G - 640), (13470, G - 900)], color=S.shade(TSTONE, 0.9))
     for x, ln in ((13330, 260), (13400, 380), (13470, 200)):
         S.vine(L, x, G - 900, ln + 400, seed=x)
@@ -2553,7 +2571,7 @@ def _lift_door(L, x, floor, h, top_y, color=rgb('c0392b')):
     for k in range(int(h / 60)):
         d.rect(x, floor - h + 30 + k * 60, 64, 6, color=S.shade(color, 0.75), inter=False)
     d.rect(x, floor - 26, 70, 20, color=SAFETY, inter=False)
-    j = L.slider(x, floor - h / 2.0, d, LEVEL, axis=-90, lower=0, upper=h + 40, motor=True, force=5e6, speed=0)
+    j = L.slider(x, floor - h / 2.0, d, LEVEL, axis=90, lower=0, upper=h + 40, motor=True, force=5e6, speed=0)
     L.box(x - 46, top_y, x - 36, floor, color=rgb('3d4a54'), inter=False)            # door guides
     L.box(x + 36, top_y, x + 46, floor, color=rgb('3d4a54'), inter=False)
     return j
@@ -2580,7 +2598,7 @@ def he_01():
     swinging hooks, a floor fan's updraft) up to Bay 2 on the mezzanine, which opens the main
     door. Fly out over the apron, under the power lines and land on the tower helipad. Spare crates
     sit in both hangars, so a lost load can be replaced."""
-    L = Level('11_helicopter_man/01_lift_off.xml', 'Lift Off', 11, (420, G - 130), bg=1, bgc=AIR_SKY)
+    L = Level('11_helicopter_man/01_lift_off.xml', 'Lift Off', 11, (280, G - 130), bg=1, bgc=AIR_SKY)
     BOT = G + 420
     H1T = G - 640          # hangar 1 ceiling
     H2T = G - 900          # hangar 2 ceiling
@@ -2592,7 +2610,7 @@ def he_01():
     for wx in (300, 1250):
         L.box(wx - 8, G - 520, wx + 508, G - 300, color=rgb('3d4a54'), inter=False)
         L.box(wx, G - 512, wx + 500, G - 308, color=AIR_SKY, inter=False)
-        L.art(S.blob(wx + 200, G - 330, 300, 50, wx, 16, 0.1), color=S.haze(rgb('5c9e2e'), AIR_SKY, 0.4))
+        L.art(S.blob(wx + 250, G - 330, 236, 20, wx, 16, 0.1), color=S.haze(rgb('5c9e2e'), AIR_SKY, 0.4))
         L.box(wx, G - 330, wx + 500, G - 308, color=S.haze(rgb('9a9a92'), AIR_SKY, 0.3), inter=False)
         S.cloud(L, wx + 330, G - 460, 160, seed=wx)
         for k in range(1, 4):
@@ -2602,15 +2620,12 @@ def he_01():
     S.storage_rack(L, 1820, 2080, G, 300, 3, seed=2)
     S.plane_art(L, 620, G, s=0.75)
     S.toolbox(L, 1240, G)
-    L.text(60, H1T + 66, 'SKYHOOK AIR FREIGHT', size=26, color=rgb('2d3e50'), font=5)
-    L.text(60, H1T + 104, 'HANGAR 1', size=18, color=rgb('2d3e50'), font=5)
     S.truss(L, 0, 2440, H1T + 10, 70, STEEL)
     for x in range(200, 2400, 500):
         S.hazard_lamp(L, x, H1T + 92, rgb('fff2b0'))
     # floor: the start pad, crates, Bay 1
     _hangar_floor(L, 0, 2440, G, BOT, 1)
-    L.box(330, G - 4, 510, G, color=SAFETY, inter=False)
-    L.text(404, G - 34, 'H', size=24, color=SAFETY, font=5)
+    L.box(190, G - 4, 370, G, color=SAFETY, inter=False)
     crate1 = L.rect(1050, G - 40, 80, 80, color=rgb('b07a45'), fixed=False, density=0.5)
     spare1 = L.rect(1500, G - 35, 70, 70, color=rgb('a06a3a'), fixed=False, density=0.5)
     S.crate_art(L, 2200, G, 90, 60)
@@ -2621,13 +2636,12 @@ def he_01():
     L.box(0, G - 900, 12, G, color=HANGAR_DARK, opacity=0)                          # stage wall
     bay1 = [(door1, [(1, 3, 0.6)]), (red1, [(3, 0, 0.3)]), (green1, [(3, 100, 0.3)])]
     for crate in (crate1, spare1):
-        L.trigger(1800, G - 50, 220, 90, [(crate, [])] + bay1, by=4)
+        L.trigger(1800, G - 40, 220, 36, [(crate, [])] + bay1, by=4)     # at resting height: set it down
 
     # ---- Hangar 2: the assembly hall -----------------------------------------------------------
     X2, X3 = 2440, 5800
     S.corrugated(L, X2, H2T, X3, G, S.shade(HANGAR_WALL, 0.92))
     S.truss(L, X2, X3, H2T + 10, 90, STEEL, panel=110)
-    L.text(2600, H2T + 120, 'HANGAR 2  -  ASSEMBLY', size=22, color=rgb('2d3e50'), font=5)
     for x in range(2700, 5700, 600):
         S.i_beam_art(L, x - 14, H2T + 100, x + 14, G, STEEL)
     S.storage_rack(L, 2560, 2960, G, 360, 3, seed=3)
@@ -2648,10 +2662,11 @@ def he_01():
     L.box(4240, G - 620, 4300, H2T + 100, color=rgb('4d5963'), inter=False)
     _hanging_hook(L, 3550, H2T + 100, 330, 30)
     _hanging_hook(L, 4500, H2T + 100, 390, -30)
-    L.box(4700, H2T + 100, 4900, G - 470, color=rgb('8c99a3'))                          # ducting
-    for yy in range(int(H2T + 120), int(G - 470), 60):
+    # ducting: its mouth leaves room for the copter with a load on a short rope above the crates
+    L.box(4700, H2T + 100, 4900, G - 520, color=rgb('8c99a3'))
+    for yy in range(int(H2T + 120), int(G - 520), 60):
         L.box(4700, yy, 4900, yy + 6, color=rgb('6d7b85'), inter=False)
-    L.box(4680, G - 490, 4920, G - 470, color=rgb('6d7b85'), inter=False)
+    L.box(4680, G - 540, 4920, G - 520, color=rgb('6d7b85'), inter=False)
     L.fan(4150, G, rot=0)
     S.warning_stripes(L, 4080, G - 4, 4220, G + 10, w=12)
     for x, w, h in ((4620, 110, 100), (4740, 90, 70), (4950, 120, 130)):
@@ -2674,7 +2689,7 @@ def he_01():
     L.box(X3 - 40, H2T - 400, X3 + 40, H2T, color=S.shade(HANGAR_DARK, 1.2), inter=False)
     bay2 = [(door2, [(1, 3, 0.8)]), (red2, [(3, 0, 0.3)]), (green2, [(3, 100, 0.3)])]
     for cargo in (engine, spare2):
-        L.trigger(5450, MZ - 55, 240, 100, [(cargo, [])] + bay2, by=4)
+        L.trigger(5450, MZ - 45, 240, 40, [(cargo, [])] + bay2, by=4)
 
     # ---- Outside: the apron, power lines, the tower helipad ------------------------------------
     O1, O2 = X3, 9400
@@ -2685,7 +2700,6 @@ def he_01():
     # the hangar's outer skin around the door
     S.corrugated(L, X3 + 40, G - 1300, X3 + 120, G, S.shade(HANGAR_WALL, 1.05))
     L.box(X3 + 40, G - 1300, X3 + 130, G - 1280, color=HANGAR_DARK, inter=False)
-    L.text(X3 + 52, G - 520, 'SKY\nHOOK', size=18, color=rgb('2d3e50'), font=5)
     # the parked trainer, its engine still running: the blast pushes you back (fan blowing left)
     S.plane_art(L, 6900, G, color=rgb('ffffff'), trim=rgb('27ae60'), s=1.0)
     L.fan(6640, G - 30, rot=-90)
@@ -2721,7 +2735,6 @@ def he_01():
         L.box(wx, G - 200, wx + 50, G - 140, color=rgb('6fb6d6'), inter=False)
     L.box(8790, G - 270, 9250, G - 256, color=rgb('5d5d58'), inter=False)
     L.box(8900, G - 274, 9140, G - 268, color=SAFETY, inter=False)
-    L.text(9000, G - 330, 'H', size=40, color=SAFETY, font=5)
     L.finish(9020, G - 260)
     L.box(O2 - 20, G - 1200, O2 + 20, BOT, color=STEEL, opacity=0)
     return L

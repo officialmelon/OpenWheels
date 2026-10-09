@@ -41,8 +41,8 @@ folder are from those runs (original game data, used here only as review referen
    the art follows (convex quads per segment), so nothing snags that isn't drawn.
 5. **Fair warnings.** Hazards are announced in the scene: a seesaw sign, a falling-boulder sign
    at the low arch, a skeleton pinned by darts. This avoids Egyptian Tomb's instant spike death.
-6. **Story through the scene, not paragraphs.** One short title and control line per level,
-   one or two triggered reactions, and environmental signs (LAWN OF THE MONTH, BAY 1,
-   COUNTY FAIR WINNER).
+6. **Story through the scene, not paragraphs.** No titles, hints or captions in the level; one
+   or two triggered physical reactions (Mrs. Henderson swoons, the frieze sheds chunks) and
+   signs painted on objects (LAWN OF THE MONTH, BAY 1, COUNTY FAIR WINNER).
 7. **Endings that conclude.** Each level ends in a distinct place: the HOA office, a sunset
    clearing with the getaway jeep, the tower helipad.
