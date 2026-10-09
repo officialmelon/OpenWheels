@@ -236,7 +236,7 @@ def lm_01():
     # ground: driveway, lawn, a gentle hill, the kiddie-pool dip, lawn to the end
     L.box(0, G, 900, G + 600, color=CONCRETE)                       # driveway
     L.ground([(900, G), (2600, G)], bottom=G + 600, color=GRASS)
-    L.ground(hill_profile(2600, 4300, G, 150, 1.0, 200), bottom=G + 600, color=GRASS)
+    L.ground(hill_profile(2600, 4400, G, 150, 1.0, 200), bottom=G + 600, color=GRASS)
     # kiddie pool: a shallow dip with sloped sides and water art
     L.ground([(4300, G), (4460, G + 40), (4840, G + 40), (5000, G)], bottom=G + 600, color=GRASS)
     L.box(4400, G + 12, 4900, G + 40, color=WATER, opacity=60, inter=False)
