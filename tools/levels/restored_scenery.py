@@ -191,9 +191,20 @@ def solid_profile(L, profile, bottom, color=0x555555, visible=False, extend=4.0)
     Each quad's top edge runs `extend` px past both ends of its segment, so neighbours overlap
     instead of meeting at a shared corner: a fast wheel crossing exactly abutting polygons can
     catch the next one's corner (Box2D internal-edge contact) and stop dead, which throws the
-    rider. At a crest the overlap stands up by extend * sin(angle change), well under 1 px."""
+    rider. At a crest the overlap stands up by extend * sin(angle change), well under 1 px.
+
+    Collinear neighbours (the flat runs smooth_profile subdivides) become one quad: a sliding box
+    such as a knocked-off idol snags on the corner of the next quad even when they overlap."""
     refs = []
-    for (x1, y1), (x2, y2) in zip(profile, profile[1:]):
+    pts = [profile[0]]
+    for p in profile[1:]:
+        if len(pts) >= 2:
+            (ax, ay), (bx, by) = pts[-2], pts[-1]
+            if abs((bx - ax) * (p[1] - by) - (by - ay) * (p[0] - bx)) < 1e-6:
+                pts[-1] = p
+                continue
+        pts.append(p)
+    for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
         if x2 <= x1:
             raise ValueError('profile must go right: %r' % ((x1, y1), (x2, y2)))
         ln = math.hypot(x2 - x1, y2 - y1)
@@ -1071,3 +1082,114 @@ def hazard_lamp(L, x, y, color=rgb('ff9f1a'), lit=True):
     L.art(ellipse(x, y - 4, 14, 16, 10, 180, 360), color=color)
     if lit:
         L.circle(x, y - 8, 60, color=color, opacity=18, inter=False)
+
+
+# ---------------------------------------------------------------------------------------------
+# Temple: room transitions and wall dressing
+
+
+def blend_wall(L, x1, x2, y1, y2, c1, c2, steps=6):
+    """A soft hand-over between two rooms' wall colours: vertical bands mixing c1 into c2."""
+    w = (x2 - x1) / float(steps)
+    for k in range(steps):
+        L.box(x1 + k * w, y1, x1 + (k + 1) * w + 1, y2, color=mix(c1, c2, (k + 0.5) / steps), inter=False)
+
+
+def portal(L, x, floor, top, w=150, color=rgb('9c8458'), opening=None, keystone=rgb('e5b80b')):
+    """A massive stone door frame between two rooms (art): two jambs with bases and capitals,
+    a lintel with a carved band and a keystone. `opening` = (half width, height) of the passage
+    it frames (default: the whole height up to the lintel)."""
+    jw = 46
+    ow = w / 2.0 if opening is None else opening[0]
+    lintel = top if opening is None else floor - opening[1]
+    dark, light = shade(color, 0.7), shade(color, 1.15)
+    for side in (-1, 1):
+        jx1 = x + side * ow if side > 0 else x - ow - jw
+        L.box(jx1, lintel, jx1 + jw, floor, color=color, inter=False)
+        L.box(jx1 + (jw - 10 if side < 0 else 0), lintel, jx1 + (jw if side < 0 else 10), floor, color=dark,
+              inter=False)
+        L.box(jx1 - 8, floor - 26, jx1 + jw + 8, floor, color=light, inter=False)
+        L.box(jx1 - 6, lintel + 4, jx1 + jw + 6, lintel + 22, color=light, inter=False)
+        for yy in range(int(lintel + 60), int(floor - 40), 70):
+            L.box(jx1 + 6, yy, jx1 + jw - 6, yy + 4, color=dark, inter=False)
+    L.box(x - ow - jw - 14, lintel - 60, x + ow + jw + 14, lintel + 4, color=color, inter=False)
+    L.box(x - ow - jw - 14, lintel - 60, x + ow + jw + 14, lintel - 50, color=light, inter=False)
+    L.box(x - ow - jw - 14, lintel - 8, x + ow + jw + 14, lintel + 4, color=dark, inter=False)
+    L.art([(x - 24, lintel - 64), (x + 24, lintel - 64), (x + 16, lintel - 2), (x - 16, lintel - 2)], color=keystone)
+    L.circle(x, lintel - 34, 12, color=shade(keystone, 0.7), inter=False)
+
+
+def relief_panel(L, x, y, w, h, color, kind=0):
+    """A carved wall panel (art): a frame with a scene: 0 serpent, 1 sun and rays, 2 procession."""
+    dark, light = shade(color, 0.72), shade(color, 1.15)
+    L.box(x, y, x + w, y + h, color=dark, inter=False)
+    L.box(x + 8, y + 8, x + w - 8, y + h - 8, color=color, inter=False)
+    cx, cy = x + w / 2.0, y + h / 2.0
+    if kind == 0:
+        pts = [(x + 20 + (w - 40) * t / 10.0, cy + math.sin(t * 1.3) * h * 0.22) for t in range(11)]
+        polyline_art(L, pts, 14, dark)
+        L.art(ellipse(pts[-1][0] + 8, pts[-1][1], 18, 13, 10), color=dark)
+        L.circle(pts[-1][0] + 12, pts[-1][1] - 4, 5, color=light, inter=False)
+    elif kind == 1:
+        for k in range(10):
+            a = 2 * math.pi * k / 10
+            seg(L, cx, cy, cx + math.cos(a) * h * 0.4, cy + math.sin(a) * h * 0.4, 6, dark)
+        L.circle(cx, cy, h * 0.42, color=dark, inter=False)
+        L.circle(cx, cy, h * 0.3, color=light, inter=False)
+    else:
+        n = max(2, int(w / 60))
+        for k in range(n):
+            fx = x + 30 + k * (w - 60) / float(max(1, n - 1))
+            L.circle(fx, y + h * 0.3, 11, color=dark, inter=False)
+            L.art([(fx - 12, y + h * 0.38), (fx + 12, y + h * 0.38), (fx + 16, y + h - 18), (fx - 16, y + h - 18)],
+                  color=dark)
+            seg(L, fx + 10, y + h * 0.45, fx + 26, y + h * 0.3, 5, dark)
+
+
+def urn(L, x, ground, h=70, color=rgb('a0522d')):
+    L.art([(x - 14, ground), (x + 14, ground), (x + 26, ground - h * 0.45), (x + 14, ground - h * 0.85),
+           (x + 18, ground - h), (x - 18, ground - h), (x - 14, ground - h * 0.85), (x - 26, ground - h * 0.45)],
+          color=color)
+    L.box(x - 26, ground - h * 0.5, x + 26, ground - h * 0.42, color=shade(color, 0.7), inter=False)
+
+
+def roots(L, x, top, length, seed=0, color=rgb('5a4030')):
+    """Tree roots breaking through a ceiling, hanging down (art)."""
+    rng = Rng(seed)
+    for k in range(3):
+        pts = [(x + k * 18, top)]
+        for i in range(1, 6):
+            px, py = pts[-1]
+            pts.append((px + rng.uniform(-14, 14), py + length / 5.0))
+        polyline_art(L, pts, 9 - k * 2, shade(color, 1 - 0.08 * k))
+
+
+def hanging_chain(L, x, top, length, color=rgb('4a4a4a')):
+    y = top
+    k = 0
+    while y < top + length:
+        if k % 2 == 0:
+            L.art(ellipse(x, y + 8, 6, 9, 8), color=color)
+        else:
+            L.box(x - 2, y, x + 2, y + 16, color=color, inter=False)
+        y += 13
+        k += 1
+
+
+def cobweb(L, x, y, r=60, corner=0):
+    """A corner cobweb (art): radial threads and a few rings. corner 0 = top-left, 1 = top-right."""
+    s = 1 if corner == 0 else -1
+    for k in range(5):
+        a = math.radians(k * 22.5)
+        seg(L, x, y, x + s * math.cos(a) * r, y + math.sin(a) * r, 2, 0xffffff, opacity=45)
+    for rr in (r * 0.4, r * 0.7, r):
+        pts = [(x + s * math.cos(math.radians(k * 22.5)) * rr, y + math.sin(math.radians(k * 22.5)) * rr)
+               for k in range(5)]
+        polyline_art(L, pts, 2, 0xffffff, opacity=40)
+
+
+def rubble(L, x, ground, w=120, color=rgb('8d7550'), seed=0):
+    rng = Rng(seed)
+    for k in range(int(w / 22)):
+        L.art(blob(x - w / 2.0 + rng.uniform(0, w), ground - rng.uniform(4, 16), rng.uniform(10, 22),
+                   rng.uniform(7, 14), seed + k, 8, 0.2), color=shade(color, rng.uniform(0.75, 1.1)))
