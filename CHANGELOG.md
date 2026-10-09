@@ -28,9 +28,10 @@
   crouch, Irresponsible Mom's kids) were covered by the special button when the special button was
   set to the left side, so they couldn't be pressed (touch or keys). They now sit above it.
 - Helicopter Man's rope always has at least 2 m to let out.
-- **Swords in grouped objects couldn't be grabbed** on browser levels (some sword fights): the
-  original put the handle's collision box at the weapon's centre instead of under the drawn
-  handle, so the blade hit but the handle had nothing to hold. It now sits where it is drawn.
+- **Swords in grouped objects couldn't be grabbed** (some sword fights): the original put the
+  handle's collision box at the weapon's centre instead of under the drawn handle, so the blade
+  hit but the handle had nothing to hold. On browser levels, user levels and the editor's test
+  play it now sits where it is drawn (the campaign keeps the original's box).
 
 ## v0.3.0
 
