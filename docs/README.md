@@ -23,6 +23,8 @@
   browser game.
 * [QOL.md](QOL.md) — the Quality of Life options page (blood styles, particles, camera, ...)
   and the desktop keyboard controls.
+* [CONTROLLERS.md](CONTROLLERS.md) — game controllers on every platform (remappable bindings,
+  menu focus navigation), rumble and tilt steering.
 * [NEARBY.md](NEARBY.md) — Send to Nearby: levels between players on the same Wi-Fi (LAN
   discovery, the transfer protocol, receive codes, firewall and emulator notes).
 * [RACE.md](RACE.md) — Ghost Race: local races between nearby players, the others shown as

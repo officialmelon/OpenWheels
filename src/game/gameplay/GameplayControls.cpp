@@ -5,6 +5,9 @@
 #include "Globals.h"
 #include "Settings.h"
 #include "restored/Restored.h"  // RESTORED (PC addition)
+#include "online/FlashRuntime.h"  // ONLINE (PC addition)
+#include "online/vehicles/UserVehicle.h"  // ONLINE (PC addition)
+#include "input/Gamepad.h"  // PAD (PC addition)
 #include "qol/KeyBindings.h"       // QOL (PC addition)
 #include "qol/QoL.h"               // QOL (PC addition)
 
@@ -262,6 +265,11 @@ void GameplayControls::addControls(ControlsType type)
             addChild(btn);
             _buttons.push_back(btn);
         }
+        // ONLINE (PC addition): a rider of a browser user vehicle uses this layout.
+        if (online::flashLevel())
+        {
+            onlineAddUserVehicleButtons(grabBtn->getPosition(), grabSize);
+        }
 
         if (_drawBounds)
         {
@@ -461,6 +469,15 @@ void GameplayControls::addControls(ControlsType type)
                                                         _leanForwardPos, leanForwardSize.height,
                                                         Vec2::ZERO, 0.0f, _specialButtonSpacing))
         {
+            // They sit above the lean buttons, where a special button on the left goes too (the
+            // Options' special position, Lawn Mower Man): move them above it, or the special's
+            // enlarged hit area takes their touches and the keyboard's fingers.
+            if (specialOnLeft)
+            {
+                btn->setPosition(btn->getPosition() + Vec2(0.0f, specialSize.height + _specialButtonSpacing + 280.0f));  // clear of its hit area (+240 top)
+                btn->setHitArea(Rect(Rect::ZERO));
+                btn->nudgeBounds(36.0f, 36.0f, 36.0f, 36.0f);
+            }
             addChild(btn);
             _buttons.push_back(btn);
         }
@@ -585,8 +602,9 @@ void GameplayControls::addResetBtn()
     _resetBtn->setPosition(_resetBtnPos);
     _resetBtn->nudgeBounds(14.0f, 14.0f, 14.0f, 14.0f);
     addChild(_resetBtn);
-    // QOL (PC addition): desktop builds show the restart key above the button (scales with it).
-    if (qol::desktopBuild())
+    // QOL (PC addition): desktop builds show the restart key above the button (scales with it);
+    // PAD (PC addition): so does any build with a game controller connected (its button).
+    if (qol::desktopBuild() || openwheels::pad::anyConnected())
     {
         Label* hint = qol::createKeyHintLabel(qol::KeyAction::Restart, 70.0f);
         hint->setAnchorPoint(Vec2(0.5f, 0.0f));
@@ -735,6 +753,12 @@ bool GameplayControls::touchBegan(Touch* touch)
     {
         // QOL (PC addition): hidden touch controls only take the keyboard bridge's fingers.
         if (btn->getKeyOnly() && !qol::keyboardTouch())
+        {
+            continue;
+        }
+        // ONLINE (PC addition): the user-vehicle buttons are hidden while not riding one (every
+        // original button is always visible).
+        if (!btn->isVisible())
         {
             continue;
         }
@@ -1032,4 +1056,67 @@ Vec2 GameplayControls::getSpecialPos()
 Vec2 GameplayControls::getEjectPos()
 {
     return _ejectPos;
+}
+
+// ONLINE (PC addition): Flash's shift / ctrl (a user vehicle's assigned actions: brake, jets,
+// arrow guns) and Z (eject) have no button in the mobile ejected layout a rider uses, so touch
+// and mouse players could not use them (the keyboard sends them directly, see
+// online::pcExtraControlBits). Two buttons left of the grab button, labelled with the keys
+// level authors name in their instructions, and the eject button at its usual place; each shows
+// while the main character rides a vehicle that uses it.
+void GameplayControls::onlineAddUserVehicleButtons(const Vec2& grabPos, const Size& grabSize)
+{
+    const Size visibleSize = Director::getInstance()->getVisibleSize();
+    const Vec2 origin = Director::getInstance()->getVisibleOrigin();
+    const char* const frames[3] = {"controls_gameplay_btn_jet.png", "controls_gameplay_btn_jet.png",
+                                   "controls_gameplay_btn_eject.png"};
+    const unsigned int bits[3] = {0x20, 0x40, 0x80};
+    const char* const labels[3] = {"SHIFT", "CTRL", nullptr};
+    float x = grabPos.x - grabSize.width * 0.5f;
+    for (int i = 0; i < 3; i++)
+    {
+        GameplayBtn* btn = GameplayBtn::createWithSpriteFrameName(frames[i], bits[i], _userScale);
+        if (!btn)
+        {
+            continue;
+        }
+        btn->setAdjustedScale(1.0f);
+        const Size size = btn->getContentSize();
+        if (i < 2)
+        {
+            x -= _specialButtonSpacing + size.width * 0.5f;
+            btn->setPosition(Vec2(x, grabPos.y));
+            x -= size.width * 0.5f;
+        }
+        else
+        {
+            btn->setPosition(Vec2(origin.x + visibleSize.width - _sideMargin - size.width * 0.5f,
+                                  origin.y + visibleSize.height - _topMargin - size.height * 0.5f));
+        }
+        btn->setHitArea(Rect(Rect::ZERO));
+        btn->nudgeBounds(24.0f, 24.0f, 24.0f, 24.0f);
+        if (labels[i] && qol::touchControlsShown())
+        {
+            Label* label = Label::createWithTTF(labels[i], "fonts/ClarendonLTStd-Bold.ttf", 56.0f);
+            label->setColor(globals::colors::yellow);
+            label->enableOutline(Color4B(0, 0, 0, 255), 5);
+            label->setPosition(Vec2(size.width * 0.5f, size.height * 0.5f));
+            btn->addChild(label);
+        }
+        btn->setVisible(false);
+        btn->schedule(
+            [btn, i](float) {
+                online::UserVehicle* vehicle = online::riddenUserVehicle();
+                bool show = vehicle != nullptr;
+                if (show && i == 0) show = vehicle->getShiftAction() != online::UserVehicle::ActionNone;
+                if (show && i == 1) show = vehicle->getCtrlAction() != online::UserVehicle::ActionNone;
+                if (btn->isVisible() != show)
+                {
+                    btn->setVisible(show);
+                }
+            },
+            "ow_user_vehicle_button");
+        addChild(btn);
+        _buttons.push_back(btn);
+    }
 }

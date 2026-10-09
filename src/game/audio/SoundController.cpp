@@ -3,6 +3,8 @@
 #include "Sound.h"
 #include "SoundList.h"
 #include "qol/QoL.h"  // QOL (PC addition)
+#include "input/Haptics.h"  // PAD (PC addition)
+#include "Box2D/Box2D.h"  // PAD (PC addition): body positions for the rumble's distance
 
 #include "audio/include/AudioEngine.h"
 #include "cocos2d.h"
@@ -53,6 +55,7 @@ std::string SoundController::soundFileName(int soundId)
 // @006149d4
 int SoundController::playSound(std::string name, float volume, float pitch, float pan)
 {
+    openwheels::haptics::onSound(name, 0.0f);  // PAD (PC addition): controller rumble
     return Sound::playSound(name, 1.0f, 1.0f, 0.0f, false);
 }
 
@@ -111,6 +114,12 @@ bool SoundController::stopSoundsForBody(b2Body* body)
 // @00614e68
 Sound* SoundController::createBodySound(std::string name, b2Body* body, float pitch, bool loop)
 {
+    // PAD (PC addition): controller rumble for one-shot sounds, faded by the distance.
+    if (!loop && body)
+    {
+        const b2Vec2 p = body->GetPosition();
+        openwheels::haptics::onSound(name, _position.distance(Vec2(p.x, p.y)));
+    }
     if (!canPlayAnotherSound())
     {
         return nullptr;
@@ -145,6 +154,7 @@ bool SoundController::addSound(Sound* sound)
 // @00615270
 Sound* SoundController::createPositionSound(std::string name, Vec2 position, float pitch, bool loop)
 {
+    if (!loop) openwheels::haptics::onSound(name, _position.distance(position));  // PAD (PC addition)
     if (!canPlayAnotherSound())
     {
         return nullptr;

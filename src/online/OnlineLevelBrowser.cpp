@@ -318,6 +318,7 @@ void OnlineLevelBrowser::buildList() {
         r.node = Node::create();
         r.node->setContentSize(Size(rw, _rowH));
         _rowsNode->addChild(r.node);
+        r.node->setName("ow_focus");  // PAD (PC addition): a controller focus target (input/MenuFocus.h)
         // Unselected: a dark bar like the options screen; selected: the main menu's blue button.
         r.bg = ui::roundedRect(Size(rw, rh), 26.0f, Color3B(0, 0, 0), 100);
         r.bg->setAnchorPoint(Vec2::ZERO);

@@ -71,6 +71,15 @@ void QoLSliderItem::setFromTouch(Touch* touch)
     refresh();
 }
 
+void QoLSliderItem::nudge(int direction)
+{
+    const float value = std::max(0.0f, std::min(1.0f, std::round(_get() * 20.0f + direction) / 20.0f));
+    if (std::fabs(value - _get()) < 0.001f) return;
+    _set(value);
+    refresh();
+    UserDefault::getInstance()->flush();
+}
+
 void QoLSliderItem::refresh()
 {
     const float value = _get();

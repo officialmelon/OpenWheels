@@ -15,6 +15,8 @@ public:
     static QoLSliderItem* create(std::function<std::string(float)> label, std::function<float()> get,
                                  std::function<void(float)> set);
     void refresh();
+    // PAD (PC addition): one 5 % step left (-1) or right (+1), for controller focus navigation.
+    void nudge(int direction);
 
 private:
     bool initSlider(std::function<std::string(float)> label, std::function<float()> get,
