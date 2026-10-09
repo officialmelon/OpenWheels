@@ -21,11 +21,13 @@
 - **Browser physics for online levels.** Browser levels step like the Flash game: one 1/30 s step
   per frame, its iterations and contact solver (no block solver). Balances, stacks, "don't move"
   levels and joint stiffness behave as in the browser, and browser replays are re-simulated one
-  input per step (QOL "browser physics", on by default).
+  input per step (QOL "browser physics", off by default, online levels only).
 - **Online levels:** change character on levels that force one (QOL "any character"), NEXT plays
   the next level of the browser list, and leaving a level returns to the browser or Your Levels.
 
 ### Fixed
+- **Browser physics only for online levels.** Restored campaign and editor levels no longer run at the
+  browser step, and the option is off by default. The "select a character" chapter is now last.
 - **Missing scenery everywhere:** every static polygon and art shape (trees, roots, cliffs,
   windows, walls...) was drawn far off-screen. The swamp level alone lost 262 shapes.
 - **Neon / outline levels showed black:** shape outlines are drawn, outline-only shapes are kept,

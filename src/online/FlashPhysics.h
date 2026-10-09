@@ -6,7 +6,7 @@
 // that resolves every contact point on its own (Box2D 2.0 had no 2-point block solver). The
 // mobile game (Box2D 2.3) steps at 1/60 with 8 + 3 iterations and the block solver. Stacks,
 // balances, "don't move" levels, joint stiffness and every browser replay (one input byte per
-// 30 Hz frame) depend on that difference, so with "browser physics" on (QOL page, default on)
+// 30 Hz frame) depend on that difference, so with "browser physics" on (QOL page, default off)
 // a converted browser level runs:
 //   * one world step per Flash frame: the Session's time step is 1/30 (Session::setTimeStep, the
 //     original game's own variable-step mechanism: characters rescale their joint limits, items
@@ -16,15 +16,23 @@
 // Campaign and other mobile levels never see any of it. With the option off, browser levels play
 // on the mobile profile (1/60, 8 + 3), as in OpenWheels 0.2.
 
+#include <string>
+
 class b2World;
 class LevelB2D;
 class Session;
 
 namespace online {
 
-// The QOL option (persisted; default on).
+// The QOL option (persisted; default off).
 bool browserPhysicsOption();
 void setBrowserPhysicsOption(bool on);
+
+// Offline levels (restored campaign, editor levels) are converted from browser format too but
+// never use the browser profile: markOfflineLevel tags a converted level's <info>, LevelB2D::addInfo
+// reports the tag through setOfflineLevel before beginLevelTimeStep.
+std::string markOfflineLevel(const std::string& mobileXml);
+void setOfflineLevel(bool offline);
 
 // True while the running level plays with the browser profile (latched when the level starts,
 // so toggling the option mid-level waits for the next level).

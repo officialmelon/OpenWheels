@@ -16,6 +16,7 @@
 #include "LawnMowerMan.h"
 #include "SantaClaus.h"
 #include "online/FlashLevelConverter.h"
+#include "online/FlashPhysics.h"
 #include "tinyxml2/tinyxml2.h"
 
 USING_NS_CC;
@@ -275,7 +276,7 @@ std::string playableLevelXml(const std::string& xml, bool browserFormat)
         log("restored: campaign level not converted: %s", report.error.c_str());
         return xml;
     }
-    return mobile;
+    return online::markOfflineLevel(mobile);
 }
 
 bool hasCharacter(int characterId)

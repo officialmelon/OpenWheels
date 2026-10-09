@@ -462,7 +462,7 @@ black fill) showed black shapes or nothing at all.
 
 ### 10.8 Browser physics profile: one world step per Flash frame (2026-10-08)
 
-With the QOL option "browser physics (online levels)" (default on, `src/online/FlashPhysics.*`)
+With the QOL option "browser physics (online levels)" (default off, online levels only, `src/online/FlashPhysics.*`)
 a browser level steps its world once per 30 Hz Flash frame: `Session` time step 1/30
 (`LevelItem::s_timeStep` 1/30, `s_timeStepOverFlashTimeStep` 1, `s_timeStepInverse` 30),
 10 + 10 iterations, no block solver. Off, or in any campaign level, everything steps at 1/60 as

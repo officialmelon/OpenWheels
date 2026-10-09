@@ -635,6 +635,9 @@ void LevelB2D::addInfo(LevelDataElement* info)
         const char* source = info->stringAttribute("src");
         float browserVersion = version;
         info->floatAttribute("fv", &browserVersion);
+        bool offline = false;
+        info->boolAttribute("offline", &offline);
+        online::setOfflineLevel(offline);
         online::setFlashLevel(source != nullptr && std::string(source) == "flash", browserVersion);
     }
 

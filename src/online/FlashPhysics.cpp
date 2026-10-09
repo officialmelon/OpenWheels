@@ -4,6 +4,8 @@
 #include <Box2D/Box2D.h>
 
 #include <algorithm>
+#include <string>
+#include "tinyxml2/tinyxml2.h"
 #include <cmath>
 
 #include "cocos2d.h"
@@ -24,6 +26,7 @@ const float kFlashTimeStep = 1.0f / 30.0f;
 const int kFlashIterations = 10;
 
 bool g_active = false;  // the running level uses the browser profile
+bool g_offlineLevel = false;  // the level being loaded is an offline one (restored campaign, editor)
 
 // LevelItem keeps the previous step for CharacterB2D::timeStepChanged's ratio; setting the same
 // step twice leaves current == previous, i.e. "no change pending".
@@ -42,12 +45,27 @@ void settle(Session* session, float timeStep)
 
 bool browserPhysicsOption()
 {
-    return cocos2d::UserDefault::getInstance()->getBoolForKey(kOptionKey, true);
+    return cocos2d::UserDefault::getInstance()->getBoolForKey(kOptionKey, false);
 }
 
 void setBrowserPhysicsOption(bool on)
 {
     cocos2d::UserDefault::getInstance()->setBoolForKey(kOptionKey, on);
+}
+
+void setOfflineLevel(bool offline) { g_offlineLevel = offline; }
+
+std::string markOfflineLevel(const std::string& mobileXml)
+{
+    tinyxml2::XMLDocument doc;
+    if (doc.Parse(mobileXml.c_str(), mobileXml.size()) != tinyxml2::XML_SUCCESS) return mobileXml;
+    tinyxml2::XMLElement* root = doc.RootElement();
+    tinyxml2::XMLElement* info = root ? root->FirstChildElement("info") : nullptr;
+    if (!info) return mobileXml;
+    info->SetAttribute("offline", true);
+    tinyxml2::XMLPrinter printer;
+    doc.Print(&printer);
+    return printer.CStr();
 }
 
 bool browserPhysics() { return g_active && flashLevel(); }
@@ -88,7 +106,7 @@ void resetLevelTimeStep(Session* session)
 
 void beginLevelTimeStep(Session* session)
 {
-    if (!flashLevel() || !browserPhysicsOption()) return;
+    if (!flashLevel() || g_offlineLevel || !browserPhysicsOption()) return;
     g_active = true;
     settle(session, kFlashTimeStep);
 }

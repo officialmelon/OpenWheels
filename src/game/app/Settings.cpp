@@ -1,5 +1,7 @@
 #include "Settings.h"
 
+#include <algorithm>
+
 #include "qol/QoL.h"  // QOL (PC addition)
 #include "restored/Restored.h"  // RESTORED (PC addition)
 
@@ -252,6 +254,25 @@ ValueVector Settings::getAllChaptersData(bool forceReload)
         if (_levelData["chapters"].getType() == Value::Type::VECTOR)
         {
             restored::appendChapters(_levelData["chapters"].asValueVector());
+            // PC addition: the "select a character" chapter (characterIndex -1, any character) goes
+            // after every character's chapter. Progress is keyed by the chapter's "index", so give
+            // each chapter its position as index first (what the lookups fall back to anyway).
+            ValueVector& all = _levelData["chapters"].asValueVector();
+            for (size_t i = 0; i < all.size(); i++)
+            {
+                if (all[i].getType() == Value::Type::MAP && all[i].asValueMap().count("index") == 0)
+                {
+                    all[i].asValueMap()["index"] = Value((int)i);
+                }
+            }
+            std::stable_partition(all.begin(), all.end(), [](const Value& chapter) {
+                if (chapter.getType() != Value::Type::MAP)
+                {
+                    return true;
+                }
+                auto it = chapter.asValueMap().find("characterIndex");
+                return it == chapter.asValueMap().end() || it->second.asInt() != -1;
+            });
         }
     }
     return _levelData["chapters"].asValueVector();

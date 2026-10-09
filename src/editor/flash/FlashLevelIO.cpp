@@ -15,6 +15,7 @@
 #include "EditorSpriteBatchNode.h"
 #include "FlashEditor.h"
 #include "FlashSpecialRef.h"
+#include "online/FlashPhysics.h"
 #include "GroupRef.h"
 #include "JointRef.h"
 #include "PolygonRefShape.h"
@@ -197,7 +198,7 @@ std::string playableLevelXml(const std::string& xml, bool* converted, int* chara
     if (converted) *converted = true;
     if (character) *character = report.character;
     if (forceCharacter) *forceCharacter = report.forceCharacter;
-    return mobile;
+    return online::markOfflineLevel(mobile);
 }
 
 // ---- writer ------------------------------------------------------------------------------------------
