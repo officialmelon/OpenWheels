@@ -106,9 +106,11 @@ behaviour:
 - **Sound effects** and **music** volume sliders
 - **FPS counter**, **unlock all levels**, **fullscreen** (or F11)
 - **Child gore:** gives the Irresponsible Dad's son the gore the mobile version left out
-- **Controls** (PC): remap every keyboard action
-- **Touch controls** (PC): hidden by default on PC, where the keyboard drives and key hints replace
-  the tutorial arrows; shown on phones and tablets
+- **Keyboard controls** (PC): remap every keyboard action
+- **Controller**: remap every controller action, rumble strength, tilt steering and phone
+  vibration
+- **Touch controls**: hidden by default on PC, where the keyboard drives and key hints replace
+  the tutorial arrows; shown on phones and tablets unless a controller is connected
 - **Re-grab vehicle:** after ejecting, grab your own vehicle and you climb back on and ride again
   (all 11 characters)
 - **Any character** on online and user levels that force one
@@ -120,6 +122,16 @@ See [docs/QOL.md](docs/QOL.md).
 ![Quality of Life page](docs/screenshots/quality-of-life.png)
 
 ![Classic and realistic blood](docs/screenshots/blood-styles.png)
+
+### Game controllers
+
+Play with a controller on every platform: Xbox and PlayStation pads on Windows and Linux, any
+Android controller (including the built-in controls of handhelds like the AYN Odin and Thor), and
+MFi / Xbox / PlayStation pads on iOS. The controller drives, and it moves through **every menu**
+with a glowing highlight on the selected button (A presses it, B goes back). R3 switches to a free
+pointer for the level editor. Every action is **remappable** (three inputs each). It also has
+**rumble** that follows every crash, broken bone and explosion (off / low / medium / high), and
+**tilt steering** on phones, tablets and handhelds. See [docs/CONTROLLERS.md](docs/CONTROLLERS.md).
 
 ### Windows, Linux, macOS, Android and iOS
 
@@ -158,6 +170,11 @@ and these keys work by default (remap them in *Options → quality of life → c
 | Esc / P | Pause |
 | R | Restart |
 | F11 | Toggle fullscreen |
+
+With a game controller: sticks / d-pad drive and lean, RT / LT accelerate and brake, A is the
+special action, Y ejects, X / B and LB / RB are the extra actions, Start pauses and Back restarts.
+In menus, the d-pad / left stick moves the highlight, A selects and B goes back. Remap them in
+*Options → quality of life → controller*. See [docs/CONTROLLERS.md](docs/CONTROLLERS.md).
 
 ## Building from source
 
@@ -276,6 +293,7 @@ src/online/      online browser levels: level API client, browser, Flash-to-mobi
                  browser-level runtime, NPCs and items
 src/restored/    the five restored browser characters and their vehicles
 src/qol/         the Quality of Life options and the blood compositor
+src/input/       game controllers, menu focus navigation, rumble and tilt steering
 src/platform/    Win32, Linux, macOS, iOS and Android entry points (desktop/: keyboard bridge and
                  window shared by the PC builds, unix/: POSIX main), crash handlers, shared helpers,
                  no-op stand-ins for the mobile SDKs (ads, analytics), Box2D world dumper
@@ -305,7 +323,8 @@ See [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
 - [PARITY.md](docs/PARITY.md): physics parity against the original
 - [EDITOR_PORT.md](docs/EDITOR_PORT.md): the level editor port
 - [FLASH_LEVELS.md](docs/FLASH_LEVELS.md): online browser levels
-- [RESTORED.md](docs/RESTORED.md), [QOL.md](docs/QOL.md), [ANDROID.md](docs/ANDROID.md)
+- [RESTORED.md](docs/RESTORED.md), [QOL.md](docs/QOL.md), [CONTROLLERS.md](docs/CONTROLLERS.md),
+  [ANDROID.md](docs/ANDROID.md)
 - [MODULES.md](docs/MODULES.md), `docs/modules/` and `docs/editor/`: per-class work notes
 
 ## Credits

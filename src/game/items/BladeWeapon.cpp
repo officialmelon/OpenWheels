@@ -10,6 +10,8 @@
 #include "EmitterNode.h"
 #include "LevelB2D.h"
 #include "LevelDataElement.h"
+#include "Gameplay.h"      // EDITOR (PC addition): Gameplay::buildingTestLevel
+#include "LevelSession.h"  // EDITOR (PC addition): user levels
 #include "Patch.h"
 #include "Session.h"
 #include "Sound.h"
@@ -146,6 +148,15 @@ bool BladeWeapon::init(LevelDataElement* element, b2Body* groupBody, b2Vec2 grou
         transform = AffineTransformMakeIdentity();
         AffineTransformRotate(transform, rotation);
         AffineTransformTranslate(transform, handleCenter.x, handleCenter.y);
+        if (online::flashLevel() || LevelSession::getInstance()->isUserLevel() || Gameplay::buildingTestLevel()) {
+            // ONLINE / EDITOR (PC addition): browser levels, user levels and the editor's test
+            // play put the handle where it is drawn (Flash places it like the blade). With the
+            // original's box at the item's centre, a grouped sword whose handle is off-centre (7
+            // of the 12 types sit entirely off the drawn handle) had no solid handle to grab,
+            // while its blade still hit. The campaign keeps the original's box (parity).
+            transform = AffineTransformRotate(transform, rotation);
+            transform = AffineTransformTranslate(transform, handleCenter.x, handleCenter.y);
+        }
         b2Vec2 handlePosition(position.x + transform.tx, position.y + transform.ty);
         shape.SetAsBox(handleRect.size.width * 0.5f, handleRect.size.height * 0.5f, handlePosition, rotation);
         fixtureDef.density = 1.0f;

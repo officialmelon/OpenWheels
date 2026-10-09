@@ -78,6 +78,9 @@ public:
     // EDITOR (iOS port): -[GameplayLayer setIsTesting:] / -isTesting (@ios 100048af0 / 100048adc).
     void setIsTesting(bool isTesting);
     bool isTesting();
+    // EDITOR (PC addition): true while the editor's test play builds its level, so the level's
+    // items can tell an editor level from the campaign.
+    static bool buildingTestLevel();
 
     // ---- new primary-vtable entries (order = vtable order) ----
     // HWWindowDelegate: the "please turn on data" window was closed -> internalAdComplete().

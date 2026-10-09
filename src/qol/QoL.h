@@ -88,8 +88,8 @@ void setFullscreenHandler(std::function<void(bool)> handler);
 bool desktopBuild();
 
 // On-screen driving controls (move / lean / special / eject, the ejected d-pad and grab, the
-// restored characters' extra buttons). Auto = hidden on desktop builds, shown on touch devices;
-// touch devices always show them. Hidden buttons are still laid out and pressed by the keyboard
+// restored characters' extra buttons). Auto = hidden on desktop builds, shown on touch devices
+// unless a game controller is connected (PAD). Hidden buttons are still laid out and pressed by the keyboard
 // bridge, but are not drawn and ignore real touches (the mouse); pause, reset, the timer and the
 // boost meter stay, the reset button shows its key and tutorial arrows show the keys.
 enum class TouchControls { Auto = 0, Show = 1, Hide = 2 };
@@ -97,6 +97,27 @@ TouchControls touchControls();
 void setTouchControls(TouchControls mode);
 const char* touchControlsName(TouchControls mode);
 bool touchControlsShown();  // resolved for this build
+// PAD (PC addition): controller rumble (input/Haptics.h): off, low, medium or high (default).
+enum class RumbleLevel { Off = 0, Low = 1, Medium = 2, High = 3 };
+RumbleLevel rumbleLevel();
+void setRumbleLevel(RumbleLevel level);
+const char* rumbleLevelName(RumbleLevel level);
+float rumbleScale();  // 0 (off) .. 1 (high)
+// PAD (PC addition): the same haptics on the phone's own vibrator when no controller is connected
+// (Android). Off by default (the original never vibrates).
+bool phoneVibration();
+void setPhoneVibration(bool on);
+bool phoneVibrationSupported();
+
+// PAD (PC addition): tilt steering on phones, tablets and handhelds with a motion sensor
+// (input/Tilt.h): turning the device like a steering wheel leans. Off by default; the level sets
+// how far it has to turn (low = 20 degrees, medium = 12, high = 7).
+enum class TiltSteering { Off = 0, Low = 1, Medium = 2, High = 3 };
+TiltSteering tiltSteering();
+void setTiltSteering(TiltSteering mode);
+const char* tiltSteeringName(TiltSteering mode);
+bool tiltSteeringSupported();  // Android and iOS builds
+
 // Set by the keyboard bridge while it injects a virtual finger, so GameplayControls can tell it
 // from a real touch (GLView renumbers touch ids).
 void setKeyboardTouch(bool on);

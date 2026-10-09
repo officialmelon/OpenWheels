@@ -406,6 +406,12 @@ void Helicopter::addCharacter(CharacterB2D* character)
     rope.collideConnected = true;
     _ropeJoint = static_cast<b2RopeJoint*>(world->CreateJoint(&rope));
     _ropeMinLength = rope.maxLength;
+    // RESTORED (PC addition): the rope reels between its starting length (fully in) and
+    // _ropeMaxLength. A rig whose starting rope is already about that long (scaled art) left
+    // ctrl clamping it shorter and shift with nothing to reel in: keep at least 2 m to let out.
+    if (_ropeMaxLength < _ropeMinLength + 2.0f) {
+        _ropeMaxLength = _ropeMinLength + 2.0f;
+    }
 
     _ropePoints.clear();
     _ropeLengths.clear();

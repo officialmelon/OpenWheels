@@ -1,5 +1,38 @@
 # Changelog
 
+## Unreleased
+
+### New
+- **Game controllers on every platform.** Windows and Linux (Xbox and PlayStation pads, any pad
+  remappable), macOS, Android (Bluetooth / USB pads and handhelds' built-in controls such as the
+  AYN Odin / Thor) and iOS. The controller drives through the same virtual fingers as the
+  keyboard, and every driving action is remappable with three inputs each (QOL "controller").
+  See [docs/CONTROLLERS.md](docs/CONTROLLERS.md).
+- **Full menu control with a controller.** A glowing highlight moves between the buttons of every
+  screen (menus, level and character select, pause / victory, popups, the online browser, Your
+  Levels, Nearby, account panels); A presses, B goes back or closes, LB / RB turn the chapters,
+  the right stick scrolls, R3 gives a free pointer (level editor).
+- **Rumble** on crashes, hits, broken bones, lost limbs and explosions, by strength and distance
+  (off / low / medium / high). Android: the controller's vibrator or, for built-in controls, the
+  device's; "phone vibration" (off by default) for touch play.
+- **Tilt steering** on Android and iOS (off / low / medium / high): turn the device to lean.
+- **Touch controls** can be hidden on phones and tablets too, and hide by themselves while a
+  controller is connected.
+- **User vehicles on touch screens:** riding a browser user vehicle shows SHIFT / CTRL buttons for
+  its assigned actions and an eject button, which only existed as PC keys.
+
+### Fixed
+- **Jets on user vehicles (jetpack levels) didn't fire** when the vehicle had come to rest: a
+  sleeping jet ignored its key. The jet key now wakes them.
+- **Restored characters' extra buttons** (Helicopter Man's rope up / down, Explorer Guy's stand /
+  crouch, Irresponsible Mom's kids) were covered by the special button when the special button was
+  set to the left side, so they couldn't be pressed (touch or keys). They now sit above it.
+- Helicopter Man's rope always has at least 2 m to let out.
+- **Swords in grouped objects couldn't be grabbed** (some sword fights): the original put the
+  handle's collision box at the weapon's centre instead of under the drawn handle, so the blade
+  hit but the handle had nothing to hold. On browser levels, user levels and the editor's test
+  play it now sits where it is drawn (the campaign keeps the original's box).
+
 ## v0.3.0
 
 ### New

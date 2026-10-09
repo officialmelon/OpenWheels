@@ -7,7 +7,8 @@ marked `// QOL (PC addition):`. Every option defaults to the original game's beh
 acts when an ejected rider grabs his own vehicle) and is stored in UserDefault under
 `qol_*`.
 
-The page has two columns, "visuals" and "game", and a "controls" page (desktop).
+The page has two columns, "visuals" and "game", a "keyboard controls" page (desktop) and a
+"controller" page (every platform, see [CONTROLLERS.md](CONTROLLERS.md)).
 
 | Option | Values | What it does |
 |---|---|---|
@@ -25,8 +26,9 @@ The page has two columns, "visuals" and "game", and a "controls" page (desktop).
 | child gore | on / off | Gore for Irresponsible Dad's kid (and Irresponsible Mom's kids, `docs/RESTORED.md`). Shows "no art" when the gore sheet was not generated. Also respects the global gore setting. |
 | re-grab vehicle | on / off | An ejected rider who grabs his own vehicle gets back on and rides again (below). On by default; off is the original (a grabbed vehicle is just held). |
 | fullscreen | off / on | Desktop only (also F11 by default). |
-| touch controls | auto / show / hide | Desktop only: the mobile on-screen driving buttons. Auto (the default) hides them on desktop builds - the one option whose default is not the original's look; touch devices always show them. See "Keyboard" below. |
-| controls | page | Desktop only: every keyboard action with its two keys, remappable (below). |
+| touch controls | auto / show / hide | The mobile on-screen driving buttons. Auto (the default) hides them on desktop builds - the one option whose default is not the original's look - and, on touch devices, while a game controller is connected. Show / hide force them on any platform. See "Keyboard" below and [CONTROLLERS.md](CONTROLLERS.md). |
+| keyboard controls | page | Desktop only: every keyboard action with its two keys, remappable (below). |
+| controller | page | Every controller action with its three inputs, remappable; rumble, tilt steering (phones / handhelds) and phone vibration (Android). See [CONTROLLERS.md](CONTROLLERS.md). |
 
 ### 30 FPS
 
@@ -79,7 +81,7 @@ timer only on ticks that will step (`Session::onlineWillStep`): one control byte
 increment per world step, as at 1/60. The 30 FPS option still works: its two 1/60 s ticks per
 frame take one 1/30 s step between them.
 
-### Controls page
+### Keyboard controls page
 
 `src/qol/KeyBindings.*` holds the bindings (UserDefault `qol_keys_<action>`, only for actions that
 differ from the defaults); `src/platform/desktop/PCInput.cpp` and the fullscreen key read them. Click a

@@ -711,6 +711,7 @@ void Dropdown::open() {
 
     Node* layer = Node::create();
     layer->setContentSize(Director::getInstance()->getVisibleSize());
+    layer->setName(kModalNodeName);  // PAD (PC addition): controller focus stays inside the menu
     scene->addChild(layer, 5000);
     s_openPopup = layer;
 
