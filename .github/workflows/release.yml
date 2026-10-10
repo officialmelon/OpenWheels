@@ -285,9 +285,13 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE="${PWD}/thirdparty/cocos2d-x/cmake/ios.toolchain.cmake" \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DOW_ANDROID_ASSETS="${PWD}/game-data/assets"
+          status=0
           cmake --build build-ios --config Release -- -sdk iphoneos \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | tail -40
-          exit "${PIPESTATUS[0]}"
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" > build-ios.log 2>&1 || status=$?
+          # The xcodebuild log is huge: show the compiler errors (if any) and the summary.
+          grep -E -A8 '(error|fatal error): ' build-ios.log | head -300 || true
+          tail -40 build-ios.log
+          exit "${status}"
       - name: Package (.ipa for sideloading)
         run: |
           set -euo pipefail
