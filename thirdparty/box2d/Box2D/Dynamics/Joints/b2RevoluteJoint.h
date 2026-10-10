@@ -194,6 +194,12 @@ protected:
 	b2Mat33 m_mass;			// effective mass for point-to-point constraint.
 	float32 m_motorMass;	// effective mass for motor/limit angular constraint.
 	b2LimitState m_limitState;
+
+	// OpenWheels: Box2D 2.0 solver (g_flash20Solver, b2Settings.h). It keeps its per-step state in
+	// members the 2.3 solver does not use on that path (no new members: the joint keeps its size).
+	void InitFlash20VelocityConstraints(const b2SolverData& data);
+	void SolveFlash20VelocityConstraints(const b2SolverData& data);
+	bool SolveFlash20PositionConstraints(const b2SolverData& data);
 };
 
 inline float32 b2RevoluteJoint::GetMotorSpeed() const

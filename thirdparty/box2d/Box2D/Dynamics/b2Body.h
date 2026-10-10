@@ -389,6 +389,13 @@ public:
 	/// Dump this body to a log file
 	void Dump();
 
+	/// OpenWheels: draw-time interpolation between fixed steps (the game's
+	/// online/RenderInterpolation.h). The body's raw simulated state, and a way to put a drawn pose
+	/// (or the saved state, bit for bit) in place without touching fixtures, contacts or the
+	/// broad-phase. Never step the world while a drawn pose is in place.
+	const b2Sweep& GetSweepForDrawing() const { return m_sweep; }
+	void SetStateForDrawing(const b2Transform& xf, const b2Sweep& sweep) { m_xf = xf; m_sweep = sweep; }
+
 private:
 
 	friend class b2World;

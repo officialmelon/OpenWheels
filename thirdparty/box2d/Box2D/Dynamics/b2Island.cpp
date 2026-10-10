@@ -213,8 +213,27 @@ void b2Island::Solve(b2Profile* profile, const b2TimeStep& step, const b2Vec2& g
 			// v2 = exp(-c * dt) * v1
 			// Pade approximation:
 			// v2 = v1 * 1 / (1 + c * dt)
-			v *= 1.0f / (1.0f + h * b->m_linearDamping);
-			w *= 1.0f / (1.0f + h * b->m_angularDamping);
+			if (g_flash20Solver)
+			{
+				// OpenWheels: Box2D 2.0 damps with the Taylor expansion and limits the speeds
+				// before the constraints are solved (instead of limiting each step's translation).
+				v *= b2Clamp(1.0f - h * b->m_linearDamping, 0.0f, 1.0f);
+				w *= b2Clamp(1.0f - h * b->m_angularDamping, 0.0f, 1.0f);
+				if (b2Dot(v, v) > b2_flash20MaxLinearVelocity * b2_flash20MaxLinearVelocity)
+				{
+					v.Normalize();
+					v *= b2_flash20MaxLinearVelocity;
+				}
+				if (w * w > b2_flash20MaxAngularVelocity * b2_flash20MaxAngularVelocity)
+				{
+					w = w < 0.0f ? -b2_flash20MaxAngularVelocity : b2_flash20MaxAngularVelocity;
+				}
+			}
+			else
+			{
+				v *= 1.0f / (1.0f + h * b->m_linearDamping);
+				w *= 1.0f / (1.0f + h * b->m_angularDamping);
+			}
 		}
 
 		m_positions[i].c = c;
@@ -259,6 +278,17 @@ void b2Island::Solve(b2Profile* profile, const b2TimeStep& step, const b2Vec2& g
 	timer.Reset();
 	for (int32 i = 0; i < step.velocityIterations; ++i)
 	{
+		if (g_flash20Solver)
+		{
+			// OpenWheels: Box2D 2.0 solves the contacts before the joints.
+			contactSolver.SolveVelocityConstraints();
+			for (int32 j = 0; j < m_jointCount; ++j)
+			{
+				m_joints[j]->SolveVelocityConstraints(solverData);
+			}
+			continue;
+		}
+
 		for (int32 j = 0; j < m_jointCount; ++j)
 		{
 			m_joints[j]->SolveVelocityConstraints(solverData);
@@ -280,15 +310,16 @@ void b2Island::Solve(b2Profile* profile, const b2TimeStep& step, const b2Vec2& g
 		float32 w = m_velocities[i].w;
 
 		// Check for large velocities
+		// OpenWheels: not in Box2D 2.0 (its speed limits apply before the solver, above).
 		b2Vec2 translation = h * v;
-		if (b2Dot(translation, translation) > b2_maxTranslationSquared)
+		if (!g_flash20Solver && b2Dot(translation, translation) > b2_maxTranslationSquared)
 		{
 			float32 ratio = b2_maxTranslation / translation.Length();
 			v *= ratio;
 		}
 
 		float32 rotation = h * w;
-		if (rotation * rotation > b2_maxRotationSquared)
+		if (!g_flash20Solver && rotation * rotation > b2_maxRotationSquared)
 		{
 			float32 ratio = b2_maxRotation / b2Abs(rotation);
 			w *= ratio;
@@ -346,7 +377,9 @@ void b2Island::Solve(b2Profile* profile, const b2TimeStep& step, const b2Vec2& g
 		float32 minSleepTime = b2_maxFloat;
 
 		const float32 linTolSqr = b2_linearSleepTolerance * b2_linearSleepTolerance;
-		const float32 angTolSqr = b2_angularSleepTolerance * b2_angularSleepTolerance;
+		// OpenWheels: Box2D 2.0's angular tolerance is 2/180 rad/s (its b2Settings has no pi).
+		const float32 angTol = g_flash20Solver ? b2_flash20AngularSleepTolerance : b2_angularSleepTolerance;
+		const float32 angTolSqr = angTol * angTol;
 
 		for (int32 i = 0; i < m_bodyCount; ++i)
 		{
@@ -370,7 +403,8 @@ void b2Island::Solve(b2Profile* profile, const b2TimeStep& step, const b2Vec2& g
 			}
 		}
 
-		if (minSleepTime >= b2_timeToSleep && positionSolved)
+		// OpenWheels: Box2D 2.0 puts an island to sleep whether or not its positions converged.
+		if (minSleepTime >= b2_timeToSleep && (positionSolved || g_flash20Solver))
 		{
 			for (int32 i = 0; i < m_bodyCount; ++i)
 			{

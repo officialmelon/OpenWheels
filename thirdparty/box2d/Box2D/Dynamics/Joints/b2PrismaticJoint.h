@@ -186,6 +186,15 @@ protected:
 	float32 m_a1, m_a2;
 	b2Mat33 m_K;
 	float32 m_motorMass;
+
+	// OpenWheels: Box2D 2.0 solver (g_flash20Solver, b2Settings.h). It keeps its per-step state in
+	// members the 2.3 solver does not use on that path (no new members: the joint keeps its size):
+	// m_perp / m_s1 / m_s2 the perpendicular Jacobian, m_axis / m_a1 / m_a2 the axial (motor and
+	// limit) one, m_K.ex.x / .y the perpendicular and angular masses, m_K.ex.z the limit's
+	// accumulated position impulse.
+	void InitFlash20VelocityConstraints(const b2SolverData& data);
+	void SolveFlash20VelocityConstraints(const b2SolverData& data);
+	bool SolveFlash20PositionConstraints(const b2SolverData& data);
 };
 
 inline float32 b2PrismaticJoint::GetMotorSpeed() const

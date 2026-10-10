@@ -129,6 +129,20 @@ typedef double float64;
 /// A body cannot sleep if its angular velocity is above this tolerance.
 #define b2_angularSleepTolerance	(2.0f / 180.0f * b2_pi)
 
+// OpenWheels: Box2D 2.0 rules (Box2DFlash 2.0.2, the engine of the browser game).
+// While g_flash20Solver is true, b2World::Step follows Box2D 2.0 instead of 2.3: velocity
+// integration, damping and speed limits, sleep tolerances, the contact solver (per-point
+// normal + friction, position correction with equalized masses on the step's anchored points)
+// and the revolute / prismatic joint solvers. Off (the default) everything is unchanged 2.3.
+// See thirdparty/box2d/README.md.
+extern bool g_flash20Solver;
+
+/// Box2D 2.0 b2Settings values used by the g_flash20Solver path.
+#define b2_flash20MaxLinearVelocity			200.0f
+#define b2_flash20MaxAngularVelocity		250.0f
+#define b2_flash20AngularSleepTolerance		(2.0f / 180.0f)
+#define b2_flash20SeparationBias			60.0f
+
 // Memory Allocation
 
 /// Implement this function to use your own memory allocator.

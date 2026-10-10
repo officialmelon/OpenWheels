@@ -23,6 +23,9 @@
 
 b2Version b2_version = {2, 3, 2};
 
+// OpenWheels: see b2Settings.h.
+bool g_flash20Solver = false;
+
 // Memory allocators. Modify these to use your own allocator.
 void* b2Alloc(int32 size)
 {

@@ -28,6 +28,18 @@ class b2Body;
 class b2StackAllocator;
 struct b2ContactPositionConstraint;
 
+// OpenWheels: per-point state of the Box2D 2.0 contact solver (g_flash20Solver). Box2D 2.0 anchors
+// each contact point to both bodies when the step starts, keeps the step's world normal and
+// separation, and corrects positions with "equalized" masses (every dynamic body weighs 1).
+struct b2Flash20ContactPoint
+{
+	b2Vec2 localAnchorA;	// the step's contact point relative to body A's center, in A's frame
+	b2Vec2 localAnchorB;	// the same point relative to body B's center, in B's frame
+	float32 separation;		// the manifold separation when the step started
+	float32 equalizedMass;
+	float32 positionImpulse;
+};
+
 struct b2VelocityConstraintPoint
 {
 	b2Vec2 rA;
@@ -89,6 +101,12 @@ public:
 	b2ContactVelocityConstraint* m_velocityConstraints;
 	b2Contact** m_contacts;
 	int m_count;
+
+	// OpenWheels: Box2D 2.0 rules (g_flash20Solver, b2Settings.h); null otherwise.
+	b2Flash20ContactPoint* m_flash20Points;
+	void InitializeFlash20Constraints();
+	void SolveFlash20VelocityConstraints();
+	bool SolveFlash20PositionConstraints();
 };
 
 #endif

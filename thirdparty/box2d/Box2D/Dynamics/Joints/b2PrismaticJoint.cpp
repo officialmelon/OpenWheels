@@ -125,6 +125,12 @@ b2PrismaticJoint::b2PrismaticJoint(const b2PrismaticJointDef* def)
 
 void b2PrismaticJoint::InitVelocityConstraints(const b2SolverData& data)
 {
+	if (g_flash20Solver)
+	{
+		InitFlash20VelocityConstraints(data);
+		return;
+	}
+
 	m_indexA = m_bodyA->m_islandIndex;
 	m_indexB = m_bodyB->m_islandIndex;
 	m_localCenterA = m_bodyA->m_sweep.localCenter;
@@ -262,6 +268,12 @@ void b2PrismaticJoint::InitVelocityConstraints(const b2SolverData& data)
 
 void b2PrismaticJoint::SolveVelocityConstraints(const b2SolverData& data)
 {
+	if (g_flash20Solver)
+	{
+		SolveFlash20VelocityConstraints(data);
+		return;
+	}
+
 	b2Vec2 vA = data.velocities[m_indexA].v;
 	float32 wA = data.velocities[m_indexA].w;
 	b2Vec2 vB = data.velocities[m_indexB].v;
@@ -366,6 +378,11 @@ void b2PrismaticJoint::SolveVelocityConstraints(const b2SolverData& data)
 // solver indicates the limit is inactive.
 bool b2PrismaticJoint::SolvePositionConstraints(const b2SolverData& data)
 {
+	if (g_flash20Solver)
+	{
+		return SolveFlash20PositionConstraints(data);
+	}
+
 	b2Vec2 cA = data.positions[m_indexA].c;
 	float32 aA = data.positions[m_indexA].a;
 	b2Vec2 cB = data.positions[m_indexB].c;
@@ -639,4 +656,316 @@ void b2PrismaticJoint::Dump()
 	b2Log("  jd.motorSpeed = %.15lef;\n", m_motorSpeed);
 	b2Log("  jd.maxMotorForce = %.15lef;\n", m_maxMotorForce);
 	b2Log("  joints[%d] = m_world->CreateJoint(&jd);\n", m_index);
+}
+
+// OpenWheels: Box2D 2.0's prismatic joint (Box2DFlash 2.0.2 b2PrismaticJoint), used while
+// g_flash20Solver is set: separate perpendicular, angular, motor and limit constraints (no
+// block solve), Jacobians frozen at the start of the step (the position pass reuses them), and an
+// accumulated limit position impulse. Forces are kept as impulses (force * dt): m_impulse.x =
+// perpendicular, .y = angular, .z = limit, m_motorImpulse = motor, as in Box2D 2.3, so the
+// reaction and motor-force getters are unchanged. Storage: see b2PrismaticJoint.h.
+namespace
+{
+	// Box2D 2.0's b2Jacobian with linear1 = -dir, linear2 = dir.
+	struct b2Flash20Jacobian
+	{
+		b2Vec2 dir;
+		float32 angularA;
+		float32 angularB;
+
+		float32 Compute(const b2Vec2& vA, float32 wA, const b2Vec2& vB, float32 wB) const
+		{
+			return b2Dot(-dir, vA) + angularA * wA + b2Dot(dir, vB) + angularB * wB;
+		}
+	};
+}
+
+void b2PrismaticJoint::InitFlash20VelocityConstraints(const b2SolverData& data)
+{
+	m_indexA = m_bodyA->m_islandIndex;
+	m_indexB = m_bodyB->m_islandIndex;
+	m_localCenterA = m_bodyA->m_sweep.localCenter;
+	m_localCenterB = m_bodyB->m_sweep.localCenter;
+	m_invMassA = m_bodyA->m_invMass;
+	m_invMassB = m_bodyB->m_invMass;
+	m_invIA = m_bodyA->m_invI;
+	m_invIB = m_bodyB->m_invI;
+
+	b2Vec2 cA = data.positions[m_indexA].c;
+	float32 aA = data.positions[m_indexA].a;
+	b2Vec2 vA = data.velocities[m_indexA].v;
+	float32 wA = data.velocities[m_indexA].w;
+
+	b2Vec2 cB = data.positions[m_indexB].c;
+	float32 aB = data.positions[m_indexB].a;
+	b2Vec2 vB = data.velocities[m_indexB].v;
+	float32 wB = data.velocities[m_indexB].w;
+
+	b2Rot qA(aA), qB(aB);
+	b2Vec2 rA = b2Mul(qA, m_localAnchorA - m_localCenterA);
+	b2Vec2 rB = b2Mul(qB, m_localAnchorB - m_localCenterB);
+
+	float32 mA = m_invMassA, mB = m_invMassB;
+	float32 iA = m_invIA, iB = m_invIB;
+
+	// e = from A's center to B's anchor.
+	b2Vec2 e = cB + rB - cA;
+
+	// Perpendicular constraint.
+	m_perp = b2Mul(qA, m_localYAxisA);
+	m_s1 = -b2Cross(e, m_perp);
+	m_s2 = b2Cross(rB, m_perp);
+	m_K.ex.x = 1.0f / (mA + iA * m_s1 * m_s1 + mB + iB * m_s2 * m_s2);
+
+	// Angular constraint.
+	m_K.ex.y = iA + iB;
+	if (m_K.ex.y > 0.0f)
+	{
+		m_K.ex.y = 1.0f / m_K.ex.y;
+	}
+
+	// Motor and limit, along the axis.
+	if (m_enableLimit || m_enableMotor)
+	{
+		m_axis = b2Mul(qA, m_localXAxisA);
+		m_a1 = -b2Cross(e, m_axis);
+		m_a2 = b2Cross(rB, m_axis);
+		m_motorMass = 1.0f / (mA + iA * m_a1 * m_a1 + mB + iB * m_a2 * m_a2);
+
+		if (m_enableLimit)
+		{
+			b2Vec2 d = e - rA;
+			float32 jointTranslation = b2Dot(m_axis, d);
+			if (b2Abs(m_upperTranslation - m_lowerTranslation) < 2.0f * b2_linearSlop)
+			{
+				m_limitState = e_equalLimits;
+			}
+			else if (jointTranslation <= m_lowerTranslation)
+			{
+				if (m_limitState != e_atLowerLimit)
+				{
+					m_impulse.z = 0.0f;
+				}
+				m_limitState = e_atLowerLimit;
+			}
+			else if (jointTranslation >= m_upperTranslation)
+			{
+				if (m_limitState != e_atUpperLimit)
+				{
+					m_impulse.z = 0.0f;
+				}
+				m_limitState = e_atUpperLimit;
+			}
+			else
+			{
+				m_limitState = e_inactiveLimit;
+				m_impulse.z = 0.0f;
+			}
+		}
+	}
+
+	if (m_enableMotor == false)
+	{
+		m_motorImpulse = 0.0f;
+	}
+	if (m_enableLimit == false)
+	{
+		m_limitState = e_inactiveLimit;
+		m_impulse.z = 0.0f;
+	}
+
+	if (data.step.warmStarting)
+	{
+		m_impulse *= data.step.dtRatio;
+		m_motorImpulse *= data.step.dtRatio;
+
+		float32 axial = m_motorImpulse + m_impulse.z;
+		b2Vec2 P = m_impulse.x * m_perp + axial * m_axis;
+		float32 LA = m_impulse.x * m_s1 - m_impulse.y + axial * m_a1;
+		float32 LB = m_impulse.x * m_s2 + m_impulse.y + axial * m_a2;
+
+		vA -= mA * P;
+		wA += iA * LA;
+		vB += mB * P;
+		wB += iB * LB;
+	}
+	else
+	{
+		m_impulse.SetZero();
+		m_motorImpulse = 0.0f;
+	}
+
+	m_K.ex.z = 0.0f;  // the limit's accumulated position impulse
+
+	data.velocities[m_indexA].v = vA;
+	data.velocities[m_indexA].w = wA;
+	data.velocities[m_indexB].v = vB;
+	data.velocities[m_indexB].w = wB;
+}
+
+void b2PrismaticJoint::SolveFlash20VelocityConstraints(const b2SolverData& data)
+{
+	b2Vec2 vA = data.velocities[m_indexA].v;
+	float32 wA = data.velocities[m_indexA].w;
+	b2Vec2 vB = data.velocities[m_indexB].v;
+	float32 wB = data.velocities[m_indexB].w;
+
+	float32 mA = m_invMassA, mB = m_invMassB;
+	float32 iA = m_invIA, iB = m_invIB;
+	const b2Flash20Jacobian lin = {m_perp, m_s1, m_s2};
+	const b2Flash20Jacobian mot = {m_axis, m_a1, m_a2};
+
+	// Perpendicular constraint.
+	{
+		float32 Cdot = lin.Compute(vA, wA, vB, wB);
+		float32 impulse = -m_K.ex.x * Cdot;
+		m_impulse.x += impulse;
+		vA -= (mA * impulse) * lin.dir;
+		wA += iA * impulse * lin.angularA;
+		vB += (mB * impulse) * lin.dir;
+		wB += iB * impulse * lin.angularB;
+	}
+
+	// Angular constraint.
+	{
+		float32 Cdot = wB - wA;
+		float32 impulse = -m_K.ex.y * Cdot;
+		m_impulse.y += impulse;
+		wA -= iA * impulse;
+		wB += iB * impulse;
+	}
+
+	// Motor.
+	if (m_enableMotor && m_limitState != e_equalLimits)
+	{
+		float32 Cdot = mot.Compute(vA, wA, vB, wB) - m_motorSpeed;
+		float32 impulse = -m_motorMass * Cdot;
+		float32 oldImpulse = m_motorImpulse;
+		float32 maxImpulse = data.step.dt * m_maxMotorForce;
+		m_motorImpulse = b2Clamp(m_motorImpulse + impulse, -maxImpulse, maxImpulse);
+		impulse = m_motorImpulse - oldImpulse;
+		vA -= (mA * impulse) * mot.dir;
+		wA += iA * impulse * mot.angularA;
+		vB += (mB * impulse) * mot.dir;
+		wB += iB * impulse * mot.angularB;
+	}
+
+	// Limit.
+	if (m_enableLimit && m_limitState != e_inactiveLimit)
+	{
+		float32 Cdot = mot.Compute(vA, wA, vB, wB);
+		float32 impulse = -m_motorMass * Cdot;
+		if (m_limitState == e_equalLimits)
+		{
+			m_impulse.z += impulse;
+		}
+		else if (m_limitState == e_atLowerLimit)
+		{
+			float32 oldImpulse = m_impulse.z;
+			m_impulse.z = b2Max(m_impulse.z + impulse, 0.0f);
+			impulse = m_impulse.z - oldImpulse;
+		}
+		else if (m_limitState == e_atUpperLimit)
+		{
+			float32 oldImpulse = m_impulse.z;
+			m_impulse.z = b2Min(m_impulse.z + impulse, 0.0f);
+			impulse = m_impulse.z - oldImpulse;
+		}
+		vA -= (mA * impulse) * mot.dir;
+		wA += iA * impulse * mot.angularA;
+		vB += (mB * impulse) * mot.dir;
+		wB += iB * impulse * mot.angularB;
+	}
+
+	data.velocities[m_indexA].v = vA;
+	data.velocities[m_indexA].w = wA;
+	data.velocities[m_indexB].v = vB;
+	data.velocities[m_indexB].w = wB;
+}
+
+bool b2PrismaticJoint::SolveFlash20PositionConstraints(const b2SolverData& data)
+{
+	b2Vec2 cA = data.positions[m_indexA].c;
+	float32 aA = data.positions[m_indexA].a;
+	b2Vec2 cB = data.positions[m_indexB].c;
+	float32 aB = data.positions[m_indexB].a;
+
+	float32 mA = m_invMassA, mB = m_invMassB;
+	float32 iA = m_invIA, iB = m_invIB;
+	const b2Flash20Jacobian lin = {m_perp, m_s1, m_s2};
+	const b2Flash20Jacobian mot = {m_axis, m_a1, m_a2};
+
+	// Perpendicular error, corrected along the step's (frozen) Jacobian.
+	b2Rot qA(aA), qB(aB);
+	b2Vec2 rA = b2Mul(qA, m_localAnchorA - m_localCenterA);
+	b2Vec2 rB = b2Mul(qB, m_localAnchorB - m_localCenterB);
+	b2Vec2 d = (cB + rB) - (cA + rA);
+	b2Vec2 ay = b2Mul(qA, m_localYAxisA);
+	float32 linearC = b2Clamp(b2Dot(ay, d), -b2_maxLinearCorrection, b2_maxLinearCorrection);
+	float32 linearImpulse = -m_K.ex.x * linearC;
+	cA -= (mA * linearImpulse) * lin.dir;
+	aA += iA * linearImpulse * lin.angularA;
+	cB += (mB * linearImpulse) * lin.dir;
+	aB += iB * linearImpulse * lin.angularB;
+	float32 positionError = b2Abs(linearC);
+
+	// Angular error.
+	float32 angularC = b2Clamp(aB - aA - m_referenceAngle, -b2_maxAngularCorrection, b2_maxAngularCorrection);
+	float32 angularImpulse = -m_K.ex.y * angularC;
+	aA -= iA * angularImpulse;
+	aB += iB * angularImpulse;
+	float32 angularError = b2Abs(angularC);
+
+	// Limit, with an accumulated (clamped) position impulse.
+	if (m_enableLimit && m_limitState != e_inactiveLimit)
+	{
+		qA.Set(aA);
+		qB.Set(aB);
+		rA = b2Mul(qA, m_localAnchorA - m_localCenterA);
+		rB = b2Mul(qB, m_localAnchorB - m_localCenterB);
+		d = (cB + rB) - (cA + rA);
+		b2Vec2 ax = b2Mul(qA, m_localXAxisA);
+		float32 translation = b2Dot(ax, d);
+		float32 limitImpulse = 0.0f;
+
+		if (m_limitState == e_equalLimits)
+		{
+			// Box2D 2.0 clamps the translation itself here, not translation - lower.
+			float32 C = b2Clamp(translation, -b2_maxLinearCorrection, b2_maxLinearCorrection);
+			limitImpulse = -m_motorMass * C;
+			positionError = b2Max(positionError, b2Abs(angularC));
+		}
+		else if (m_limitState == e_atLowerLimit)
+		{
+			float32 C = translation - m_lowerTranslation;
+			positionError = b2Max(positionError, -C);
+			C = b2Clamp(C + b2_linearSlop, -b2_maxLinearCorrection, 0.0f);
+			limitImpulse = -m_motorMass * C;
+			float32 oldImpulse = m_K.ex.z;
+			m_K.ex.z = b2Max(m_K.ex.z + limitImpulse, 0.0f);
+			limitImpulse = m_K.ex.z - oldImpulse;
+		}
+		else if (m_limitState == e_atUpperLimit)
+		{
+			float32 C = translation - m_upperTranslation;
+			positionError = b2Max(positionError, C);
+			C = b2Clamp(C - b2_linearSlop, 0.0f, b2_maxLinearCorrection);
+			limitImpulse = -m_motorMass * C;
+			float32 oldImpulse = m_K.ex.z;
+			m_K.ex.z = b2Min(m_K.ex.z + limitImpulse, 0.0f);
+			limitImpulse = m_K.ex.z - oldImpulse;
+		}
+
+		cA -= (mA * limitImpulse) * mot.dir;
+		aA += iA * limitImpulse * mot.angularA;
+		cB += (mB * limitImpulse) * mot.dir;
+		aB += iB * limitImpulse * mot.angularB;
+	}
+
+	data.positions[m_indexA].c = cA;
+	data.positions[m_indexA].a = aA;
+	data.positions[m_indexB].c = cB;
+	data.positions[m_indexB].a = aB;
+
+	return positionError <= b2_linearSlop && angularError <= b2_angularSlop;
 }

@@ -57,9 +57,9 @@ endif()
 # ---------------------------------------------------------------------------
 # Engine module selection (must be set before the engine declares its options)
 # ---------------------------------------------------------------------------
-# 3.17.2 has no USE_BOX2D cmake switch any more: Box2D is the v3-deps-158
-# prebuilt `ext_box2d` (external/Box2D/prebuilt/win32/{debug,release}/libbox2d.lib),
-# which is always part of the engine's `external` target. The option is kept
+# 3.17.2 has no USE_BOX2D cmake switch any more: the engine's `external` target always links
+# Box2D. OpenWheels builds it from thirdparty/box2d (the source of the v3-deps-158 prebuilt
+# `ext_box2d`, patched; see thirdparty/box2d/README.md) and swaps it in below. The option is kept
 # as a guard so nobody turns it off by accident.
 option(USE_BOX2D "Link Box2D (required by the game, must stay ON)" ON)
 if(NOT USE_BOX2D)
@@ -100,6 +100,10 @@ if(MSVC)
 endif()
 
 add_subdirectory(${COCOS2DX_ROOT_PATH}/cocos ${ENGINE_BINARY_PATH}/cocos/core)
+
+# Box2D from source (thirdparty/box2d): the prebuilt's own source with the browser game's Box2D 2.0
+# solver rules behind a switch (online/FlashPhysics.*); it replaces ext_box2d in `external`.
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/box2d ${CMAKE_BINARY_DIR}/box2d)
 
 # ---------------------------------------------------------------------------
 # Game sources: everything under src/ is picked up automatically (recursively),

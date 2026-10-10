@@ -54,6 +54,11 @@ b2ContactSolver::b2ContactSolver(b2ContactSolverDef* def)
 	m_positions = def->positions;
 	m_velocities = def->velocities;
 	m_contacts = def->contacts;
+	m_flash20Points = nullptr;
+	if (g_flash20Solver)
+	{
+		m_flash20Points = (b2Flash20ContactPoint*)m_allocator->Allocate(m_count * b2_maxManifoldPoints * sizeof(b2Flash20ContactPoint));
+	}
 
 	// Initialize position independent portions of the constraints.
 	for (int32 i = 0; i < m_count; ++i)
@@ -133,6 +138,10 @@ b2ContactSolver::b2ContactSolver(b2ContactSolverDef* def)
 
 b2ContactSolver::~b2ContactSolver()
 {
+	if (m_flash20Points)
+	{
+		m_allocator->Free(m_flash20Points);
+	}
 	m_allocator->Free(m_velocityConstraints);
 	m_allocator->Free(m_positionConstraints);
 }
@@ -216,7 +225,7 @@ void b2ContactSolver::InitializeVelocityConstraints()
 		}
 
 		// If we have two points, then prepare the block solver.
-		if (vc->pointCount == 2 && g_blockSolve)
+		if (vc->pointCount == 2 && g_blockSolve && !g_flash20Solver)
 		{
 			b2VelocityConstraintPoint* vcp1 = vc->points + 0;
 			b2VelocityConstraintPoint* vcp2 = vc->points + 1;
@@ -246,6 +255,11 @@ void b2ContactSolver::InitializeVelocityConstraints()
 				vc->pointCount = 1;
 			}
 		}
+	}
+
+	if (m_flash20Points)
+	{
+		InitializeFlash20Constraints();
 	}
 }
 
@@ -291,6 +305,12 @@ void b2ContactSolver::WarmStart()
 
 void b2ContactSolver::SolveVelocityConstraints()
 {
+	if (m_flash20Points)
+	{
+		SolveFlash20VelocityConstraints();
+		return;
+	}
+
 	for (int32 i = 0; i < m_count; ++i)
 	{
 		b2ContactVelocityConstraint* vc = m_velocityConstraints + i;
@@ -670,6 +690,11 @@ struct b2PositionSolverManifold
 // Sequential solver.
 bool b2ContactSolver::SolvePositionConstraints()
 {
+	if (m_flash20Points)
+	{
+		return SolveFlash20PositionConstraints();
+	}
+
 	float32 minSeparation = 0.0f;
 
 	for (int32 i = 0; i < m_count; ++i)
@@ -834,5 +859,189 @@ bool b2ContactSolver::SolveTOIPositionConstraints(int32 toiIndexA, int32 toiInde
 
 	// We can't expect minSpeparation >= -b2_linearSlop because we don't
 	// push the separation above -b2_linearSlop.
+	return minSeparation >= -1.5f * b2_linearSlop;
+}
+
+// OpenWheels: the Box2D 2.0 contact solver (Box2DFlash 2.0.2 b2ContactSolver), used while
+// g_flash20Solver is set. The manifolds still come from Box2D 2.3's collision code.
+
+// Box2D 2.0 b2ContactSolver constructor: per-point anchors on both bodies (the step's contact point),
+// the step's separation, equalized masses, and the -60 * separation bias of separated points.
+void b2ContactSolver::InitializeFlash20Constraints()
+{
+	for (int32 i = 0; i < m_count; ++i)
+	{
+		b2ContactVelocityConstraint* vc = m_velocityConstraints + i;
+		b2ContactPositionConstraint* pc = m_positionConstraints + i;
+		b2Contact* contact = m_contacts[vc->contactIndex];
+		b2Body* bodyA = contact->GetFixtureA()->GetBody();
+		b2Body* bodyB = contact->GetFixtureB()->GetBody();
+		b2Manifold* manifold = contact->GetManifold();
+
+		b2Vec2 cA = m_positions[vc->indexA].c;
+		float32 aA = m_positions[vc->indexA].a;
+		b2Vec2 cB = m_positions[vc->indexB].c;
+		float32 aB = m_positions[vc->indexB].a;
+
+		b2Transform xfA, xfB;
+		xfA.q.Set(aA);
+		xfB.q.Set(aB);
+		xfA.p = cA - b2Mul(xfA.q, pc->localCenterA);
+		xfB.p = cB - b2Mul(xfB.q, pc->localCenterB);
+
+		b2WorldManifold worldManifold;
+		worldManifold.Initialize(manifold, xfA, pc->radiusA, xfB, pc->radiusB);
+
+		// m * invMass (1 for a dynamic body, 0 for a static one) and m * invI.
+		const float32 eqMassA = bodyA->m_mass * bodyA->m_invMass;
+		const float32 eqMassB = bodyB->m_mass * bodyB->m_invMass;
+		const float32 eqIA = bodyA->m_mass * bodyA->m_invI;
+		const float32 eqIB = bodyB->m_mass * bodyB->m_invI;
+
+		b2Vec2 normal = vc->normal;
+		for (int32 j = 0; j < vc->pointCount; ++j)
+		{
+			b2VelocityConstraintPoint* vcp = vc->points + j;
+			b2Flash20ContactPoint* fp = m_flash20Points + i * b2_maxManifoldPoints + j;
+
+			fp->localAnchorA = b2MulT(xfA.q, vcp->rA);
+			fp->localAnchorB = b2MulT(xfB.q, vcp->rB);
+			fp->separation = worldManifold.separations[j];
+			fp->positionImpulse = 0.0f;
+
+			float32 rnA = b2Cross(vcp->rA, normal);
+			float32 rnB = b2Cross(vcp->rB, normal);
+			float32 kEqualized = eqMassA + eqMassB + eqIA * rnA * rnA + eqIB * rnB * rnB;
+			fp->equalizedMass = kEqualized > 0.0f ? 1.0f / kEqualized : 0.0f;
+
+			if (fp->separation > 0.0f)
+			{
+				vcp->velocityBias = -b2_flash20SeparationBias * fp->separation;
+				float32 vRel = b2Dot(normal, m_velocities[vc->indexB].v + b2Cross(m_velocities[vc->indexB].w, vcp->rB)
+					- m_velocities[vc->indexA].v - b2Cross(m_velocities[vc->indexA].w, vcp->rA));
+				if (vRel < -b2_velocityThreshold)
+				{
+					vcp->velocityBias += -vc->restitution * vRel;
+				}
+			}
+		}
+	}
+}
+
+// Box2D 2.0 SolveVelocityConstraints: one pass per point, normal and friction from the same
+// relative velocity, friction clamped by the normal impulse accumulated before this pass.
+void b2ContactSolver::SolveFlash20VelocityConstraints()
+{
+	for (int32 i = 0; i < m_count; ++i)
+	{
+		b2ContactVelocityConstraint* vc = m_velocityConstraints + i;
+
+		int32 indexA = vc->indexA;
+		int32 indexB = vc->indexB;
+		float32 mA = vc->invMassA;
+		float32 iA = vc->invIA;
+		float32 mB = vc->invMassB;
+		float32 iB = vc->invIB;
+
+		b2Vec2 vA = m_velocities[indexA].v;
+		float32 wA = m_velocities[indexA].w;
+		b2Vec2 vB = m_velocities[indexB].v;
+		float32 wB = m_velocities[indexB].w;
+
+		b2Vec2 normal = vc->normal;
+		b2Vec2 tangent = b2Cross(normal, 1.0f);
+		float32 friction = vc->friction;
+
+		for (int32 j = 0; j < vc->pointCount; ++j)
+		{
+			b2VelocityConstraintPoint* vcp = vc->points + j;
+
+			b2Vec2 dv = vB + b2Cross(wB, vcp->rB) - vA - b2Cross(wA, vcp->rA);
+
+			float32 vn = b2Dot(dv, normal);
+			float32 lambdaN = -vcp->normalMass * (vn - vcp->velocityBias);
+			float32 vt = b2Dot(dv, tangent) - vc->tangentSpeed;
+			float32 lambdaT = vcp->tangentMass * (-vt);
+
+			float32 newImpulseN = b2Max(vcp->normalImpulse + lambdaN, 0.0f);
+			lambdaN = newImpulseN - vcp->normalImpulse;
+
+			float32 maxFriction = friction * vcp->normalImpulse;
+			float32 newImpulseT = b2Clamp(vcp->tangentImpulse + lambdaT, -maxFriction, maxFriction);
+			lambdaT = newImpulseT - vcp->tangentImpulse;
+
+			b2Vec2 P = lambdaN * normal + lambdaT * tangent;
+			vA -= mA * P;
+			wA -= iA * b2Cross(vcp->rA, P);
+			vB += mB * P;
+			wB += iB * b2Cross(vcp->rB, P);
+
+			vcp->normalImpulse = newImpulseN;
+			vcp->tangentImpulse = newImpulseT;
+		}
+
+		m_velocities[indexA].v = vA;
+		m_velocities[indexA].w = wA;
+		m_velocities[indexB].v = vB;
+		m_velocities[indexB].w = wB;
+	}
+}
+
+// Box2D 2.0 SolvePositionConstraints: the anchored points move with their bodies along the step's
+// normal; accumulated, clamped position impulses with equalized masses.
+bool b2ContactSolver::SolveFlash20PositionConstraints()
+{
+	float32 minSeparation = 0.0f;
+
+	for (int32 i = 0; i < m_count; ++i)
+	{
+		b2ContactVelocityConstraint* vc = m_velocityConstraints + i;
+		b2Contact* contact = m_contacts[vc->contactIndex];
+		b2Body* bodyA = contact->GetFixtureA()->GetBody();
+		b2Body* bodyB = contact->GetFixtureB()->GetBody();
+
+		int32 indexA = vc->indexA;
+		int32 indexB = vc->indexB;
+		const float32 mA = bodyA->m_mass * bodyA->m_invMass;
+		const float32 iA = bodyA->m_mass * bodyA->m_invI;
+		const float32 mB = bodyB->m_mass * bodyB->m_invMass;
+		const float32 iB = bodyB->m_mass * bodyB->m_invI;
+		b2Vec2 normal = vc->normal;
+
+		for (int32 j = 0; j < vc->pointCount; ++j)
+		{
+			b2Flash20ContactPoint* fp = m_flash20Points + i * b2_maxManifoldPoints + j;
+
+			b2Vec2 cA = m_positions[indexA].c;
+			float32 aA = m_positions[indexA].a;
+			b2Vec2 cB = m_positions[indexB].c;
+			float32 aB = m_positions[indexB].a;
+
+			b2Vec2 rA = b2Mul(b2Rot(aA), fp->localAnchorA);
+			b2Vec2 rB = b2Mul(b2Rot(aB), fp->localAnchorB);
+
+			float32 separation = b2Dot((cB + rB) - (cA + rA), normal) + fp->separation;
+			minSeparation = b2Min(minSeparation, separation);
+
+			float32 C = b2_baumgarte * b2Clamp(separation + b2_linearSlop, -b2_maxLinearCorrection, 0.0f);
+			float32 impulse = -fp->equalizedMass * C;
+			float32 impulse0 = fp->positionImpulse;
+			fp->positionImpulse = b2Max(impulse0 + impulse, 0.0f);
+			impulse = fp->positionImpulse - impulse0;
+
+			b2Vec2 P = impulse * normal;
+
+			cA -= mA * P;
+			aA -= iA * b2Cross(rA, P);
+			cB += mB * P;
+			aB += iB * b2Cross(rB, P);
+
+			m_positions[indexA].c = cA;
+			m_positions[indexA].a = aA;
+			m_positions[indexB].c = cB;
+			m_positions[indexB].a = aB;
+		}
+	}
+
 	return minSeparation >= -1.5f * b2_linearSlop;
 }
