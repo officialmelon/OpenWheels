@@ -1,2 +1,5 @@
 android/gradlew text eol=lf
 *.sh text eol=lf
+# Engine patches are applied byte for byte to the LF engine sources: never convert them to CRLF
+# (Git for Windows checks text out with CRLF by default and git apply then rejects them).
+thirdparty/patches/*.patch -text
