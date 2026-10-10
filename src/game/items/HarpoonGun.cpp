@@ -13,6 +13,7 @@
 #include "Session.h"
 #include "Sound.h"
 #include "TargetRaycast.h"
+#include "online/FlashRuntime.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -190,6 +191,8 @@ void HarpoonGun::createBody(b2Vec2 position, float angle)
     bodyDef.position = position;
     bodyDef.angle = angle;
     _turretBody = getWorld()->CreateBody(&bodyDef);
+    // ONLINE (PC addition): Flash's turret has no shape and so no mass (static) until it aims.
+    if (online::flashLevel() && !_fixedTurret) _turretBody->SetType(b2_staticBody);
 
     b2RevoluteJointDef jointDef;
     jointDef.collideConnected = true;
@@ -249,6 +252,8 @@ void HarpoonGun::beginContact(b2Fixture* fixture, b2Fixture* otherFixture, b2Con
     if (fixture == _rangeSensor) {
         targetAdd(fixture, otherFixture, contact);
     } else if (fixture == _targetSensor) {
+        // ONLINE (PC addition): an aiming turret's sensor only checks the path in Flash.
+        if (online::flashLevel() && !_fixedTurret) return;
         targetAdd2(fixture, otherFixture, contact);
     }
 }
@@ -263,6 +268,7 @@ void HarpoonGun::targetAdd2(b2Fixture* fixture, b2Fixture* otherFixture, b2Conta
 // @005c1c60
 void HarpoonGun::endContact(b2Fixture* fixture, b2Fixture* otherFixture, b2Contact* contact)
 {
+    if (online::flashLevel() && !_fixedTurret && fixture == _targetSensor) return;  // ONLINE (PC addition)
     targetRemove(fixture, otherFixture, contact);
 }
 
@@ -451,8 +457,9 @@ void HarpoonGun::fireHarpoon()
     b2Vec2 aim(center.x + velocity.x * t - origin.x, center.y + velocity.y * t - origin.y);
     float angle = atan2f(aim.y, aim.x);
 
+    // ONLINE (PC addition): Flash's fireHarpoon starts the harpoon at the turret (no move forward).
     _harpoon = Harpoon::create(origin, angle, b2Vec2(speed * cosf(angle), speed * sinf(angle)),
-                               _turret->getLocalZOrder());
+                               _turret->getLocalZOrder(), !online::flashLevel());
     _harpoon->setHarpoonGun(this);
     _harpoon->retain();
     _harpoonSprite->removeFromParentAndCleanup(false);
@@ -481,8 +488,9 @@ void HarpoonGun::fireHarpoon2()
     float angle = atan2f(direction.y, direction.x);
     float speed = s_harpoonSpeed;
 
+    // ONLINE (PC addition): Flash's fireHarpoon2 moves it forward only for a fixed turret.
     _harpoon = Harpoon::create(origin, angle, b2Vec2(speed * cosf(angle), speed * sinf(angle)),
-                               _turret->getLocalZOrder());
+                               _turret->getLocalZOrder(), !online::flashLevel() || _fixedTurret);
     _harpoon->setHarpoonGun(this);
     _harpoon->retain();
 
@@ -521,6 +529,10 @@ void HarpoonGun::harpoonHit(Harpoon* harpoon)
 // @005c2c24
 void HarpoonGun::actions()
 {
+    if (online::flashLevel()) {
+        flashActions();  // ONLINE (PC addition)
+        return;
+    }
     if (_disabled) {
         return;
     }
@@ -568,6 +580,114 @@ void HarpoonGun::actions()
         float rotation = _turretBody->GetAngle() * -57.29578f;  // not fused with the subtraction
         _turret->setRotation(rotation - _mc->getRotation());
     }
+}
+
+// ONLINE (PC addition): Flash's HarpoonGun.actions. Finding a target makes the target sensor,
+// which holds fire for that step (pathClear false); it fires once aligned on an earlier step with
+// a clear path, then keeps turning: more than 0.52 rad off it turns halfway, else it snaps on.
+void HarpoonGun::flashActions()
+{
+    if (_disabled) {
+        return;
+    }
+    const b2Vec2 turretPosition = _turretBody->GetPosition();
+    if (!_targetBody) {
+        if (_targetSensor && !_fixedTurret) {
+            flashRemoveTargetSensor();
+        }
+        findClosestTarget(turretPosition);
+        if (_targetBody && !_fixedTurret) {
+            flashCreateTargetSensor();
+        }
+    }
+    if (_targetBody) {
+        if (_pathClear && _aligned && !_triggerFiring && !flashPathBlocked()) {
+            if (_fixedTurret) {
+                fireHarpoon2();
+            } else {
+                fireHarpoon();
+            }
+            getLevel()->removeFromActions(this);
+        }
+        if (!_fixedTurret && _targetBody) {
+            const b2Vec2 targetCenter = _targetBody->GetWorldCenter();
+            float targetAngle = atan2f(targetCenter.y - turretPosition.y, targetCenter.x - turretPosition.x) - M_PI_2;
+            _aligned = false;
+            float difference = _turretBody->GetAngle() - targetAngle;
+            if (difference > M_PI) {
+                difference -= 2 * b2_pi;
+            }
+            if (difference < -M_PI) {
+                difference += 2 * b2_pi;
+            }
+            if (fabsf(difference) > 0.52f) {
+                targetAngle += difference * 0.5f;
+            } else {
+                _aligned = true;
+            }
+            _turretBody->SetTransform(turretPosition, targetAngle);
+            _turretBody->SetAngularVelocity(0.0f);
+            _turretBody->SetLinearVelocity(b2Vec2(0.0f, 0.0f));
+            _turret->setRotation(_turretBody->GetAngle() * -57.29578f - _mc->getRotation());
+        }
+    }
+    _pathClear = true;
+}
+
+// Flash's createTargetSensor for an aiming turret: the sensor gives the turret its mass (Box2D 2.0
+// counts sensors), so it turns dynamic, and the motor is let go.
+void HarpoonGun::flashCreateTargetSensor()
+{
+    b2FixtureDef fixtureDef;
+    fixtureDef.density = 1.0f;
+    fixtureDef.isSensor = true;
+    fixtureDef.filter.categoryBits = 0x0008;
+    fixtureDef.filter.maskBits = 0xFFFF;
+    fixtureDef.filter.groupIndex = -20;
+    b2PolygonShape shape;
+    const float half = _targetLength * 0.5f;
+    shape.SetAsBox(2.0f / globals::flash::ptmRatio, half, b2Vec2(0.0f, half), 0.0f);
+    fixtureDef.shape = &shape;
+    _targetSensor = _turretBody->CreateFixture(&fixtureDef);
+    addToBeginContact(_targetSensor);
+    addToEndContact(_targetSensor);
+    if (_turretBody->GetType() != b2_dynamicBody) _turretBody->SetType(b2_dynamicBody);
+    _turretBody->ResetMassData();
+    _pathClear = false;
+    _turretJoint->EnableMotor(false);
+}
+
+// Flash's removeTargetSensor: Box2D 2.0 leaves the body's mass as it was.
+void HarpoonGun::flashRemoveTargetSensor()
+{
+    b2MassData massData;
+    _turretBody->GetMassData(&massData);
+    removeBeginContact(_targetSensor);
+    removeEndContact(_targetSensor);
+    _turretBody->DestroyFixture(_targetSensor);
+    _targetSensor = nullptr;
+    _turretBody->SetMassData(&massData);
+    _turretJoint->SetMotorSpeed(0.0f);
+    _turretJoint->EnableMotor(true);
+}
+
+// Flash's target sensor (checkAdd / checkPersist): a solid shape that is static or at least
+// density 10 across the line from the turret to the target holds fire.
+bool HarpoonGun::flashPathBlocked()
+{
+    struct Callback : public b2RayCastCallback {
+        bool blocked = false;
+        float32 ReportFixture(b2Fixture* fixture, const b2Vec2&, const b2Vec2&, float32) override
+        {
+            const b2Filter& f = fixture->GetFilterData();
+            if (fixture->IsSensor() || f.groupIndex == -20 || !(f.maskBits & 0x0008)) return -1.0f;
+            if (fixture->GetBody()->GetMass() > 0.0f && fixture->GetDensity() < 10.0f) return -1.0f;
+            blocked = true;
+            return 0.0f;
+        }
+    } callback;
+    getWorld()->RayCast(&callback, _turretBody->GetPosition(), _targetBody->GetWorldCenter());
+    return callback.blocked;
 }
 
 // @005c2ec8

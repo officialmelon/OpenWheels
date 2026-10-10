@@ -72,6 +72,7 @@ bool Fan::init(LevelDataElement* element, b2Body* groupBody, b2Vec2 groupOffset)
     _fanSound = Settings::getInstance()->getSoundController()->createPositionSound(
         "SwooshFan", Vec2(_centerMeters.x, _centerMeters.y), 1.0f, true);
     getLevel()->addToFrameActions(this);
+    if (online::browserPhysicsWanted()) getLevel()->addToActions(this);  // ONLINE (PC addition)
     return true;
 }
 
@@ -160,7 +161,22 @@ void Fan::frameAction()
         _frameIndex = 0;
     }
     _fanBlade->setSpriteFrame(_frames[_frameIndex]);
+    if (online::browserPhysics()) return;  // ONLINE (PC addition): blown in actions()
     blowBodies();  // inlined in the original
+}
+
+// ONLINE (PC addition): see Fan.h.
+void Fan::actions()
+{
+    if (!online::browserPhysics()) return;
+    std::vector<b2Body*> blown;
+    for (b2Body* body : _bodies)
+    {
+        if (online::flashPersists(body, _sensor)) blown.push_back(body);
+    }
+    std::swap(blown, _bodies);
+    blowBodies();
+    std::swap(blown, _bodies);
 }
 
 // @005adcc4

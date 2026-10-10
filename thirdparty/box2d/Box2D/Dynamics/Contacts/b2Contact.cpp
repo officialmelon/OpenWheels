@@ -201,28 +201,34 @@ void b2Contact::Update(b2ContactListener* listener)
 			}
 		}
 		touching = m_manifold.pointCount > 0;
-		if (sensor)
-		{
-			m_manifold.pointCount = 0;
-		}
+		const int32 pointCount = m_manifold.pointCount;
+		const int32 oldPointCount = sensor ? m_flash20SensorPoints : oldManifold.pointCount;
 
-		// 2.0 hands each old point's impulses to at most one new point with its id.
+		// 2.0 hands each old point's impulses to at most one new point with its id (circles: the
+		// one point to the one point), and reports that point to the listener as persisting.
+		const bool circles = shapeA->GetType() == b2Shape::e_circle && shapeB->GetType() == b2Shape::e_circle;
 		bool matched[b2_maxManifoldPoints] = {false, false};
-		for (int32 i = 0; i < m_manifold.pointCount; ++i)
+		for (int32 i = 0; i < pointCount; ++i)
 		{
 			b2ManifoldPoint* mp2 = m_manifold.points + i;
 			mp2->normalImpulse = 0.0f;
 			mp2->tangentImpulse = 0.0f;
-			for (int32 j = 0; j < oldManifold.pointCount; ++j)
+			for (int32 j = 0; j < oldPointCount; ++j)
 			{
-				if (!matched[j] && oldManifold.points[j].id.key == mp2->id.key)
+				if (!matched[j] && (circles || oldManifold.points[j].id.key == mp2->id.key))
 				{
 					matched[j] = true;
 					mp2->normalImpulse = oldManifold.points[j].normalImpulse;
 					mp2->tangentImpulse = oldManifold.points[j].tangentImpulse;
+					if (m_flash20Persists < 255) ++m_flash20Persists;
 					break;
 				}
 			}
+		}
+		if (sensor)
+		{
+			m_flash20SensorPoints = uint8(pointCount);
+			m_manifold.pointCount = 0;
 		}
 
 		// 2.0 wakes the bodies when a contact stops touching, not when it starts.

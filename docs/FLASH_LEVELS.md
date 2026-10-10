@@ -580,6 +580,31 @@ OpenWheels with `TjfTestDriver`'s body dump and compared step by step.
 - Effective Shopper and the motor cart have no browser dump yet, so their geometry is still the
   plists'.
 
+**Second pass.**
+- NPC break limits use the browser's numbers: no 1.15 smash factor, joint limits at
+  `round(N * ratio)`, and the revolute "pulled apart" check at 0.25 m² (it was 0.5).
+- Polygon contacts are clipped in the Flash frame (the world mirrored at y = 160). 2.0's clipping
+  order follows vertex winding, and mirroring reverses it, so the contact points and their ids came
+  out in a different order and the solver applied impulses in a different order.
+- Contacts count 2.0's `Persist` events (a point keeping its id over a step, continuous collision
+  included). Fans and boost panels push only bodies whose contact persisted, after the world step,
+  as the browser's contact listener does; sensors keep their point ids for this.
+- Harpoon guns follow the browser's turret: the turret is static while it searches, a target
+  sensor is created and destroyed as in Flash (this keeps the proxy ids in step), it fires only
+  with a clear path, and a free turret's harpoon starts at the turret instead of 52.5 px ahead.
+
+| Replay | Character | Before | After | Outcome |
+|---|---|---|---|---|
+| 23178391 | Wheelchair Guy | 41 / 49 | 64 / 65 | misses the finish |
+| 56612689 | Segway Guy | 35 / 35 | 35 / 36 | finishes at step 361 (browser 403) |
+| 34460794 | Irresponsible Dad | 1 / 1 | 1 / 1 | misses the finish |
+| 32422304 | Moped couple | 42 / 55 | 50 / 57 | dies at step 347 (was 89) |
+| 36254308 | Pogo Stick | 25 / 25 | 40 / 41 | dies at step 88 |
+
+- Segway: the split at step 35 is in the solver impulses on the NPC's new contacts and the order of continuous-collision events.
+- Pogo: near step 40 a boost panel's contact pair has its shapes in the other order from the
+  browser's (proxy ids differ), and 2.0's asymmetric polygon collision gives different point ids.
+
 ### Replay check (2026-10-08)
 
 The fastest replay of POKEMON TRAINING (562820, Chrepuhon, 34.13 s), watched to its end with

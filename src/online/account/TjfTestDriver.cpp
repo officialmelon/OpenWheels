@@ -424,6 +424,7 @@ void dumpContacts(const char* path, int step) {
             std::fprintf(f, " [%.5f %.5f %.5f %.3f %.3f]", wm.separations[i], m->points[i].normalImpulse,
                          m->points[i].tangentImpulse, wm.points[i].x, wm.points[i].y);
         }
+        std::fprintf(f, " persist %d", c->GetFlash20PersistCount());
         std::fprintf(f, "\n");
     }
     std::fclose(f);
@@ -654,6 +655,11 @@ void replayCheckNext() {
     doit("watch", []() {
         ReplayCheck& c = g_replayCheck;
         if (c.failed) return;
+        // Contacts right after each world step, as the browser game's dump takes them (the step
+        // observer runs before the next step, after the items' actions).
+        setAfterWorldStepObserver([]() {
+            if (const char* dump = std::getenv("OW_TJF_TEST_DUMP")) dumpContacts(dump, g_replayCheck.steps + 1);
+        });
         replays::setTestStepObserver(replays::kObserveEveryStep, [](int mode) {
             if (mode != 2) return;
             ReplayCheck& c = g_replayCheck;
@@ -662,7 +668,6 @@ void replayCheckNext() {
             if (const char* dump = std::getenv("OW_TJF_TEST_DUMP")) {
                 dumpDefs(dump, c.steps);
                 dumpBodies(dump, c.steps);
-                dumpContacts(dump, c.steps);
                 for (b2Body* b = Settings::getInstance()->getCurrentSession()->getWorld()->GetBodyList(); b; b = b->GetNext()) {
                     g_dumpPrevXf[b] = b->GetTransform();
                 }

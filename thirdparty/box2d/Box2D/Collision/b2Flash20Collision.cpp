@@ -440,6 +440,32 @@ void CollidePolygons(Flash20Manifold* m, const b2PolygonShape* polyA, const b2Tr
 	*flipOut = flip != 0;
 }
 
+// A polygon and transform mirrored at y = 0, the vertices in the opposite order so that they run
+// counter-clockwise again (vertex i is the mirror of vertex count - 1 - i, as in the browser game).
+void MirrorPolygon(b2PolygonShape* out, const b2PolygonShape* in)
+{
+	const int32 n = in->m_count;
+	out->m_count = n;
+	out->m_radius = in->m_radius;
+	out->m_centroid.Set(in->m_centroid.x, -in->m_centroid.y);
+	for (int32 i = 0; i < n; ++i)
+	{
+		const b2Vec2& v = in->m_vertices[n - 1 - i];
+		out->m_vertices[i].Set(v.x, -v.y);
+		const b2Vec2& normal = in->m_normals[(2 * n - 2 - i) % n];
+		out->m_normals[i].Set(normal.x, -normal.y);
+	}
+}
+
+b2Transform MirrorTransform(const b2Transform& xf)
+{
+	b2Transform out;
+	out.p.Set(xf.p.x, -xf.p.y);
+	out.q.s = -xf.q.s;
+	out.q.c = xf.q.c;
+	return out;
+}
+
 // Writes a 2.0 manifold as a 2.3 one whose world manifold has 2.0's normal and separations, and
 // whose points are 2.0's moved half the separation back along the normal (2.3's midpoint; the
 // flash contact solver moves them forward again, b2ContactSolver::InitializeFlash20Constraints).
@@ -511,22 +537,24 @@ bool b2Flash20Collide(b2Manifold* manifold, const b2Shape* shapeA, const b2Trans
 		b2Vec2 frontNormal;
 		float32 frontOffset;
 		bool flip = false;
-		CollidePolygons(&m, (const b2PolygonShape*)shapeA, xfA, (const b2PolygonShape*)shapeB, xfB,
+		// The game's world is the browser game's one mirrored, so each polygon's vertices run the
+		// other way round, which changes the order of the points 2.0's clipping gives (and 2.0's
+		// solver goes through them in order). Collide in the browser game's frame instead.
+		b2PolygonShape mirrorA, mirrorB;
+		MirrorPolygon(&mirrorA, (const b2PolygonShape*)shapeA);
+		MirrorPolygon(&mirrorB, (const b2PolygonShape*)shapeB);
+		CollidePolygons(&m, &mirrorA, MirrorTransform(xfA), &mirrorB, MirrorTransform(xfB),
 			&frontNormal, &frontOffset, &flip);
+		m.normal.y = -m.normal.y;
+		for (int32 i = 0; i < m.pointCount; ++i)
+		{
+			m.points[i].y = -m.points[i].y;
+		}
 		faceB = flip;
 	}
 	else
 	{
 		return false;
-	}
-	// The game's world is the browser game's one mirrored, so each polygon's vertices run the other
-	// way round and an incident edge's points come out in the opposite order. 2.0's solver goes
-	// through the points in order: give them in the browser game's.
-	if (m.pointCount == 2)
-	{
-		b2Swap(m.points[0], m.points[1]);
-		b2Swap(m.separations[0], m.separations[1]);
-		b2Swap(m.ids[0], m.ids[1]);
 	}
 	Encode(manifold, m, faceB, xfA, shapeA->m_radius, xfB, shapeB->m_radius);
 	return true;

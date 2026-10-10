@@ -1003,6 +1003,15 @@ void b2World::Step(float32 dt, int32 velocityIterations, int32 positionIteration
 
 	step.warmStarting = m_warmStarting;
 	
+	// OpenWheels: Box2D 2.0's Persist calls are counted over the whole step (collide and TOI).
+	if (g_flash20Solver)
+	{
+		for (b2Contact* c = m_contactManager.m_contactList; c; c = c->m_next)
+		{
+			c->m_flash20Persists = 0;
+		}
+	}
+
 	// Update contacts. This is where some contacts are destroyed.
 	{
 		b2Timer timer;

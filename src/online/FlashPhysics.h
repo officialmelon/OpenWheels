@@ -20,9 +20,12 @@
 // Campaign and other mobile levels never see any of it. With the option off, browser levels play
 // on the mobile profile (1/60, 8 + 3), as in OpenWheels 0.2.
 
+#include <functional>
 #include <string>
 
 class b2World;
+class b2Body;
+class b2Fixture;
 class b2QueryCallback;
 struct b2AABB;
 class LevelB2D;
@@ -68,6 +71,8 @@ void beginLevelTimeStep(Session* session);
 
 // The world step of a browser level (profile-dependent iterations and solver).
 void flashWorldStep(b2World* world, float timeStep);
+// Test tools: called right after each browser-profile world step (before the items' actions).
+void setAfterWorldStepObserver(std::function<void()> observer);
 
 // LevelB2D: Flash builds the level's shapes and items before its character, and Box2D 2.0 orders
 // its bodies, joints and contacts by creation. LevelB2D reads the character first, so it brackets
@@ -82,5 +87,10 @@ void flashLevelBuilt(b2World* world);
 // jet): under Box2D 2.0's broad-phase it reports what 2.0's world.Query(aabb, shapes, 30) returns,
 // at most 30 fixtures, in 2.0's order.
 void flashQueryAABB(b2World* world, b2QueryCallback* callback, const b2AABB& aabb);
+
+// Fan and BoostPanel push the bodies their sensor reported to Box2D 2.0's contact listener as
+// "Persist" in the last step (a contact point that kept its id): does body have such a contact
+// with sensor?
+bool flashPersists(b2Body* body, b2Fixture* sensor);
 
 }  // namespace online

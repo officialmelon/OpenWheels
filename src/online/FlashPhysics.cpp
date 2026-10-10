@@ -186,6 +186,8 @@ void useFlashBorders(b2World* world)
 
 }  // namespace
 
+std::function<void()> g_afterWorldStep;
+
 void flashWorldStep(b2World* world, float timeStep)
 {
     if (!browserPhysics()) {
@@ -199,7 +201,10 @@ void flashWorldStep(b2World* world, float timeStep)
     world->Step(timeStep, kFlashIterations, kFlashIterations);
     g_flash20Solver = false;
     g_blockSolve = blockSolve;
+    if (g_afterWorldStep) g_afterWorldStep();
 }
+
+void setAfterWorldStepObserver(std::function<void()> observer) { g_afterWorldStep = std::move(observer); }
 
 // The browser profile's condition (beginLevelTimeStep), known before the character exists.
 bool flashOrderWanted()
@@ -284,6 +289,15 @@ void flashQueryAABB(b2World* world, b2QueryCallback* callback, const b2AABB& aab
     for (int32 i = 0; i < count; ++i) {
         if (!callback->ReportFixture(fixtures[i])) break;
     }
+}
+
+bool flashPersists(b2Body* body, b2Fixture* sensor)
+{
+    for (b2ContactEdge* edge = body->GetContactList(); edge; edge = edge->next) {
+        b2Contact* c = edge->contact;
+        if ((c->GetFixtureA() == sensor || c->GetFixtureB() == sensor) && c->GetFlash20PersistCount() > 0) return true;
+    }
+    return false;
 }
 
 }  // namespace online
