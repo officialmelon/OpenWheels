@@ -233,6 +233,11 @@ protected:
 	bool m_isSensor;
 
 	void* m_userData;
+
+	// OpenWheels: its proxy in the world's Box2D 2.0 broad-phase (b2World::Flash20Begin), or
+	// b2Flash20BroadPhase::e_nullProxy.
+	int32 m_flash20ProxyId;
+	friend class b2Island;
 };
 
 inline b2Shape::Type b2Fixture::GetType() const

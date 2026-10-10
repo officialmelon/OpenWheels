@@ -74,6 +74,9 @@ public:
     void backWheelSmash(float impulse, b2Vec2 normal);   // @005f1fc0
     void stopEngineSound();                     // @005f2418
     void handleFramePostSolve(VehicleContact contact);   // @005f244c
+    // ONLINE (PC addition): the browser game's passenger also holds on with sensor forearms.
+    void handleInjury(CharacterInjury injury, CharacterB2D* character) override;
+    void solidPassengerArms(bool arm1, bool arm2);
     void handleUpperLeg1Injury(CharacterB2D* character) override;  // @005f275c vptr+0x278
     void handleUpperLeg2Injury(CharacterB2D* character) override;  // @005f27bc vptr+0x280
     void handleLowerLeg1Injury(CharacterB2D* character) override;  // @005f281c vptr+0x288

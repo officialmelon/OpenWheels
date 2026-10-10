@@ -13,6 +13,8 @@
 #include "Sound.h"
 #include "SoundController.h"
 #include "platform/compat/Box2DFloat.h"
+#include "online/FlashPhysics.h"  // ONLINE (PC addition)
+#include "online/FlashRuntime.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -85,6 +87,11 @@ void Wheelchair::createBodies()
     bodyDef.type = b2_dynamicBody;
     bodyDef.angularDamping = 1.0f;
     bodyDef.allowSleep = false;
+    const bool flash = online::flashLevel();  // ONLINE (PC addition): Flash wheels are undamped
+    if (flash) {
+        bodyDef.angularDamping = 0.0f;
+        bodyDef.allowSleep = true;
+    }
 
     Vec2 position = PointFromString(smallWheelShape.at("pos").asString());
     bodyDef.position = b2Vec2(position.x + _origin.x, position.y + _origin.y);
@@ -94,7 +101,7 @@ void Wheelchair::createBodies()
     b2FixtureDef fixtureDef;
     fixtureDef.userData = this;
     fixtureDef.friction = 1.0f;
-    fixtureDef.restitution = 0.3f;
+    fixtureDef.restitution = flash ? 0.1f : 0.3f;
     fixtureDef.density = 5.0f;
     fixtureDef.isSensor = false;
     fixtureDef.filter.categoryBits = 0x0401;
@@ -147,6 +154,12 @@ void Wheelchair::createBodies()
     _frame3Fixture = _frameBody->CreateFixture(&fixtureDef);
 
     _frameBody->ResetMassData();
+    if (flash) {
+        // Flash creates the chair, then the big wheel, then the small one.
+        world->MoveBodyToFront(_frameBody);
+        world->MoveBodyToFront(_backWheelBody);
+        world->MoveBodyToFront(_frontWheelBody);
+    }
 
     addToPostSolve(_frame1Fixture);
     addToPostSolve(_frame2Fixture);
@@ -182,6 +195,11 @@ void Wheelchair::createJoints()
 
     jointDef.Initialize(_frameBody, _backWheelBody, _backWheelBody->GetWorldCenter());
     _backWheelJoint = static_cast<b2RevoluteJoint*>(world->CreateJoint(&jointDef));
+    if (online::flashLevel()) {
+        // ONLINE (PC addition): Flash joins the big (back) wheel first.
+        world->MoveJointToFront(_backWheelJoint);
+        world->MoveJointToFront(_frontWheelJoint);
+    }
 }
 
 // @006432b4
@@ -745,7 +763,7 @@ void Wheelchair::blastBodies(b2Vec2 position, float radius)
     b2AABB aabb;
     aabb.lowerBound = b2Vec2(position.x - radius, position.y - radius);
     aabb.upperBound = b2Vec2(position.x + radius, position.y + radius);
-    getWorld()->QueryAABB(&callback, aabb);
+    online::flashQueryAABB(getWorld(), &callback, aabb);  // ONLINE (PC addition)
 
     for (unsigned int i = 0; i < callback._fixtures.size(); i++)
     {

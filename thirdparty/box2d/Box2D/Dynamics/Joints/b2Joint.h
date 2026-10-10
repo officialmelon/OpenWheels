@@ -181,6 +181,9 @@ protected:
 	bool m_collideConnected;
 
 	void* m_userData;
+
+	// OpenWheels: b2World::GetCreationSerial.
+	uint32 m_creationSerial;
 };
 
 inline b2JointType b2Joint::GetType() const

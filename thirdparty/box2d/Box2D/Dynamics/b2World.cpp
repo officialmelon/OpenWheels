@@ -61,10 +61,17 @@ b2World::b2World(const b2Vec2& gravity)
 	m_contactManager.m_allocator = &m_blockAllocator;
 
 	memset(&m_profile, 0, sizeof(b2Profile));
+
+	m_flash20 = nullptr;
+	m_flash20PendingMass = nullptr;
+	m_creationSerial = 0;
 }
 
 b2World::~b2World()
 {
+	delete m_flash20;
+	m_flash20 = nullptr;
+
 	// Some shapes allocate using b2Alloc.
 	b2Body* b = m_bodyList;
 	while (b)
@@ -124,8 +131,47 @@ b2Body* b2World::CreateBody(const b2BodyDef* def)
 	}
 	m_bodyList = b;
 	++m_bodyCount;
+	b->m_creationSerial = m_creationSerial++;
 
 	return b;
+}
+
+void b2World::MoveBodyToFront(b2Body* b)
+{
+	if (m_bodyList == b) return;
+	if (b->m_prev) b->m_prev->m_next = b->m_next;
+	if (b->m_next) b->m_next->m_prev = b->m_prev;
+	b->m_prev = nullptr;
+	b->m_next = m_bodyList;
+	if (m_bodyList) m_bodyList->m_prev = b;
+	m_bodyList = b;
+}
+
+void b2World::MoveJointToFront(b2Joint* j)
+{
+	if (m_jointList != j)
+	{
+		if (j->m_prev) j->m_prev->m_next = j->m_next;
+		if (j->m_next) j->m_next->m_prev = j->m_prev;
+		j->m_prev = nullptr;
+		j->m_next = m_jointList;
+		if (m_jointList) m_jointList->m_prev = j;
+		m_jointList = j;
+	}
+	b2JointEdge* edges[2] = {&j->m_edgeA, &j->m_edgeB};
+	b2Body* bodies[2] = {j->m_bodyA, j->m_bodyB};
+	for (int i = 0; i < 2; ++i)
+	{
+		b2JointEdge* e = edges[i];
+		b2Body* body = bodies[i];
+		if (body->m_jointList == e) continue;
+		if (e->prev) e->prev->next = e->next;
+		if (e->next) e->next->prev = e->prev;
+		e->prev = nullptr;
+		e->next = body->m_jointList;
+		if (body->m_jointList) body->m_jointList->prev = e;
+		body->m_jointList = e;
+	}
 }
 
 void b2World::DestroyBody(b2Body* b)
@@ -154,6 +200,15 @@ void b2World::DestroyBody(b2Body* b)
 		b->m_jointList = je;
 	}
 	b->m_jointList = nullptr;
+
+	// OpenWheels: Box2D 2.0 ends the body's contacts as it destroys its proxies.
+	if (m_flash20)
+	{
+		for (b2Fixture* f = b->m_fixtureList; f; f = f->m_next)
+		{
+			Flash20DestroyProxy(f);
+		}
+	}
 
 	// Delete the attached contacts.
 	b2ContactEdge* ce = b->m_contactList;
@@ -218,6 +273,7 @@ b2Joint* b2World::CreateJoint(const b2JointDef* def)
 	}
 
 	b2Joint* j = b2Joint::Create(def, &m_blockAllocator);
+	j->m_creationSerial = m_creationSerial++;
 
 	// Connect to the world list.
 	j->m_prev = nullptr;
@@ -262,6 +318,12 @@ b2Joint* b2World::CreateJoint(const b2JointDef* def)
 
 			edge = edge->next;
 		}
+	}
+
+	// OpenWheels: Box2D 2.0 makes the proxies of one of the bodies anew.
+	if (m_flash20 && def->collideConnected == false)
+	{
+		Flash20RefilterJoint(bodyA, bodyB);
 	}
 
 	// Note: creating a joint doesn't wake the bodies.
@@ -346,6 +408,12 @@ void b2World::DestroyJoint(b2Joint* j)
 	b2Assert(m_jointCount > 0);
 	--m_jointCount;
 
+	// OpenWheels: Box2D 2.0 makes the proxies of one of the bodies anew.
+	if (m_flash20 && collideConnected == false)
+	{
+		Flash20RefilterJoint(bodyA, bodyB);
+	}
+
 	// If the joint prevents collisions, then flag any contacts for filtering.
 	if (collideConnected == false)
 	{
@@ -421,6 +489,12 @@ void b2World::Solve(const b2TimeStep& step)
 		}
 
 		if (seed->IsAwake() == false || seed->IsActive() == false)
+		{
+			continue;
+		}
+
+		// OpenWheels: Box2D 2.0 no longer simulates a frozen body on its own (b2Flash20World.cpp).
+		if (g_flash20Solver && (seed->m_flags & b2Body::e_flash20FrozenFlag))
 		{
 			continue;
 		}
@@ -564,11 +638,16 @@ void b2World::Solve(const b2TimeStep& step)
 			}
 
 			// Update fixtures (for broad-phase).
-			b->SynchronizeFixtures();
+			// OpenWheels: Box2D 2.0 leaves out the bodies that just fell asleep.
+			b->SynchronizeFixtures(m_flash20 == nullptr || (b->IsAwake() && b->GetType() == b2_dynamicBody));
 		}
 
 		// Look for new contacts.
 		m_contactManager.FindNewContacts();
+		if (m_flash20)
+		{
+			m_flash20->Commit();
+		}
 		m_profile.broadphase = timer.GetMilliseconds();
 	}
 }
@@ -943,7 +1022,14 @@ void b2World::Step(float32 dt, int32 velocityIterations, int32 positionIteration
 	if (m_continuousPhysics && step.dt > 0.0f)
 	{
 		b2Timer timer;
-		SolveTOI(step);
+		if (g_flash20Solver)
+		{
+			SolveFlash20TOI(step);
+		}
+		else
+		{
+			SolveTOI(step);
+		}
 		m_profile.solveTOI = timer.GetMilliseconds();
 	}
 

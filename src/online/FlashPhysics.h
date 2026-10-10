@@ -23,6 +23,8 @@
 #include <string>
 
 class b2World;
+class b2QueryCallback;
+struct b2AABB;
 class LevelB2D;
 class Session;
 
@@ -41,6 +43,10 @@ void setOfflineLevel(bool offline);
 // True while the running level plays with the browser profile (latched when the level starts,
 // so toggling the option mid-level waits for the next level).
 bool browserPhysics();
+
+// Whether the level being built will play with the browser profile (known before
+// beginLevelTimeStep, while the characters are created).
+bool browserPhysicsWanted();
 
 // World steps per browser (30 Hz) frame: 1 with the browser profile, 2 on the mobile profile.
 int stepsPerFlashFrame();
@@ -62,5 +68,19 @@ void beginLevelTimeStep(Session* session);
 
 // The world step of a browser level (profile-dependent iterations and solver).
 void flashWorldStep(b2World* world, float timeStep);
+
+// LevelB2D: Flash builds the level's shapes and items before its character, and Box2D 2.0 orders
+// its bodies, joints and contacts by creation. LevelB2D reads the character first, so it brackets
+// the character's creation with these and calls flashLevelBuilt once the level is built: the
+// character's bodies and joints move to the front of the lists (the newest) and the fixtures get
+// Box2D 2.0's proxy ids in Flash's order.
+void flashCharacterBegin(b2World* world);
+void flashCharacterEnd(b2World* world);
+void flashLevelBuilt(b2World* world);
+
+// b2World::QueryAABB for the browser game's explosions (Mine, HomingMine, Jet, the wheelchair's
+// jet): under Box2D 2.0's broad-phase it reports what 2.0's world.Query(aabb, shapes, 30) returns,
+// at most 30 fixtures, in 2.0's order.
+void flashQueryAABB(b2World* world, b2QueryCallback* callback, const b2AABB& aabb);
 
 }  // namespace online

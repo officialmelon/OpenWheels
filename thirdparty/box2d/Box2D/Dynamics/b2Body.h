@@ -155,6 +155,10 @@ public:
 	/// @warning This function is locked during callbacks.
 	void DestroyFixture(b2Fixture* fixture);
 
+	/// OpenWheels: moves a fixture to the end of the fixture list, as if it had been created
+	/// first (the list starts with the newest).
+	void MoveFixtureToBack(b2Fixture* fixture);
+
 	/// Set the position of the body's origin and rotation.
 	/// Manipulating a body's transform may cause non-physical behavior.
 	/// Note: contacts are updated on the next call to b2World::Step.
@@ -425,13 +429,16 @@ private:
 		e_bulletFlag		= 0x0008,
 		e_fixedRotationFlag	= 0x0010,
 		e_activeFlag		= 0x0020,
-		e_toiFlag			= 0x0040
+		e_toiFlag			= 0x0040,
+		// OpenWheels: Box2D 2.0 froze this body when it left the world box (b2Flash20World.cpp).
+		e_flash20FrozenFlag	= 0x0080
 	};
 
 	b2Body(const b2BodyDef* bd, b2World* world);
 	~b2Body();
 
-	void SynchronizeFixtures();
+	// OpenWheels: flash20 false leaves the body's Box2D 2.0 proxies where they are.
+	void SynchronizeFixtures(bool flash20 = true);
 	void SynchronizeTransform();
 
 	// This is used to prevent connected bodies from colliding.
@@ -446,8 +453,12 @@ private:
 
 	int32 m_islandIndex;
 
+	// OpenWheels: b2World::GetCreationSerial.
+	uint32 m_creationSerial;
+
 	b2Transform m_xf;		// the body origin transform
 	b2Sweep m_sweep;		// the swept motion for CCD
+
 
 	b2Vec2 m_linearVelocity;
 	float32 m_angularVelocity;

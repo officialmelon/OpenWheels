@@ -25,6 +25,7 @@
 #include "Box2D/Dynamics/b2ContactManager.h"
 #include "Box2D/Dynamics/b2WorldCallbacks.h"
 #include "Box2D/Dynamics/b2TimeStep.h"
+#include "Box2D/Collision/b2Flash20BroadPhase.h"
 
 struct b2AABB;
 struct b2BodyDef;
@@ -38,7 +39,7 @@ class b2Joint;
 /// The world class manages all physics entities, dynamic simulation,
 /// and asynchronous queries. The world also contains efficient memory
 /// management facilities.
-class b2World
+class b2World : private b2Flash20PairCallback
 {
 public:
 	/// Construct a world object.
@@ -76,6 +77,40 @@ public:
 	/// @warning This automatically deletes all associated shapes and joints.
 	/// @warning This function is locked during callbacks.
 	void DestroyBody(b2Body* body);
+
+	/// OpenWheels: moves a body to the front of the body list, where CreateBody puts a new one, so
+	/// bodies can be put in the order another game created them (the solver walks this list).
+	void MoveBodyToFront(b2Body* body);
+
+	/// OpenWheels: the same for a joint, in the world list and in both bodies' joint lists.
+	void MoveJointToFront(b2Joint* joint);
+
+	/// OpenWheels: one step of the order the browser game built its world in: a body (its
+	/// fixtures, then its mass) or a joint.
+	struct Flash20BuildStep
+	{
+		b2Body* body;
+		b2Joint* joint;
+	};
+
+	/// OpenWheels: hands contacts over to Box2D 2.0's sweep-and-prune broad-phase
+	/// (b2Flash20World.cpp). The world's contacts are dropped and the fixtures get 2.0 proxies,
+	/// built in the given order (bodies and joints left out follow in list order). From then on
+	/// 2.0 decides when contacts start and end, and freezes bodies that leave its world box
+	/// (worldLower / worldUpper, in 2.0's frame; see b2Flash20BroadPhase.h for `mirrored`).
+	void Flash20Begin(const b2Vec2& worldLower, const b2Vec2& worldUpper, bool mirrored,
+		float32 mirrorY, const Flash20BuildStep* steps, int32 stepCount);
+
+	/// OpenWheels: whether Flash20Begin has run.
+	bool IsFlash20() const { return m_flash20 != nullptr; }
+
+	/// OpenWheels: 2.0's b2World::Query - up to maxCount fixtures whose proxy boxes overlap aabb,
+	/// in 2.0's order. Only after Flash20Begin.
+	int32 Flash20Query(const b2AABB& aabb, b2Fixture** fixtures, int32 maxCount);
+
+	/// OpenWheels: the order bodies and joints were created in (one counter for both).
+	static uint32 GetCreationSerial(const b2Body* body);
+	static uint32 GetCreationSerial(const b2Joint* joint);
 
 	/// Create a joint to constrain bodies together. No reference to the definition
 	/// is retained. This may cause the connected bodies to cease colliding.
@@ -227,6 +262,18 @@ private:
 	void Solve(const b2TimeStep& step);
 	void SolveTOI(const b2TimeStep& step);
 
+	// OpenWheels: Box2D 2.0's broad-phase and TOI pass (b2Flash20World.cpp).
+	void Flash20PairAdded(void* userData1, void* userData2) override;
+	void Flash20PairRemoved(void* userData1, void* userData2) override;
+	bool Flash20IsStatic(const b2Body* body) const;
+	void Flash20CreateProxy(b2Fixture* fixture, const b2Transform& xf);
+	void Flash20DestroyProxy(b2Fixture* fixture);
+	void Flash20Refilter(b2Fixture* fixture);
+	void Flash20RefilterBody(b2Body* body);
+	void Flash20RefilterJoint(b2Body* bodyA, b2Body* bodyB);
+	bool Flash20Synchronize(b2Body* body, const b2Transform& xf1, const b2Transform& xf2);
+	void SolveFlash20TOI(const b2TimeStep& step);
+
 	void DrawJoint(b2Joint* joint);
 	void DrawShape(b2Fixture* shape, const b2Transform& xf, const b2Color& color);
 
@@ -261,6 +308,12 @@ private:
 	bool m_stepComplete;
 
 	b2Profile m_profile;
+
+	// OpenWheels: Box2D 2.0's broad-phase (Flash20Begin), and the body it still counts as static
+	// while building (2.0 bodies get their mass after their shapes).
+	b2Flash20BroadPhase* m_flash20;
+	b2Body* m_flash20PendingMass;
+	uint32 m_creationSerial;
 };
 
 inline b2Body* b2World::GetBodyList()

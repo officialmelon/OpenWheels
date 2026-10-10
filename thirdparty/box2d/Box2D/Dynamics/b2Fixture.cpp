@@ -36,6 +36,7 @@ b2Fixture::b2Fixture()
 	m_proxyCount = 0;
 	m_shape = nullptr;
 	m_density = 0.0f;
+	m_flash20ProxyId = b2Flash20BroadPhase::e_nullProxy;
 }
 
 void b2Fixture::Create(b2BlockAllocator* allocator, b2Body* body, const b2FixtureDef* def)
@@ -207,6 +208,12 @@ void b2Fixture::Refilter()
 	if (world == nullptr)
 	{
 		return;
+	}
+
+	// OpenWheels: Box2D 2.0 makes the fixture's proxy anew (b2Flash20World.cpp).
+	if (world->m_flash20)
+	{
+		world->Flash20Refilter(this);
 	}
 
 	// Touch each proxy so that new pairs may be created

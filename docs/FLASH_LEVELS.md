@@ -537,6 +537,48 @@ one of its 327 world states equal bit for bit to the run's. Drawn frames that mo
 with smooth drawing, 327 of 683 without (one per step). The same level on the 1/60 profile:
 finishes at step 656, replay exact.
 
+### 10.10 Matching real browser replays step by step (2026-10-10)
+
+Checked against the browser game itself: the HTML5 client was run with a hook on its Box2D that
+dumps every body's position, angle and velocities each step, and the same replays were played in
+OpenWheels with `TjfTestDriver`'s body dump and compared step by step.
+
+**What changed.**
+- Box2D 2.0's broad-phase, narrow phase, continuous collision and frozen bodies
+  (`thirdparty/box2d/README.md`), so contacts begin and end on the same steps and in the same order.
+- Creation order (`online/FlashPhysics.h`): Flash builds the level before the character; the
+  character's bodies, joints and proxy ids are moved to where 2.0 would have put them.
+- Exact body geometry (`online/FlashBodyShapes.*`): the mobile plists round part positions, sizes,
+  angles and joint anchors to the millimetre. On browser levels the characters (Wheelchair Guy,
+  Segway Guy, Irresponsible Dad and kid, Moped couple, Pogo Stick guy) and their vehicles use the
+  browser game's values, read from its art (shape guides at 62.5 px per metre).
+- Moped grips: the browser joins both hands to one handle point and both feet to one foot point;
+  OpenWheels used each limb's end (2 to 4 cm off).
+- Blade weapons and the mine button use the browser's shapes.
+- Explosions query like 2.0's `world.Query` (at most 30 shapes, 2.0's order); the shapes hit and
+  the impulses given were checked equal to the browser's.
+- Poses (arm and leg motors) are set before the world step, as in Flash.
+
+**Results** (first step where any body is more than 1 cm / 5 cm from the browser's run):
+
+| Replay | Character | Before | After | Outcome |
+|---|---|---|---|---|
+| 23178391 | Wheelchair Guy | 37 / 42 | 41 / 49 | misses the finish |
+| 56612689 | Segway Guy | 35 / 35 | 35 / 35 | finishes at step 439 (browser 403) |
+| 34460794 | Irresponsible Dad | 1 / 1 | 1 / 1 | misses the finish |
+| 32422304 | Moped couple | 9 / 11 | 42 / 55 | dies at step 89 |
+| 36254308 | Pogo Stick | 3 / 25 | 25 / 25 | dies at step 206 (was 76) |
+
+**Remaining gaps.**
+- Ragdolls are chaotic: a joint limit that is active in one run and not the other (from an angle
+  a hair apart) grows into centimetres within a few steps, so float against the browser's doubles
+  is enough to split runs eventually.
+- Segway: in the browser the NPC's hip breaks on the spike strip at step 34 (its filter changes);
+  in OpenWheels it holds, and the runs part there.
+- Irresponsible Dad: the mine at the start hits the kid's small bodies, and the blast amplifies
+  sub-millimetre differences on the first step (the blast's inputs match to the millimetre).
+- Effective Shopper and the motor cart have no browser dump yet, so their geometry is still the
+  plists'.
 
 ### Replay check (2026-10-08)
 

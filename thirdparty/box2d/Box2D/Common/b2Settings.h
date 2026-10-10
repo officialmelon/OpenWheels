@@ -142,6 +142,10 @@ extern bool g_flash20Solver;
 #define b2_flash20MaxAngularVelocity		250.0f
 #define b2_flash20AngularSleepTolerance		(2.0f / 180.0f)
 #define b2_flash20SeparationBias			60.0f
+#define b2_flash20ToiSlop					(8.0f * b2_linearSlop)
+#define b2_flash20MaxTOIContactsPerIsland	32
+#define b2_flash20MaxTOIIterations			5000
+#define b2_flash20ToiBaumgarte				0.75f
 
 // Memory Allocation
 

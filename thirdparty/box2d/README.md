@@ -53,8 +53,12 @@ Already the same in 2.3 (checked against the client): the distance joint and the
 rope joint (a port of 2.3's), friction (sqrt) and restitution (max) mixing, warm starting, the
 iteration order of the position loop, the constants (slops, corrections, Baumgarte, sleep times).
 
-Not patched (2.3 behaviour stays): continuous collision (TOI), the gear joint (2 uses in the
-client), the broad-phase and island order, and 2.0's "frozen" bodies (a body whose bounding box
-leaves the world's bounds stops; browser levels are walled in, so only a body tunnelling through
-the border does). FlashRuntime covers the polygon skin and bounding-box wakes. Box2DFlash computed
-in doubles; this is float.
+Also 2.0's, since 2026-10-10 (`b2Flash20BroadPhase.*`, `b2Flash20Collision.*`,
+`b2Flash20World.cpp`): the sweep-and-prune broad-phase and pair manager, which make and end every
+contact in 2.0's order (2.3's dynamic tree is kept for queries), 2.0's narrow phase (no polygon
+skin), continuous collision (2.0's TOI, which rewinds both bodies, computed in doubles), 2.0's
+"frozen" bodies (a body whose box leaves the world box stops), and `world.Query`'s 30-shape cap
+and order for explosions.
+
+Not patched (2.3 behaviour stays): the gear joint (2 uses in the client). The rest of the solver
+computes in float; Box2DFlash computed in doubles.

@@ -17,6 +17,7 @@
 */
 
 #include "Box2D/Dynamics/Contacts/b2Contact.h"
+#include "Box2D/Collision/b2Flash20Collision.h"
 #include "Box2D/Dynamics/Contacts/b2CircleContact.h"
 #include "Box2D/Dynamics/Contacts/b2PolygonAndCircleContact.h"
 #include "Box2D/Dynamics/Contacts/b2PolygonContact.h"
@@ -177,8 +178,73 @@ void b2Contact::Update(b2ContactListener* listener)
 	const b2Transform& xfA = bodyA->GetTransform();
 	const b2Transform& xfB = bodyB->GetTransform();
 
+	if (g_flash20Solver)
+	{
+		// OpenWheels: Box2D 2.0's narrow phase (b2Flash20Collision.h). 2.0 also gives sensors a
+		// manifold, which decides when they touch; it is not kept for them, as in 2.3.
+		// Fixtures 2.0's broad-phase has not paired (b2Flash20World.cpp) have no contact there.
+		const b2Shape* shapeA = m_fixtureA->GetShape();
+		const b2Shape* shapeB = m_fixtureB->GetShape();
+		if ((m_flags & e_flash20PairFlag) == 0)
+		{
+			m_manifold.pointCount = 0;
+		}
+		else if (!b2Flash20Collide(&m_manifold, shapeA, xfA, shapeB, xfB))
+		{
+			if (sensor)
+			{
+				m_manifold.pointCount = b2TestOverlap(shapeA, m_indexA, shapeB, m_indexB, xfA, xfB) ? 1 : 0;
+			}
+			else
+			{
+				Evaluate(&m_manifold, xfA, xfB);
+			}
+		}
+		touching = m_manifold.pointCount > 0;
+		if (sensor)
+		{
+			m_manifold.pointCount = 0;
+		}
+
+		// 2.0 hands each old point's impulses to at most one new point with its id.
+		bool matched[b2_maxManifoldPoints] = {false, false};
+		for (int32 i = 0; i < m_manifold.pointCount; ++i)
+		{
+			b2ManifoldPoint* mp2 = m_manifold.points + i;
+			mp2->normalImpulse = 0.0f;
+			mp2->tangentImpulse = 0.0f;
+			for (int32 j = 0; j < oldManifold.pointCount; ++j)
+			{
+				if (!matched[j] && oldManifold.points[j].id.key == mp2->id.key)
+				{
+					matched[j] = true;
+					mp2->normalImpulse = oldManifold.points[j].normalImpulse;
+					mp2->tangentImpulse = oldManifold.points[j].tangentImpulse;
+					break;
+				}
+			}
+		}
+
+		// 2.0 wakes the bodies when a contact stops touching, not when it starts.
+		if (wasTouching && !touching)
+		{
+			bodyA->SetAwake(true);
+			bodyB->SetAwake(true);
+		}
+
+		// 2.0 skips "slow" contacts in its TOI pass: two moving bodies, neither a bullet.
+		if (bodyA->GetType() != b2_dynamicBody || bodyA->IsBullet() ||
+			bodyB->GetType() != b2_dynamicBody || bodyB->IsBullet())
+		{
+			m_flags &= ~e_flash20SlowFlag;
+		}
+		else
+		{
+			m_flags |= e_flash20SlowFlag;
+		}
+	}
 	// Is this contact a sensor?
-	if (sensor)
+	else if (sensor)
 	{
 		const b2Shape* shapeA = m_fixtureA->GetShape();
 		const b2Shape* shapeB = m_fixtureB->GetShape();

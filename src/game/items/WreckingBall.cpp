@@ -192,7 +192,10 @@ void WreckingBall::actions()
     // Swing: the motor pushes the ball one way until it passes a turning angle, then coasts; on
     // the way back it re-engages with the opposite speed.
     float angle = owb2::jointAngle(_joint);
-    if (angle > 0.3f) {
+    // ONLINE (PC addition): Flash coasts while the joint angle is under 0.3 (y down), which is
+    // above -0.3 here; the mobile 0.3 starts the motor at once, so browser balls swung early.
+    const float coastAngle = online::flashLevel() ? -0.3f : 0.3f;
+    if (angle > coastAngle) {
         if (_joint->IsMotorEnabled()) {
             _joint->EnableMotor(false);
             if (_speed > 0.0f) {

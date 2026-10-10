@@ -1019,7 +1019,7 @@ void b2ContactSolver::SolveFlash20VelocityConstraints()
 
 // Box2D 2.0 SolvePositionConstraints: the anchored points move with their bodies along the step's
 // normal; accumulated, clamped position impulses with equalized masses.
-bool b2ContactSolver::SolveFlash20PositionConstraints()
+bool b2ContactSolver::SolveFlash20PositionConstraints(float32 baumgarte)
 {
 	float32 minSeparation = 0.0f;
 
@@ -1053,7 +1053,7 @@ bool b2ContactSolver::SolveFlash20PositionConstraints()
 			float32 separation = b2Dot((cB + rB) - (cA + rA), normal) + fp->separation;
 			minSeparation = b2Min(minSeparation, separation);
 
-			float32 C = b2_baumgarte * b2Clamp(separation + b2_linearSlop, -b2_maxLinearCorrection, 0.0f);
+			float32 C = baumgarte * b2Clamp(separation + b2_linearSlop, -b2_maxLinearCorrection, 0.0f);
 			float32 impulse = -fp->equalizedMass * C;
 			float32 impulse0 = fp->positionImpulse;
 			fp->positionImpulse = b2Max(impulse0 + impulse, 0.0f);

@@ -49,6 +49,9 @@ public:
 
 	void SolveTOI(const b2TimeStep& subStep, int32 toiIndexA, int32 toiIndexB);
 
+	// OpenWheels: Box2D 2.0's b2Island::SolveTOI (b2Flash20World.cpp).
+	void SolveFlash20TOI(const b2TimeStep& subStep);
+
 	void Add(b2Body* body)
 	{
 		b2Assert(m_bodyCount < m_bodyCapacity);

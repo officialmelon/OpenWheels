@@ -195,7 +195,15 @@ void PogoStick::createBodies()
     getLevel()->addToPaintBody(_frameBody);
     getLevel()->addToPaintBody(_rodBody);
     _frameBody->ResetMassData();
-    _rodBody->ResetMassData();
+    // ONLINE (PC addition): the browser game adds the nub after SetMassFromShapes, so it weighs
+    // nothing there.
+    if (online::browserPhysicsWanted()) {
+        _nubShape->SetDensity(0.0f);
+        _rodBody->ResetMassData();
+        _nubShape->SetDensity(5.0f);
+    } else {
+        _rodBody->ResetMassData();
+    }
 }
 
 // @00604180
@@ -399,12 +407,16 @@ void PogoStick::leanButtonsNull()
         return;
     }
 
+    // ONLINE (PC addition): the browser game measures the motion per 30 Hz frame (threshold 0.25)
+    // and turns the frame at 30 times the angle per second.
+    const bool browser = online::browserPhysics();
+    const float blendScale = browser ? 4.0f : 8.0f;
     float targetAngle;
     if (_velocityCOM.y <= 0.0f) {
-        float blend = b2Min(_velocityCOM.y * -8.0f, 1.0f);
+        float blend = b2Min(_velocityCOM.y * -blendScale, 1.0f);
         targetAngle = (1.0f - blend) * _targetAngle + blend * (_velocityAngle + M_PI);
     } else {
-        float blend = b2Min(_velocityCOM.y * 8.0f, 1.0f);
+        float blend = b2Min(_velocityCOM.y * blendScale, 1.0f);
         targetAngle = blend * _velocityAngle + (1.0f - blend) * _targetAngle;
     }
 
@@ -416,7 +428,7 @@ void PogoStick::leanButtonsNull()
         angleDiff += 2.0 * M_PI;
     }
 
-    float angularVelocity = b2Max(_maxSpinAV * -2.0f, angleDiff * 15.0f);
+    float angularVelocity = b2Max(_maxSpinAV * -2.0f, angleDiff * (browser ? 30.0f : 15.0f));
     angularVelocity = b2Min(angularVelocity, _maxSpinAV + _maxSpinAV);
     _frameBody->SetAngularVelocity(angularVelocity);
 }

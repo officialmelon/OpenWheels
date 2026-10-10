@@ -8,6 +8,7 @@
 #include "LevelB2D.h"
 #include "Session.h"
 #include "Sound.h"
+#include "online/FlashPhysics.h"  // ONLINE (PC addition)
 #include "platform/compat/Box2DFloat.h"
 
 USING_NS_CC;
@@ -118,6 +119,12 @@ void Moped::createBodies()
 
     // The binary re-reads _zeroFilter before the wheels and again before the fork group.
     fixtureDef.filter = _zeroFilter;
+    // ONLINE (PC addition): the browser game's wheels are rubber (MopedGuy.createBodies).
+    if (online::browserPhysicsWanted()) {
+        fixtureDef.density = 5.0f;
+        fixtureDef.friction = 1.0f;
+        fixtureDef.restitution = 0.3f;
+    }
     Vec2 wheelPosition = PointFromString(backWheelShape["pos"].asString()) + _origin;
     bodyDef.position.Set(wheelPosition.x, wheelPosition.y);
     b2Body* backWheelBody = world->CreateBody(&bodyDef);
@@ -131,6 +138,9 @@ void Moped::createBodies()
     frontWheelBody->ResetMassData();
 
     fixtureDef.filter = _zeroFilter;
+    fixtureDef.density = 3.0f;
+    fixtureDef.friction = 0.3f;
+    fixtureDef.restitution = 0.1f;
     _forkFixture = createFixture(_frameBody, fixtureDef, &fork, false, false);
     _tankFixture = createFixture(_frameBody, fixtureDef, &tank, false, false);
     _seatFixture = createFixture(_frameBody, fixtureDef, &seat, false, false);
@@ -160,8 +170,11 @@ void Moped::createBodies()
     if (getSession()->getMode() == SessionModeGameplay) {
         // The engine loop follows the front wheel body (iOS used the frame body).
         _engineSound = createBodySound("MopedLoop2", frontWheelBody, 1.0f, true);
-        _engineSound->setMaxVolume(0.0f);
-        _engineSound->fadeTo(0.5f, 0.5f, false);
+        // PC: no sound without an audio device; everything else already checks _engineSound.
+        if (_engineSound) {
+            _engineSound->setMaxVolume(0.0f);
+            _engineSound->fadeTo(0.5f, 0.5f, false);
+        }
     }
     getLevel()->addToPaintItem(this);
 }
@@ -245,12 +258,14 @@ void Moped::attachCharacter(CharacterB2D* character)
 
     // Joint limits relative to the current pose: hips -10..110 degrees, elbows 0..90, neck 0..20.
     // QOL (PC addition): qolLimb - a re-mounted driver (re-grab vehicle) may have lost limbs.
+    // ONLINE (PC addition): the browser game works the hip limits out but never sets them.
+    const bool hips = !online::browserPhysicsWanted();
     float relativeAngle = character->getUpperLeg1Body()->GetAngle() - character->getPelvisBody()->GetAngle();
-    if (qolLimb(character, character->getHipJoint1()))
+    if (hips && qolLimb(character, character->getHipJoint1()))
     character->getHipJoint1()->SetLimits(CC_DEGREES_TO_RADIANS(-10) - relativeAngle,
                                          CC_DEGREES_TO_RADIANS(110) - relativeAngle);
     relativeAngle = character->getUpperLeg2Body()->GetAngle() - character->getPelvisBody()->GetAngle();
-    if (qolLimb(character, character->getHipJoint2()))
+    if (hips && qolLimb(character, character->getHipJoint2()))
     character->getHipJoint2()->SetLimits(CC_DEGREES_TO_RADIANS(-10) - relativeAngle,
                                          CC_DEGREES_TO_RADIANS(110) - relativeAngle);
     relativeAngle = character->getLowerArm1Body()->GetAngle() - character->getUpperArm1Body()->GetAngle();
@@ -282,6 +297,12 @@ void Moped::attachCharacter(CharacterB2D* character)
     b2Body* handBody = (_driver == character) ? _frameBody : _driver->getChestBody();
     anchor = character->getLowerArm1Body()->GetWorldPoint(
         b2Vec2(0.0f, length / 2 + shape->m_vertices[0].y));
+    // ONLINE (PC addition): the browser riders hold on with both hands at one point, and stand
+    // with both feet on another.
+    b2Vec2 flashHand, flashFoot;
+    const bool flashHands = character->onlineFlashAnchor("handleAnchor", &flashHand);
+    const bool flashFeet = character->onlineFlashAnchor("footAnchor", &flashFoot);
+    if (flashHands) anchor = flashHand;
     jointDef.Initialize(handBody, character->getLowerArm1Body(), anchor);
     _bodyVehicleJointDict[character->getLowerArm1Body()] = world->CreateJoint(&jointDef);
 
@@ -289,6 +310,7 @@ void Moped::attachCharacter(CharacterB2D* character)
     length = shape->m_vertices[1].x - shape->m_vertices[0].x;
     anchor = character->getLowerArm2Body()->GetWorldPoint(
         b2Vec2(0.0f, shape->m_vertices[0].y + length / 2));
+    if (flashHands) anchor = flashHand;  // ONLINE (PC addition)
     jointDef.Initialize(handBody, character->getLowerArm2Body(), anchor);
     _bodyVehicleJointDict[character->getLowerArm2Body()] = world->CreateJoint(&jointDef);
 
@@ -297,6 +319,7 @@ void Moped::attachCharacter(CharacterB2D* character)
     length = shape->m_vertices[1].x - shape->m_vertices[0].x;
     anchor = character->getLowerLeg1Body()->GetWorldPoint(
         b2Vec2(0.0f, shape->m_vertices[0].y + length / 2));
+    if (flashFeet) anchor = flashFoot;  // ONLINE (PC addition)
     jointDef.Initialize(_frameBody, character->getLowerLeg1Body(), anchor);
     _bodyVehicleJointDict[character->getLowerLeg1Body()] = world->CreateJoint(&jointDef);
 
@@ -304,6 +327,7 @@ void Moped::attachCharacter(CharacterB2D* character)
     length = shape->m_vertices[1].x - shape->m_vertices[0].x;
     anchor = character->getLowerLeg2Body()->GetWorldPoint(
         b2Vec2(0.0f, shape->m_vertices[0].y + length / 2));
+    if (flashFeet) anchor = flashFoot;  // ONLINE (PC addition)
     jointDef.Initialize(_frameBody, character->getLowerLeg2Body(), anchor);
     _bodyVehicleJointDict[character->getLowerLeg2Body()] = world->CreateJoint(&jointDef);
 
@@ -329,6 +353,10 @@ void Moped::attachCharacter(CharacterB2D* character)
         character->getLowerLeg1Body()->GetFixtureList()->SetSensor(true);
         character->getUpperLeg2Body()->GetFixtureList()->SetSensor(true);
         character->getLowerLeg2Body()->GetFixtureList()->SetSensor(true);
+        if (online::browserPhysicsWanted()) {
+            character->getLowerArm1Body()->GetFixtureList()->SetSensor(true);
+            character->getLowerArm2Body()->GetFixtureList()->SetSensor(true);
+        }
         _leg1Contacts = 0;
         _leg2Contacts = 0;
         character->getUpperLeg1Body()->GetFixtureList()->SetUserData(this);
@@ -397,6 +425,48 @@ void Moped::singleAction()
         _passenger->getLowerLeg1Body()->GetFixtureList()->SetSensor(false);
         _passenger->getUpperLeg2Body()->GetFixtureList()->SetSensor(false);
         _passenger->getLowerLeg2Body()->GetFixtureList()->SetSensor(false);
+        solidPassengerArms(true, true);
+    }
+}
+
+// ONLINE (PC addition): MopedGirl.legsFree, neckBreak, elbowBreak and shoulderBreak in the browser
+// game make her forearms solid again.
+void Moped::solidPassengerArms(bool arm1, bool arm2)
+{
+    if (!_passenger || !online::browserPhysicsWanted()) {
+        return;
+    }
+    b2Body* arms[2] = {arm1 ? _passenger->getLowerArm1Body() : nullptr,
+                       arm2 ? _passenger->getLowerArm2Body() : nullptr};
+    for (b2Body* arm : arms) {
+        b2Fixture* fixture = arm ? arm->GetFixtureList() : nullptr;
+        if (fixture && fixture->IsSensor()) {
+            fixture->SetSensor(false);
+            fixture->Refilter();
+        }
+    }
+}
+
+void Moped::handleInjury(CharacterInjury injury, CharacterB2D* character)
+{
+    Vehicle::handleInjury(injury, character);
+    if (character != _passenger) {
+        return;
+    }
+    switch (injury) {
+    case CharacterInjuryShoulder1Break:
+    case CharacterInjuryElbow1Break:
+        solidPassengerArms(true, false);
+        break;
+    case CharacterInjuryShoulder2Break:
+    case CharacterInjuryElbow2Break:
+        solidPassengerArms(false, true);
+        break;
+    case CharacterInjuryNeckBreak:
+        solidPassengerArms(true, true);
+        break;
+    default:
+        break;
     }
 }
 
