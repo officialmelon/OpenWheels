@@ -101,6 +101,8 @@ IOSAppDelegate* g_appDelegate = nullptr;
 @implementation AppController
 
 @synthesize viewController = _viewController;
+// UIApplicationDelegate declares the window property; protocol properties are not synthesized.
+@synthesize window = _window;
 
 - (BOOL)application:(UIApplication*)application didFinishLaunchingWithOptions:(NSDictionary*)launchOptions
 {
