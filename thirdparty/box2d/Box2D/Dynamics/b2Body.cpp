@@ -183,6 +183,7 @@ b2Fixture* b2Body::CreateFixture(const b2FixtureDef* def)
 	void* memory = allocator->Allocate(sizeof(b2Fixture));
 	b2Fixture* fixture = new (memory) b2Fixture;
 	fixture->Create(allocator, this, def);
+	fixture->m_creationSerial = m_world->m_creationSerial++;
 
 	if (m_flags & e_activeFlag)
 	{

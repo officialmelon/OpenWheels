@@ -37,6 +37,7 @@ b2Fixture::b2Fixture()
 	m_shape = nullptr;
 	m_density = 0.0f;
 	m_flash20ProxyId = b2Flash20BroadPhase::e_nullProxy;
+	m_creationSerial = 0;
 }
 
 void b2Fixture::Create(b2BlockAllocator* allocator, b2Body* body, const b2FixtureDef* def)

@@ -252,9 +252,9 @@ void BoostPanel::endContact(b2Fixture* fixture, b2Fixture* otherFixture, b2Conta
 void BoostPanel::actions()
 {
     if (!online::browserPhysics()) return;
-    for (b2Body* body : _bodies)
+    for (b2Body* body : online::flashPersistingBodies(_sensor))
     {
-        if (body->GetType() == b2_dynamicBody && online::flashPersists(body, _sensor))
+        if (body->GetType() == b2_dynamicBody)
         {
             float force = body->GetMass() * _power;
             body->ApplyForceToCenter(b2Vec2(-_sinVal * force, force * _cosVal), true);

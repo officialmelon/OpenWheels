@@ -169,11 +169,7 @@ void Fan::frameAction()
 void Fan::actions()
 {
     if (!online::browserPhysics()) return;
-    std::vector<b2Body*> blown;
-    for (b2Body* body : _bodies)
-    {
-        if (online::flashPersists(body, _sensor)) blown.push_back(body);
-    }
+    std::vector<b2Body*> blown = online::flashPersistingBodies(_sensor);
     std::swap(blown, _bodies);
     blowBodies();
     std::swap(blown, _bodies);

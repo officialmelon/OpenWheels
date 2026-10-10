@@ -602,8 +602,16 @@ OpenWheels with `TjfTestDriver`'s body dump and compared step by step.
 | 36254308 | Pogo Stick | 25 / 25 | 40 / 41 | dies at step 88 |
 
 - Segway: the split at step 35 is in the solver impulses on the NPC's new contacts and the order of continuous-collision events.
-- Pogo: near step 40 a boost panel's contact pair has its shapes in the other order from the
-  browser's (proxy ids differ), and 2.0's asymmetric polygon collision gives different point ids.
+- Level shapes get 2.0 proxy ids in the browser's order: the level's fixed shapes go on one
+  static body, but 2.0 adds each as the level reaches it, between the bodies of loose shapes and
+  items, and the three border boxes come first. Proxy ids decide contact pair order, and so the
+  point ids of 2.0's asymmetric polygon collision; they now match the browser's on the pogo level.
+- Fans and boost panels push a body while any of its fixtures persists in the sensor (a harpoon's
+  tip leaving the panel dropped the whole harpoon before). Pogo now holds to step 41 / 46 and the
+  segway finishes at step 375 (browser 403).
+- Pogo, step 41: a harpoon hits the pogo stick, and the solver gives the impact about 10% more
+  impulse than the browser with the same contact point; the island's constraint order is the
+  next thing to compare.
 
 ### Replay check (2026-10-08)
 

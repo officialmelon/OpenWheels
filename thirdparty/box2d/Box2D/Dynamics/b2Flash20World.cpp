@@ -488,6 +488,11 @@ uint32 b2World::GetCreationSerial(const b2Joint* joint)
 	return joint->m_creationSerial;
 }
 
+uint32 b2World::GetCreationSerial(const b2Fixture* fixture)
+{
+	return fixture->m_creationSerial;
+}
+
 void b2World::Flash20Begin(const b2Vec2& worldLower, const b2Vec2& worldUpper, bool mirrored,
 	float32 mirrorY, const Flash20BuildStep* steps, int32 stepCount)
 {
@@ -517,14 +522,14 @@ void b2World::Flash20Begin(const b2Vec2& worldLower, const b2Vec2& worldUpper, b
 		b->m_flags &= ~b2Body::e_flash20FrozenFlag;
 		if (!listed.count(b))
 		{
-			rest.push_back({b, nullptr});
+			rest.push_back({b, nullptr, nullptr});
 		}
 	}
 	for (b2Joint* j = m_jointList; j; j = j->m_next)
 	{
 		if (!listed.count(j))
 		{
-			rest.push_back({nullptr, j});
+			rest.push_back({nullptr, j, nullptr});
 		}
 	}
 	order.insert(order.end(), rest.rbegin(), rest.rend());
@@ -536,6 +541,14 @@ void b2World::Flash20Begin(const b2Vec2& worldLower, const b2Vec2& worldUpper, b
 			if (!step.joint->m_collideConnected)
 			{
 				Flash20RefilterJoint(step.joint->m_bodyA, step.joint->m_bodyB);
+			}
+			continue;
+		}
+		if (step.fixture)
+		{
+			if (step.body->m_flags & b2Body::e_activeFlag)
+			{
+				Flash20CreateProxy(step.fixture, step.body->m_xf);
 			}
 			continue;
 		}

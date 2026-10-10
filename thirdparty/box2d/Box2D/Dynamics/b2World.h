@@ -86,11 +86,13 @@ public:
 	void MoveJointToFront(b2Joint* joint);
 
 	/// OpenWheels: one step of the order the browser game built its world in: a body (its
-	/// fixtures, then its mass) or a joint.
+	/// fixtures, then its mass), a joint, or one fixture of a static body (body and fixture set;
+	/// 2.0 adds a level's fixed shapes to one static body as it reaches them).
 	struct Flash20BuildStep
 	{
 		b2Body* body;
 		b2Joint* joint;
+		b2Fixture* fixture;
 	};
 
 	/// OpenWheels: hands contacts over to Box2D 2.0's sweep-and-prune broad-phase
@@ -111,6 +113,7 @@ public:
 	/// OpenWheels: the order bodies and joints were created in (one counter for both).
 	static uint32 GetCreationSerial(const b2Body* body);
 	static uint32 GetCreationSerial(const b2Joint* joint);
+	static uint32 GetCreationSerial(const b2Fixture* fixture);
 
 	/// Create a joint to constrain bodies together. No reference to the definition
 	/// is retained. This may cause the connected bodies to cease colliding.

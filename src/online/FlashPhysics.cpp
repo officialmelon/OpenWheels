@@ -140,7 +140,7 @@ void flash20Begin(b2World* world, const b2World::Flash20BuildStep* steps, int co
 // The mobile game walls the stage in with two edges (Session::createWorld); the browser game's
 // UserLevel gives its level body three boxes, left, right and top, filling the broad-phase box's
 // border (createStaticShapes). They are the level body's first shapes.
-void useFlashBorders(b2World* world)
+std::vector<b2Fixture*> useFlashBorders(b2World* world)
 {
     b2Body* levelBody = nullptr;
     std::vector<b2Fixture*> walls;
@@ -154,7 +154,7 @@ void useFlashBorders(b2World* world)
             }
         }
     }
-    if (!levelBody) return;
+    if (!levelBody) return {};
     for (b2Fixture* f : walls) levelBody->DestroyFixture(f);
 
     // In the browser game's frame (y down), then mirrored at mirrorY.
@@ -182,6 +182,7 @@ void useFlashBorders(b2World* world)
         created[i] = levelBody->CreateFixture(&def);
     }
     for (int i = 2; i >= 0; --i) levelBody->MoveFixtureToBack(created[i]);
+    return {created[0], created[1], created[2]};
 }
 
 }  // namespace
@@ -237,7 +238,7 @@ void flashCharacterEnd(b2World* world)
 void flashLevelBuilt(b2World* world)
 {
     if (!flashOrderWanted()) return;
-    useFlashBorders(world);
+    const std::vector<b2Fixture*> borders = useFlashBorders(world);
     for (auto it = g_characterBodies.rbegin(); it != g_characterBodies.rend(); ++it) {
         world->MoveBodyToFront(*it);
     }
@@ -260,18 +261,35 @@ void flashLevelBuilt(b2World* world)
         (character.count(j) ? characterJoints : levelJoints).insert(
             (character.count(j) ? characterJoints : levelJoints).begin(), j);
     }
-    std::vector<std::pair<uint32, bool>> levelSlots;  // (serial, is a joint)
-    for (b2Body* b : levelBodies) levelSlots.push_back({b2World::GetCreationSerial(b), false});
-    for (b2Joint* j : levelJoints) levelSlots.push_back({b2World::GetCreationSerial(j), true});
-    std::sort(levelSlots.begin(), levelSlots.end());
-    std::vector<b2World::Flash20BuildStep> steps;
-    size_t nextBody = 0, nextJoint = 0;
-    for (const auto& slot : levelSlots) {
-        if (slot.second) steps.push_back({nullptr, levelJoints[nextJoint++]});
-        else steps.push_back({levelBodies[nextBody++], nullptr});
+    // A static body's fixtures each take their own slot: 2.0 adds the level's fixed shapes to one
+    // static body as it reaches them, between the bodies of the other shapes and items.
+    struct Slot {
+        uint32 serial;
+        b2World::Flash20BuildStep step;
+    };
+    // The borders are the level's first shapes in the browser game.
+    std::vector<Slot> levelSlots;
+    for (b2Fixture* f : borders) {
+        levelSlots.push_back({b2World::GetCreationSerial(f->GetBody()), {f->GetBody(), nullptr, f}});
     }
-    for (b2Body* b : characterBodies) steps.push_back({b, nullptr});
-    for (b2Joint* j : characterJoints) steps.push_back({nullptr, j});
+    const std::set<const b2Fixture*> borderSet(borders.begin(), borders.end());
+    for (b2Body* b : levelBodies) {
+        if (b->GetType() == b2_staticBody && b->GetFixtureList()) {
+            for (b2Fixture* f = b->GetFixtureList(); f; f = f->GetNext()) {
+                if (borderSet.count(f)) continue;
+                levelSlots.push_back({b2World::GetCreationSerial(f), {b, nullptr, f}});
+            }
+        } else {
+            levelSlots.push_back({b2World::GetCreationSerial(b), {b, nullptr, nullptr}});
+        }
+    }
+    for (b2Joint* j : levelJoints) levelSlots.push_back({b2World::GetCreationSerial(j), {nullptr, j, nullptr}});
+    std::stable_sort(levelSlots.begin(), levelSlots.end(),
+                     [](const Slot& a, const Slot& b) { return a.serial < b.serial; });
+    std::vector<b2World::Flash20BuildStep> steps;
+    for (const Slot& slot : levelSlots) steps.push_back(slot.step);
+    for (b2Body* b : characterBodies) steps.push_back({b, nullptr, nullptr});
+    for (b2Joint* j : characterJoints) steps.push_back({nullptr, j, nullptr});
     flash20Begin(world, steps.data(), static_cast<int>(steps.size()));
 
     g_characterBodies.clear();
@@ -291,13 +309,16 @@ void flashQueryAABB(b2World* world, b2QueryCallback* callback, const b2AABB& aab
     }
 }
 
-bool flashPersists(b2Body* body, b2Fixture* sensor)
+std::vector<b2Body*> flashPersistingBodies(b2Fixture* sensor)
 {
-    for (b2ContactEdge* edge = body->GetContactList(); edge; edge = edge->next) {
+    std::vector<b2Body*> bodies;
+    for (b2ContactEdge* edge = sensor->GetBody()->GetContactList(); edge; edge = edge->next) {
         b2Contact* c = edge->contact;
-        if ((c->GetFixtureA() == sensor || c->GetFixtureB() == sensor) && c->GetFlash20PersistCount() > 0) return true;
+        if (c->GetFixtureA() != sensor && c->GetFixtureB() != sensor) continue;
+        if (c->GetFlash20PersistCount() == 0) continue;
+        if (std::find(bodies.begin(), bodies.end(), edge->other) == bodies.end()) bodies.push_back(edge->other);
     }
-    return false;
+    return bodies;
 }
 
 }  // namespace online

@@ -425,6 +425,8 @@ void dumpContacts(const char* path, int step) {
                          m->points[i].tangentImpulse, wm.points[i].x, wm.points[i].y);
         }
         std::fprintf(f, " persist %d", c->GetFlash20PersistCount());
+        std::fprintf(f, " px %d %d", c->GetFixtureA()->GetFlash20ProxyId(),
+                     c->GetFixtureB()->GetFlash20ProxyId());
         std::fprintf(f, "\n");
     }
     std::fclose(f);

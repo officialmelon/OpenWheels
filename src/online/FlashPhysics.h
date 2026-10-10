@@ -22,6 +22,7 @@
 
 #include <functional>
 #include <string>
+#include <vector>
 
 class b2World;
 class b2Body;
@@ -89,8 +90,9 @@ void flashLevelBuilt(b2World* world);
 void flashQueryAABB(b2World* world, b2QueryCallback* callback, const b2AABB& aabb);
 
 // Fan and BoostPanel push the bodies their sensor reported to Box2D 2.0's contact listener as
-// "Persist" in the last step (a contact point that kept its id): does body have such a contact
-// with sensor?
-bool flashPersists(b2Body* body, b2Fixture* sensor);
+// "Persist" in the last step (a contact point that kept its id): the bodies with such a contact
+// with sensor, each once. A body counts while any of its fixtures persists, even after another
+// of its fixtures left the sensor.
+std::vector<b2Body*> flashPersistingBodies(b2Fixture* sensor);
 
 }  // namespace online
