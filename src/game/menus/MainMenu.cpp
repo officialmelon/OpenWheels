@@ -1,5 +1,9 @@
 #include "MainMenu.h"
 
+#include <algorithm>
+#include <cfloat>
+#include <vector>
+
 // Brings the five resolution-tier Size statics into this TU (dynamically initialised by _INIT_13,
 // as in the original).
 #include "AppDelegate.h"
@@ -240,6 +244,95 @@ void MainMenu::addPerspectiveCharacters()
     addChild(_perspectiveCharacters);
 }
 
+// PC addition: lays out the main-menu buttons, given right to left, along the bottom-right edge.
+// The original placed them at fixed 70 px steps, which is fine for the three original buttons but
+// runs the full PC row (up to seven buttons) off the left edge on anything narrower than 16:9
+// (4:3 / 16:10 tablets, narrow desktop windows). Here the gaps shrink first, then the buttons
+// scale down; when they would get too small the row wraps onto a second line. Returns the target
+// position of each button (anchor (1, 0)).
+static std::vector<Vec2> layoutButtonRow(const std::vector<MenuItemSprite*>& buttons, const Size& visibleSize,
+                                         const Vec2& origin)
+{
+    const float margin = 70.0f;
+    const float preferredGap = 70.0f;
+    const float minGap = 35.0f;
+    const float minSingleRowScale = 0.7f;
+    const float available = visibleSize.width - 2.0f * margin;
+
+    // Width of buttons[first, last) at a given gap, unscaled.
+    auto rowWidth = [&](size_t first, size_t last, float gap) {
+        float width = 0.0f;
+        for (size_t i = first; i < last; i++)
+            width += buttons[i]->getContentSize().width;
+        return width + gap * (float)(last - first - 1);
+    };
+    // Fits a row: picks a gap and scale so it spans at most `available`.
+    auto fitRow = [&](size_t first, size_t last, float& gap, float& scale) {
+        gap = preferredGap;
+        scale = 1.0f;
+        if (rowWidth(first, last, gap) <= available) return;
+        float buttonsWidth = rowWidth(first, last, 0.0f);
+        size_t gaps = last - first - 1;
+        gap = gaps > 0 ? std::max(minGap, (available - buttonsWidth) / (float)gaps) : 0.0f;
+        float width = rowWidth(first, last, gap);
+        if (width > available) scale = available / width;
+    };
+
+    std::vector<Vec2> positions(buttons.size());
+    std::vector<std::pair<size_t, size_t>> rows;
+    float gap, scale;
+    fitRow(0, buttons.size(), gap, scale);
+    if (scale >= minSingleRowScale || buttons.size() < 2)
+    {
+        rows.push_back({0, buttons.size()});
+    }
+    else
+    {
+        // Two rows: split where the wider row is narrowest (the play button is the wide one, so
+        // this keeps play / options / info together at the bottom).
+        size_t bestSplit = 1;
+        float bestWidth = FLT_MAX;
+        for (size_t split = 1; split < buttons.size(); split++)
+        {
+            float width = std::max(rowWidth(0, split, preferredGap), rowWidth(split, buttons.size(), preferredGap));
+            if (width < bestWidth)
+            {
+                bestWidth = width;
+                bestSplit = split;
+            }
+        }
+        rows.push_back({0, bestSplit});
+        rows.push_back({bestSplit, buttons.size()});
+    }
+
+    // One scale for every button so they keep matching sizes.
+    float uniformScale = 1.0f;
+    std::vector<float> gaps;
+    for (auto& row : rows)
+    {
+        fitRow(row.first, row.second, gap, scale);
+        gaps.push_back(gap);
+        uniformScale = std::min(uniformScale, scale);
+    }
+
+    float y = origin.y + margin * uniformScale;
+    for (size_t r = 0; r < rows.size(); r++)
+    {
+        float x = origin.x + visibleSize.width - margin;
+        float rowHeight = 0.0f;
+        for (size_t i = rows[r].first; i < rows[r].second; i++)
+        {
+            MenuItemSprite* btn = buttons[i];
+            btn->setScale(uniformScale);
+            positions[i] = Vec2(x, y);
+            x -= (btn->getContentSize().width + gaps[r]) * uniformScale;
+            rowHeight = std::max(rowHeight, btn->getContentSize().height * uniformScale);
+        }
+        y += rowHeight + gaps[r] * uniformScale;
+    }
+    return positions;
+}
+
 // @005e83a4
 void MainMenu::addMenu(bool animated)
 {
@@ -247,11 +340,14 @@ void MainMenu::addMenu(bool animated)
     Vec2 origin = Director::getInstance()->getVisibleOrigin();
 
     _logo = Sprite::createWithSpriteFrameName("menu_main_logo.png");
-    _logo->setPosition(origin.x + visibleSize.width - _logo->getTextureRect().size.width * 0.5f - 70.0f,
-                       origin.y + visibleSize.height - _logo->getTextureRect().size.height * 0.5f - 70.0f);
+    // PC addition: shrink the logo on windows too narrow for it (portrait-ish desktop windows).
+    float logoScale = std::min(1.0f, (visibleSize.width * 0.6f) / _logo->getTextureRect().size.width);
+    _logo->setPosition(origin.x + visibleSize.width - _logo->getTextureRect().size.width * logoScale * 0.5f - 70.0f,
+                       origin.y + visibleSize.height - _logo->getTextureRect().size.height * logoScale * 0.5f - 70.0f);
+    _logo->setScale(logoScale);
     if (animated)
     {
-        Sequence* scaleIn = Sequence::create(EaseBounceOut::create(ScaleTo::create(1.0f, 1.0f)),
+        Sequence* scaleIn = Sequence::create(EaseBounceOut::create(ScaleTo::create(1.0f, logoScale)),
                                              CallFunc::create(CC_CALLBACK_0(MainMenu::logoScaleInComplete, this)),
                                              nullptr);
         _logo->setScale(0.01f);
@@ -259,30 +355,32 @@ void MainMenu::addMenu(bool animated)
     }
     _menuNode->addChild(_logo);
 
+    // PC addition: credit line under the logo.
+    {
+        Label* credit = Label::createWithTTF("OpenWheels by @officialmelon", "fonts/ClarendonLTStd.ttf", 56.0f);
+        if (credit)
+        {
+            credit->setAnchorPoint(Vec2(1.0f, 1.0f));
+            credit->setPosition(origin.x + visibleSize.width - 70.0f,
+                                _logo->getPositionY() - _logo->getTextureRect().size.height * logoScale * 0.5f - 10.0f);
+            credit->setColor(Color3B::WHITE);
+            credit->setOpacity(200);
+            credit->enableShadow(Color4B(0, 0, 0, 160), Size(4.0f, -4.0f));
+            _menuNode->addChild(credit);
+        }
+    }
+
     MenuItemSprite* playBtn = btnWithIcon("menu_main_icon_play.png", ColorBlue, true, 0);
     MenuItemSprite* optionsBtn = btnWithIcon("menu_main_icon_options.png", ColorGrey, false, 1);
     MenuItemSprite* infoBtn = btnWithIcon("menu_main_icon_info.png", ColorPink, false, 2);
-    playBtn->setAnchorPoint(Vec2(1.0f, 0.0f));
-    optionsBtn->setAnchorPoint(Vec2(1.0f, 0.0f));
-    infoBtn->setAnchorPoint(Vec2(1.0f, 0.0f));
 
     // (sic) two terminators: the original passes an extra null argument.
     _menu = Menu::create(infoBtn, optionsBtn, playBtn, nullptr, nullptr);
     _menu->setPosition(origin + Vec2::ZERO);
 
-    // Right-aligned row at y = 70, 70 px margins.
-    Vec2 playPos(origin.x + visibleSize.width - 70.0f, 70.0f);
-    Vec2 optionsPos(playPos.x - playBtn->getContentSize().width - 70.0f, 70.0f);
-    Vec2 infoPos(optionsPos.x - optionsBtn->getContentSize().width - 70.0f, 70.0f);
-    // The original also queries the info button's size (presumably for a next position); unused.
-    infoBtn->getContentSize();
-    playBtn->setPosition(playPos);
-    optionsBtn->setPosition(optionsPos);
-    infoBtn->setPosition(infoPos);
-    _menuNode->addChild(_menu, 1);
-
-    // ONLINE (PC addition): left end of the row so far (the online button goes next to it).
-    float rowLeft = infoPos.x - infoBtn->getContentSize().width;
+    // The row, right to left. The original laid out play / options / info at y = 70 with 70 px
+    // margins; the PC additions continue the row to the left (see layoutButtonRow).
+    std::vector<MenuItemSprite*> row = {playBtn, optionsBtn, infoBtn};
 
     // EDITOR (iOS port): iOS MainMenuLayer has an editor button (tag 4 -> [EditorLayer scene]);
     // here a pink button (the iOS mainMenu_editorBtn colour) with the Android atlas'
@@ -303,67 +401,45 @@ void MainMenu::addMenu(bool animated)
             icon->setPosition(userLevelsBtn->getContentSize() / 2.0f);
             userLevelsBtn->addChild(icon);
         }
-        editorBtn->setAnchorPoint(Vec2(1.0f, 0.0f));
-        userLevelsBtn->setAnchorPoint(Vec2(1.0f, 0.0f));
-        Vec2 editorPos(infoPos.x - infoBtn->getContentSize().width - 70.0f, 70.0f);
-        Vec2 userLevelsPos(editorPos.x - editorBtn->getContentSize().width - 70.0f, 70.0f);
-        editorBtn->setPosition(editorPos);
-        userLevelsBtn->setPosition(userLevelsPos);
-        rowLeft = userLevelsPos.x - userLevelsBtn->getContentSize().width;  // ONLINE (PC addition)
         _menu->addChild(editorBtn);
         _menu->addChild(userLevelsBtn);
-        if (animated)
-        {
-            editorBtn->setPosition(editorPos.x + visibleSize.width, editorPos.y);
-            userLevelsBtn->setPosition(userLevelsPos.x + visibleSize.width, userLevelsPos.y);
-            editorBtn->runAction(EaseExponentialOut::create(MoveTo::create(0.35f, editorPos)));
-            userLevelsBtn->runAction(EaseExponentialOut::create(MoveTo::create(0.35f, userLevelsPos)));
-        }
+        row.push_back(editorBtn);
+        row.push_back(userLevelsBtn);
     }
 
     // ONLINE (PC addition): online levels (blue, generated globe icon, tag 5), always shown.
-    {
-        MenuItemSprite* onlineBtn = btnWithIcon("menu_main_icon_options.png", ColorBlue, false, 5);
-        online::ui::setMenuButtonIcon(onlineBtn, "globe");
-        onlineBtn->setAnchorPoint(Vec2(1.0f, 0.0f));
-        Vec2 onlinePos(rowLeft - 70.0f, 70.0f);
-        onlineBtn->setPosition(onlinePos);
-        _menu->addChild(onlineBtn);
-        if (animated)
-        {
-            onlineBtn->setPosition(onlinePos.x + visibleSize.width, onlinePos.y);
-            onlineBtn->runAction(EaseExponentialOut::create(MoveTo::create(0.35f, onlinePos)));
-        }
-        rowLeft = onlinePos.x - onlineBtn->getContentSize().width;  // NET (PC addition)
-    }
+    MenuItemSprite* onlineBtn = btnWithIcon("menu_main_icon_options.png", ColorBlue, false, 5);
+    online::ui::setMenuButtonIcon(onlineBtn, "globe");
+    _menu->addChild(onlineBtn);
+    row.push_back(onlineBtn);
 
     // NET (PC addition): ghost race with nearby players (pink, checkered-flag icon, tag 6).
-    {
-        MenuItemSprite* raceBtn = btnWithIcon("menu_main_icon_options.png", ColorPink, false, 6);
-        online::ui::setMenuButtonIcon(raceBtn, "flag");
-        raceBtn->setAnchorPoint(Vec2(1.0f, 0.0f));
-        Vec2 racePos(rowLeft - 70.0f, 70.0f);
-        raceBtn->setPosition(racePos);
-        _menu->addChild(raceBtn);
-        if (animated)
-        {
-            raceBtn->setPosition(racePos.x + visibleSize.width, racePos.y);
-            raceBtn->runAction(EaseExponentialOut::create(MoveTo::create(0.35f, racePos)));
-        }
-    }
+    MenuItemSprite* raceBtn = btnWithIcon("menu_main_icon_options.png", ColorPink, false, 6);
+    online::ui::setMenuButtonIcon(raceBtn, "flag");
+    _menu->addChild(raceBtn);
+    row.push_back(raceBtn);
 
-    if (animated)
+    for (MenuItemSprite* btn : row)
     {
-        playBtn->setPosition(playPos.x + visibleSize.width, playPos.y);
-        optionsBtn->setPosition(optionsPos.x + visibleSize.width, optionsPos.y);
-        infoBtn->setPosition(infoPos.x + visibleSize.width, infoPos.y);
-        infoBtn->runAction(Sequence::create(DelayTime::create(0.0f),
-                                            EaseExponentialOut::create(MoveTo::create(0.35f, infoPos)), nullptr));
-        optionsBtn->runAction(Sequence::create(DelayTime::create(0.1f),
-                                               EaseExponentialOut::create(MoveTo::create(0.35f, optionsPos)),
-                                               nullptr));
-        playBtn->runAction(Sequence::create(DelayTime::create(0.2f),
-                                            EaseExponentialOut::create(MoveTo::create(0.35f, playPos)), nullptr));
+        btn->setAnchorPoint(Vec2(1.0f, 0.0f));
+    }
+    std::vector<Vec2> positions = layoutButtonRow(row, visibleSize, origin);
+    _menuNode->addChild(_menu, 1);
+
+    for (size_t i = 0; i < row.size(); i++)
+    {
+        MenuItemSprite* btn = row[i];
+        Vec2 target = positions[i];
+        if (!animated)
+        {
+            btn->setPosition(target);
+            continue;
+        }
+        // The original staggers info / options / play by 0.1 s; the PC buttons come in at once.
+        float delay = i < 3 ? 0.1f * (float)(2 - i) : 0.0f;
+        btn->setPosition(target.x + visibleSize.width, target.y);
+        btn->runAction(Sequence::create(DelayTime::create(delay),
+                                        EaseExponentialOut::create(MoveTo::create(0.35f, target)), nullptr));
     }
 }
 

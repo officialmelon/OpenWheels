@@ -42,6 +42,15 @@ bool Credits::init(bool showEnding)
     ValueMap plist = FileUtils::getInstance()->getValueMapFromFile(fullPath.c_str());
     ValueVector sections = plist["credits"].asValueVector();
 
+    // PC addition: OpenWheels' own credits ahead of the original game's (which come from the
+    // player's own credits.plist).
+    {
+        ValueMap openWheels;
+        openWheels["category"] = Value("OpenWheels");
+        openWheels["items"] = Value(ValueVector{Value("@officialmelon"), Value("github.com/officialmelon/OpenWheels")});
+        sections.insert(sections.begin(), Value(openWheels));
+    }
+
     Settings::getInstance();  // result unused
 
     _scrollSpeed = 2.5f;

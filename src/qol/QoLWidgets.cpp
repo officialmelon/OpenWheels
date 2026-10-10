@@ -101,7 +101,11 @@ QoLRowItem* QoLRowItem::create(const std::string& text, int tag, float width,
                                const std::function<void(Ref*)>& callback, OptionsMenuItemAppearance appearance)
 {
     QoLRowItem* item = new (std::nothrow) QoLRowItem();
-    item->init(text, tag, callback, appearance);
+    if (!item || !item->init(text, tag, callback, appearance))
+    {
+        delete item;
+        return nullptr;
+    }
     // Same row at another width: redraw the background and re-centre the text.
     const Size size(width, item->getContentSize().height);
     Color4F colour = appearance == OptionsMenuItemAppearanceRed ? Color4F::RED : Color4F::WHITE;
