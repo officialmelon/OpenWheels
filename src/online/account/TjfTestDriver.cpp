@@ -570,7 +570,7 @@ struct ReplayCheck {
     bool loaded = false, failed = false, started = false;
     int steps = 0, finishStep = -1, deathStep = -1;
     // Totals.
-    int exact = 0, near = 0, finishedLate = 0, notFinished = 0, unexpected = 0, errors = 0;
+    int exact = 0, nearCount = 0, finishedLate = 0, notFinished = 0, unexpected = 0, errors = 0;
 };
 ReplayCheck g_replayCheck;
 
@@ -592,7 +592,7 @@ void replayCheckReport() {
     if (c.info.completed() && ours >= 0) {
         const int d = ours - web;
         if (d == 0) { verdict = "EXACT"; c.exact++; }
-        else if (std::abs(d) <= 3) { verdict = "NEAR (" + std::to_string(d) + ")"; c.near++; }
+        else if (std::abs(d) <= 3) { verdict = "NEAR (" + std::to_string(d) + ")"; c.nearCount++; }
         else { verdict = "OFF (" + std::to_string(d) + " frames)"; c.finishedLate++; }
     } else if (c.info.completed()) {
         verdict = "MISSED THE FINISH"; c.notFinished++;
@@ -608,7 +608,7 @@ void replayCheckNext() {
     ReplayCheck& c = g_replayCheck;
     if (c.index >= c.ids.size()) {
         say("replay-check summary: " + std::to_string(c.ids.size()) + " replays, " + std::to_string(c.exact) +
-            " exact, " + std::to_string(c.near) + " within 3 frames, " + std::to_string(c.finishedLate) +
+            " exact, " + std::to_string(c.nearCount) + " within 3 frames, " + std::to_string(c.finishedLate) +
             " finished off by more, " + std::to_string(c.notFinished) + " missed the finish, " +
             std::to_string(c.unexpected) + " finished when the web run did not, " + std::to_string(c.errors) +
             " errors");
