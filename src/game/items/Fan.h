@@ -37,6 +37,9 @@ public:
 
     // LevelItem overrides
     void frameAction() override;                      // @005adbb0  vptr+0x40
+    // ONLINE (PC addition): with browser physics, Flash's Fan.actions: once per world step, the
+    // bodies whose contact with the sensor persisted in that step (Box2D 2.0's Persist calls).
+    void actions() override;
     // Remember other->GetBody() (once) unless the other fixture is a sensor / forget it.
     void beginContact(b2Fixture* fixture, b2Fixture* otherFixture, b2Contact* contact) override;  // @005add7c  vptr+0x88
     void endContact(b2Fixture* fixture, b2Fixture* otherFixture, b2Contact* contact) override;    // @005adf20  vptr+0x90

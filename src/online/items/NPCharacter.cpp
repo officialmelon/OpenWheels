@@ -325,6 +325,19 @@ void NPCharacter::setBreakLimits()
     _jointLimit[kHip1] = _jointLimit[kHip2] = std::round(95.0f * upperLeg) * 2.5f;
     _jointLimit[kElbow1] = _jointLimit[kElbow2] = std::round(70.0f * lowerArm) * 2.5f;
     _jointLimit[kKnee1] = _jointLimit[kKnee2] = std::round(80.0f * lowerLeg) * 2.5f;
+    if (browserPhysicsWanted()) {
+        // The browser game's own limits (no mobile scale): given for the 1/60 step like the rest,
+        // so checkJoints halves them back to Flash's round(N * ratio) at the browser's 1/30 step.
+        _headSmashLimit = kDefHeadSmash * head;
+        _chestSmashLimit = kDefChestSmash * chest;
+        _pelvisSmashLimit = kDefPelvisSmash * pelvis;
+        _jointLimit[kNeck] = 2.0f * std::round(85.0f * head);
+        _jointLimit[kWaist] = 2.0f * std::round(180.0f * pelvis);
+        _jointLimit[kShoulder1] = _jointLimit[kShoulder2] = 2.0f * std::round(75.0f * upperArm);
+        _jointLimit[kHip1] = _jointLimit[kHip2] = 2.0f * std::round(95.0f * upperLeg);
+        _jointLimit[kElbow1] = _jointLimit[kElbow2] = 2.0f * std::round(70.0f * lowerArm);
+        _jointLimit[kKnee1] = _jointLimit[kKnee2] = 2.0f * std::round(80.0f * lowerLeg);
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -612,7 +625,9 @@ void NPCharacter::checkRevJoint(JointId id, float limit)
     b2RevoluteJoint* j = _joint[id];
     if (!j || _broken[id]) return;
     const float force = j->GetReactionForce(getTimeStepInverse()).Length();
-    if (force > limit || (j->GetAnchorB() - j->GetAnchorA()).LengthSquared() > 0.5f) breakJoint(id);
+    // Flash NPCharacter.checkRevJoint pulls apart at 0.25 m^2 (the player's CharacterB2D at 0.5).
+    const float apart = browserPhysics() ? 0.25f : 0.5f;
+    if (force > limit || (j->GetAnchorB() - j->GetAnchorA()).LengthSquared() > apart) breakJoint(id);
 }
 
 void NPCharacter::breakJoint(JointId id)

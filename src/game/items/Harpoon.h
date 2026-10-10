@@ -25,10 +25,13 @@ public:
     Harpoon();              // inlined into create @005bf4e0
     ~Harpoon() override;    // @005c0abc (D2), @005c0b2c (D0); nulls its pointers first
 
-    static Harpoon* create(b2Vec2 position, float angle, b2Vec2 velocity, int zOrder);  // @005bf4e0
-    bool init(b2Vec2 position, float angle, b2Vec2 velocity, int zOrder);               // @005bf5cc
+    // ONLINE (PC addition): moveForward false keeps the body origin at position, as Flash does
+    // for a gun that is not a fixed turret (Harpoon.createBody).
+    static Harpoon* create(b2Vec2 position, float angle, b2Vec2 velocity, int zOrder,
+                           bool moveForward = true);                                    // @005bf4e0
+    bool init(b2Vec2 position, float angle, b2Vec2 velocity, int zOrder, bool moveForward = true);  // @005bf5cc
 
-    void createBody(b2Vec2 position, float angle, b2Vec2 velocity);   // @005bf7b0
+    void createBody(b2Vec2 position, float angle, b2Vec2 velocity, bool moveForward = true);  // @005bf7b0
     void setHarpoonGun(HarpoonGun* harpoonGun);                       // @005bf9cc
     b2Body* getHarpoonBody();                                         // @005bf9d4
     void addBlood();                                                  // @005bfbe0

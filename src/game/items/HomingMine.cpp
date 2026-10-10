@@ -275,7 +275,7 @@ void HomingMine::blastBodies(b2Vec2 center, float radius)
     b2AABB aabb;
     aabb.lowerBound = b2Vec2(center.x - radius, center.y - radius);
     aabb.upperBound = b2Vec2(center.x + radius, center.y + radius);
-    getWorld()->QueryAABB(&callback, aabb);
+    online::flashQueryAABB(getWorld(), &callback, aabb);  // ONLINE (PC addition)
 
     for (unsigned int i = 0; i < callback._fixtures.size(); i++) {
         b2Fixture* fixture = callback._fixtures[i];

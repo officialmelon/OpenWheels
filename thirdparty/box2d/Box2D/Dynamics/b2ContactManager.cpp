@@ -32,6 +32,7 @@ b2ContactManager::b2ContactManager()
 	m_contactFilter = &b2_defaultFilter;
 	m_contactListener = &b2_defaultListener;
 	m_allocator = nullptr;
+	m_flash20 = false;
 }
 
 void b2ContactManager::Destroy(b2Contact* c)
@@ -115,6 +116,18 @@ void b2ContactManager::Collide()
 		b2Body* bodyA = fixtureA->GetBody();
 		b2Body* bodyB = fixtureB->GetBody();
 		 
+		// OpenWheels: under Box2D 2.0's broad-phase a contact lives as long as its pair
+		// (b2Flash20World.cpp).
+		if (m_flash20)
+		{
+			if (bodyA->IsAwake() || bodyB->IsAwake())
+			{
+				c->Update(m_contactListener);
+			}
+			c = c->GetNext();
+			continue;
+		}
+
 		// Is this contact flagged for filtering?
 		if (c->m_flags & b2Contact::e_filterFlag)
 		{
@@ -176,6 +189,12 @@ void b2ContactManager::FindNewContacts()
 
 void b2ContactManager::AddPair(void* proxyUserDataA, void* proxyUserDataB)
 {
+	// OpenWheels: Box2D 2.0's broad-phase pairs the fixtures instead (b2Flash20World.cpp).
+	if (m_flash20)
+	{
+		return;
+	}
+
 	b2FixtureProxy* proxyA = (b2FixtureProxy*)proxyUserDataA;
 	b2FixtureProxy* proxyB = (b2FixtureProxy*)proxyUserDataB;
 
@@ -293,4 +312,63 @@ void b2ContactManager::AddPair(void* proxyUserDataA, void* proxyUserDataB)
 	}
 
 	++m_contactCount;
+}
+
+void b2ContactManager::AddFlash20Contact(b2Fixture* fixtureA, b2Fixture* fixtureB)
+{
+	b2Contact* c = b2Contact::Create(fixtureA, 0, fixtureB, 0, m_allocator);
+	if (c == nullptr)
+	{
+		return;
+	}
+
+	// Contact creation may swap fixtures.
+	b2Body* bodyA = c->GetFixtureA()->GetBody();
+	b2Body* bodyB = c->GetFixtureB()->GetBody();
+
+	// Insert into the world and both bodies' lists, at their start. 2.0 does not wake the bodies.
+	c->m_prev = nullptr;
+	c->m_next = m_contactList;
+	if (m_contactList != nullptr)
+	{
+		m_contactList->m_prev = c;
+	}
+	m_contactList = c;
+
+	c->m_nodeA.contact = c;
+	c->m_nodeA.other = bodyB;
+	c->m_nodeA.prev = nullptr;
+	c->m_nodeA.next = bodyA->m_contactList;
+	if (bodyA->m_contactList != nullptr)
+	{
+		bodyA->m_contactList->prev = &c->m_nodeA;
+	}
+	bodyA->m_contactList = &c->m_nodeA;
+
+	c->m_nodeB.contact = c;
+	c->m_nodeB.other = bodyA;
+	c->m_nodeB.prev = nullptr;
+	c->m_nodeB.next = bodyB->m_contactList;
+	if (bodyB->m_contactList != nullptr)
+	{
+		bodyB->m_contactList->prev = &c->m_nodeB;
+	}
+	bodyB->m_contactList = &c->m_nodeB;
+
+	c->m_flags |= b2Contact::e_flash20PairFlag;
+	++m_contactCount;
+}
+
+void b2ContactManager::DestroyFlash20Contact(b2Fixture* fixtureA, b2Fixture* fixtureB)
+{
+	for (b2ContactEdge* edge = fixtureA->GetBody()->GetContactList(); edge; edge = edge->next)
+	{
+		b2Contact* c = edge->contact;
+		if ((c->GetFixtureA() == fixtureA && c->GetFixtureB() == fixtureB) ||
+			(c->GetFixtureA() == fixtureB && c->GetFixtureB() == fixtureA))
+		{
+			Destroy(c);
+			return;
+		}
+	}
 }

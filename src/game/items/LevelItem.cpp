@@ -1,4 +1,5 @@
 #include "LevelItem.h"
+#include "online/FlashRuntime.h"  // ONLINE (PC addition)
 
 #include <cmath>
 #include <sstream>
@@ -335,6 +336,11 @@ b2Body* LevelItem::createBody(const ValueMap* bodyData, Vec2 position)
     bodyDef.type = b2_dynamicBody;
     bodyDef.angularDamping = 1.0f;
     bodyDef.allowSleep = false;
+    if (online::flashLevel()) {
+        // ONLINE (PC addition): Flash bodies are undamped and may sleep.
+        bodyDef.angularDamping = 0.0f;
+        bodyDef.allowSleep = true;
+    }
     bodyDef.angle = bodyData->at("rot").asFloat();
     Vec2 offset = PointFromString(bodyData->at("pos").asString());
     bodyDef.position.Set(position.x + offset.x, position.y + offset.y);

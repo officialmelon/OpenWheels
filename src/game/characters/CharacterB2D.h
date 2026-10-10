@@ -290,6 +290,11 @@ public:
     void grindFixture(b2Fixture* fixture);
     void grindBody(b2Body* body);
 
+    // ONLINE (PC addition): a joint anchor of the browser game's body file
+    // (online/FlashBodyShapes.h) in world space, false when this character has none by that
+    // name (for example "handleAnchor", where the browser moped riders hold on).
+    bool onlineFlashAnchor(const std::string& key, b2Vec2* worldPoint);
+
     // ONLINE (PC addition): browser user-built vehicles (Flash CharacterB2D.userVehicle,
     // grabAction, userVehicleEject). Implemented in src/online/vehicles/UserVehicleRider.cpp and
     // only reached in converted browser levels (online::flashLevel()).
