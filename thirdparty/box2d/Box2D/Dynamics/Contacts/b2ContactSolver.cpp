@@ -867,6 +867,9 @@ bool b2ContactSolver::SolveTOIPositionConstraints(int32 toiIndexA, int32 toiInde
 
 // Box2D 2.0 b2ContactSolver constructor: per-point anchors on both bodies (the step's contact point),
 // the step's separation, equalized masses, and the -60 * separation bias of separated points.
+// Box2D 2.0's contact point is not 2.3's midpoint between the surfaces: polygon / polygon puts it on
+// the incident polygon (the clipped vertex), polygon / circle on the circle's surface; only circle /
+// circle uses the midpoint. The anchors, the masses and the restitution use that point.
 void b2ContactSolver::InitializeFlash20Constraints()
 {
 	for (int32 i = 0; i < m_count; ++i)
@@ -899,30 +902,57 @@ void b2ContactSolver::InitializeFlash20Constraints()
 		const float32 eqIB = bodyB->m_mass * bodyB->m_invI;
 
 		b2Vec2 normal = vc->normal;
+		b2Vec2 tangent = b2Cross(normal, 1.0f);
+		// Where Box2D 2.0 puts the point, from 2.3's midpoint: half the separation along the normal
+		// towards B (face of A: the point on B) or towards A (face of B: the point on A).
+		float32 pointShift = 0.0f;
+		if (manifold->type == b2Manifold::e_faceA)
+		{
+			pointShift = 0.5f;
+		}
+		else if (manifold->type == b2Manifold::e_faceB)
+		{
+			pointShift = -0.5f;
+		}
+
 		for (int32 j = 0; j < vc->pointCount; ++j)
 		{
 			b2VelocityConstraintPoint* vcp = vc->points + j;
 			b2Flash20ContactPoint* fp = m_flash20Points + i * b2_maxManifoldPoints + j;
 
-			fp->localAnchorA = b2MulT(xfA.q, vcp->rA);
-			fp->localAnchorB = b2MulT(xfB.q, vcp->rB);
 			fp->separation = worldManifold.separations[j];
 			fp->positionImpulse = 0.0f;
 
-			float32 rnA = b2Cross(vcp->rA, normal);
-			float32 rnB = b2Cross(vcp->rB, normal);
-			float32 kEqualized = eqMassA + eqMassB + eqIA * rnA * rnA + eqIB * rnB * rnB;
-			fp->equalizedMass = kEqualized > 0.0f ? 1.0f / kEqualized : 0.0f;
+			b2Vec2 point = worldManifold.points[j] + (pointShift * fp->separation) * normal;
+			vcp->rA = point - cA;
+			vcp->rB = point - cB;
+			fp->localAnchorA = b2MulT(xfA.q, vcp->rA);
+			fp->localAnchorB = b2MulT(xfB.q, vcp->rB);
 
+			// 2.0's masses: |r|^2 - (r.n)^2 for (r x n)^2.
+			float32 rrA = b2Dot(vcp->rA, vcp->rA);
+			float32 rrB = b2Dot(vcp->rB, vcp->rB);
+			float32 rnA = b2Dot(vcp->rA, normal);
+			float32 rnB = b2Dot(vcp->rB, normal);
+			float32 kNormal = vc->invMassA + vc->invMassB + (vc->invIA * (rrA - rnA * rnA) + vc->invIB * (rrB - rnB * rnB));
+			vcp->normalMass = kNormal > 0.0f ? 1.0f / kNormal : 0.0f;
+			float32 kEqualized = eqMassA + eqMassB + (eqIA * (rrA - rnA * rnA) + eqIB * (rrB - rnB * rnB));
+			fp->equalizedMass = kEqualized > 0.0f ? 1.0f / kEqualized : 0.0f;
+			float32 rtA = b2Dot(vcp->rA, tangent);
+			float32 rtB = b2Dot(vcp->rB, tangent);
+			float32 kTangent = vc->invMassA + vc->invMassB + (vc->invIA * (rrA - rtA * rtA) + vc->invIB * (rrB - rtB * rtB));
+			vcp->tangentMass = kTangent > 0.0f ? 1.0f / kTangent : 0.0f;
+
+			vcp->velocityBias = 0.0f;
 			if (fp->separation > 0.0f)
 			{
 				vcp->velocityBias = -b2_flash20SeparationBias * fp->separation;
-				float32 vRel = b2Dot(normal, m_velocities[vc->indexB].v + b2Cross(m_velocities[vc->indexB].w, vcp->rB)
-					- m_velocities[vc->indexA].v - b2Cross(m_velocities[vc->indexA].w, vcp->rA));
-				if (vRel < -b2_velocityThreshold)
-				{
-					vcp->velocityBias += -vc->restitution * vRel;
-				}
+			}
+			float32 vRel = b2Dot(normal, m_velocities[vc->indexB].v + b2Cross(m_velocities[vc->indexB].w, vcp->rB)
+				- m_velocities[vc->indexA].v - b2Cross(m_velocities[vc->indexA].w, vcp->rA));
+			if (vRel < -b2_velocityThreshold)
+			{
+				vcp->velocityBias += -vc->restitution * vRel;
 			}
 		}
 	}

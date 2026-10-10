@@ -517,9 +517,9 @@ prebuilt) and, while a browser level's world steps with the profile, switched to
 2.0.2's rules (`g_flash20Solver`): velocity clamps, damping, sleep, contact order, the per-point
 contact solver and its position correction, revolute and prismatic joints. The list, and what
 stays 2.3, is in `thirdparty/box2d/README.md`. Off the profile nothing changes (bit-identical to
-upstream source). The reference was Box2DFlash 2.0.2's source; the live site and
-archive.org could not be reached from the environment that made this change to diff against the
-browser game's own SWF.
+upstream source). Written from Box2DFlash 2.0.2's source and checked line by line
+against the Box2D in the browser game's decompiled client, which also moved the contact points to
+where 2.0 puts them (on the incident polygon / the circle's surface, not midway).
 
 **Smooth drawing** (`online/RenderInterpolation.*`). The world still steps at 30 Hz, but every
 display frame paints the level with each body at its pose interpolated between the last two steps
@@ -531,9 +531,9 @@ side effects (homing mine flicker, token animation) skips them on these extra pa
 
 **Checks** (`--online-test dont-move` against `tools/online/mock_tjf.py` with the level from
 `tools/online/make_dont_move_sample.py`: a ball rolls into dominoes, the last one falls into the
-victory zone; the Wheelchair Guy between two mines must not move): the level finishes at step 327
-(10.90 s), the character survives, and watching the run as a replay reaches the finish with every
-one of its 328 world states equal bit for bit to the run's. Drawn frames that moved: 670 of 676
+victory zone; the Wheelchair Guy between two mines must not move): the level finishes at step 326
+(10.87 s), the character survives, and watching the run as a replay reaches the finish with every
+one of its 327 world states equal bit for bit to the run's. Drawn frames that moved: 668 of 676
 with smooth drawing, 327 of 683 without (one per step). The same level on the 1/60 profile:
 finishes at step 656, replay exact.
 

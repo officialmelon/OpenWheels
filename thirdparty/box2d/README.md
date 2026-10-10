@@ -22,7 +22,10 @@ instead of the x87 prebuilt.
 
 ## OpenWheels patches: the browser game's Box2D 2.0 solver
 
-The browser Happy Wheels (Flash) ran Box2DFlash 2.0.2. OpenWheels' browser physics profile
+The browser Happy Wheels (Flash) ran Box2DFlash 2.0 (`Box2D/` in its decompiled client:
+`b2World.Step(dt, iterations)`, called by `Session` with 1/30 and 10). The rules below were written
+from Box2DFlash 2.0.2 and then checked line by line against that decompiled client (b2Island,
+b2ContactSolver, b2Collision, b2RevoluteJoint, b2PrismaticJoint, b2Settings). OpenWheels' browser physics profile
 (`src/online/FlashPhysics.h`) switches the solver to its rules while a browser level's world steps:
 `g_flash20Solver` (`Common/b2Settings.*`), set only around `online::flashWorldStep`'s `Step`, like
 the engine's own `g_blockSolve`. Everything below is behind that switch; with it off (campaign
@@ -36,6 +39,7 @@ path recomputes every step), so object layout and allocation order are unchanged
 | Damping `v *= clamp(1 - dt * d, 0, 1)` (2.3: `1 / (1 + dt * d)`) | `b2Island.cpp` |
 | Sleep: angular tolerance 2/180 rad/s (the 2.0 constant, no pi), no "position solved" requirement | `b2Island.cpp` |
 | Velocity iterations solve contacts before joints | `b2Island.cpp` |
+| Contact points: polygon / polygon on the incident polygon, polygon / circle on the circle (2.3: midway between the surfaces) | `b2ContactSolver.cpp` |
 | Contacts: per-point normal + friction solve (friction bounded by the point's normal impulse before this iteration), no block solver, bias -60 x separation | `b2ContactSolver.*` |
 | Contact position correction: world anchors, equalized masses for points on anchored bodies, accumulated position impulse >= 0, early out at -1.5 x linear slop | `b2ContactSolver.*` |
 | Revolute joint: point, then motor, then limit; limit position correction with an accumulated impulse; equal limits hold the angle | `b2RevoluteJoint.*` |
@@ -45,6 +49,12 @@ Also, for drawing only: `b2Body::GetSweepForDrawing` / `SetStateForDrawing` let
 `src/online/RenderInterpolation.cpp` put a body at an in-between pose while the level is painted
 and put the simulated state back bit for bit afterwards.
 
-Not patched (2.3 behaviour stays): continuous collision (TOI), the distance, weld, rope, pulley,
-gear, mouse and wheel joints, the broad-phase, and the narrow-phase contact generation (FlashRuntime
-covers the polygon skin and bounding-box wakes). Box2DFlash computed in doubles; this is float.
+Already the same in 2.3 (checked against the client): the distance joint and the browser game's
+rope joint (a port of 2.3's), friction (sqrt) and restitution (max) mixing, warm starting, the
+iteration order of the position loop, the constants (slops, corrections, Baumgarte, sleep times).
+
+Not patched (2.3 behaviour stays): continuous collision (TOI), the gear joint (2 uses in the
+client), the broad-phase and island order, and 2.0's "frozen" bodies (a body whose bounding box
+leaves the world's bounds stops; browser levels are walled in, so only a body tunnelling through
+the border does). FlashRuntime covers the polygon skin and bounding-box wakes. Box2DFlash computed
+in doubles; this is float.
