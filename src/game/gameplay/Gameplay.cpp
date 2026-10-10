@@ -423,6 +423,12 @@ void Gameplay::checkCharacterPosition()
 // @005b9e20
 void Gameplay::update(float dt)
 {
+    // ONLINE (PC addition): test fast-forward, one world step per display frame
+    // (online/replays/ReplayRuntime.h).
+    if (online::replays::testFastForward())
+    {
+        dt = Settings::getInstance()->getCurrentSession()->getTimeStep();
+    }
     unsigned char state;
     if (_isReplay)
     {

@@ -27,6 +27,8 @@
 #include "Vehicle.h"
 #include "platform/compat/Box2DFloat.h"
 #include "online/FlashRuntime.h"  // ONLINE (PC addition)
+#include "online/FlashPhysics.h"  // ONLINE (PC addition)
+#include "online/FlashBodyShapes.h"  // ONLINE (PC addition)
 #include "online/vehicles/UserVehicle.h"  // ONLINE (PC addition)
 #include "GameplayControls.h"  // QOL (PC addition): re-grab vehicle
 #include "qol/QoL.h"           // QOL (PC addition): re-grab vehicle
@@ -70,7 +72,8 @@ bool CharacterB2D::init(Vec2 origin, std::string name, std::string vocalPrefix,
     createFilters();
     createBodies();
     createFixtures();
-    taperBodies();
+    // ONLINE (PC addition): Flash limbs are plain boxes.
+    if (!online::flashLevel()) taperBodies();
     createJoints();
     setLimits();
     addContactListeners();
@@ -157,6 +160,35 @@ void CharacterB2D::setLimits()
     _elbowLigamentLimit = roundf(lowerArmRatio * 80.0f * 2.5f);
     _kneeBreakLimit = roundf(lowerLegRatio * 80.0f * 2.5f);
     _kneeLigamentLimit = roundf(lowerLegRatio * 95.0f * 2.5f);
+
+    if (online::browserPhysicsWanted()) {
+        // ONLINE (PC addition): the browser game's limits (its setLimits, with its own reference
+        // masses): a fifth lower for the joints, no 1.15 on the smashes. The joint limits are
+        // given for the 1/60 step: timeStepChanged halves them for the browser's 1/30 step.
+        headRatio = _headBody->GetMass() / 0.05456f;
+        chestRatio = _chestBody->GetMass() / 0.17171f;
+        pelvisRatio = _pelvisBody->GetMass() / 0.0735f;
+        lowerLegRatio = _lowerLeg1Body->GetMass() / 0.10218f;
+        lowerArmRatio = _lowerArm1Body->GetMass() / 0.07784f;
+        upperArmRatio = _upperArm1Body->GetMass() / 0.07019f;
+        upperLegRatio = _upperLeg1Body->GetMass() / 0.14914f;
+        _headSmashLimit = 3.0f * headRatio;
+        _chestSmashLimit = 7.5f * chestRatio;
+        _pelvisSmashLimit = 5.5f * pelvisRatio;
+        _footSmashLimit = 4.0f * lowerLegRatio;
+        _neckBreakLimit = 2.0f * roundf(85.0f * headRatio);
+        _spineLimit = 2.0f * roundf(105.0f * headRatio);
+        _torsoBreakLimit = 2.0f * roundf(180.0f * pelvisRatio);
+        _intestineLimit = 2.0f * roundf(260.0f * pelvisRatio);
+        _shoulderBreakLimit = 2.0f * roundf(75.0f * upperArmRatio);
+        _shoulderSnapLimit = 2.0f * roundf(90.0f * upperArmRatio);
+        _hipBreakLimit = 2.0f * roundf(95.0f * upperLegRatio);
+        _hipSnapLimit = 2.0f * roundf(110.0f * upperLegRatio);
+        _elbowBreakLimit = 2.0f * roundf(70.0f * lowerArmRatio);
+        _elbowLigamentLimit = 2.0f * roundf(80.0f * lowerArmRatio);
+        _kneeBreakLimit = 2.0f * roundf(80.0f * lowerLegRatio);
+        _kneeLigamentLimit = 2.0f * roundf(95.0f * lowerLegRatio);
+    }
 
     _jointLimits[_neckJoint] = _neckBreakLimit;
     _jointLimits[_shoulderJoint1] = _shoulderBreakLimit;
@@ -322,6 +354,29 @@ void CharacterB2D::loadBodies(std::string name)
     std::string path = "characters/bodies/" + name + ".plist";
     std::string fullPath = FileUtils::getInstance()->fullPathForFilename(path);
     _bodiesDict = FileUtils::getInstance()->getValueMapFromFile(fullPath);
+
+    // ONLINE (PC addition): the browser game's exact parts and joint anchors (the mobile files
+    // round them, slimmed the dad's and the moped guy's chest and pelvis and raised the moped guy's
+    // far arm).
+    if (online::flashLevel()) {
+        online::applyFlashCharacterShapes(name, _bodiesDict);
+    }
+}
+
+// ONLINE (PC addition): see CharacterB2D.h.
+bool CharacterB2D::onlineFlashAnchor(const std::string& key, b2Vec2* worldPoint)
+{
+    if (!online::flashLevel() || _bodiesDict.find("joints") == _bodiesDict.end()) {
+        return false;
+    }
+    const ValueMap& joints = _bodiesDict.at("joints").asValueMap();
+    auto it = joints.find(key);
+    if (it == joints.end()) {
+        return false;
+    }
+    Vec2 offset = PointFromString(it->second.asString());
+    worldPoint->Set(_origin.x + offset.x, _origin.y + offset.y);
+    return true;
 }
 
 // @0058ad9c
@@ -429,6 +484,19 @@ void CharacterB2D::createBodies()
     _upperLeg2Body = createBody(&bodies.at("upperLeg2Shape").asValueMap(), _origin);
     _lowerLeg1Body = createBody(&bodies.at("lowerLeg1Shape").asValueMap(), _origin);
     _lowerLeg2Body = createBody(&bodies.at("lowerLeg2Shape").asValueMap(), _origin);
+    if (online::flashLevel()) {
+        // ONLINE (PC addition): Flash's creation order (the solver walks bodies in it), and only
+        // the chest, head and pelvis are kept awake.
+        b2World* world = getWorld();
+        for (b2Body* b : {_chestBody, _headBody, _pelvisBody, _upperArm1Body, _upperArm2Body,
+                          _upperLeg1Body, _upperLeg2Body, _lowerArm1Body, _lowerArm2Body,
+                          _lowerLeg1Body, _lowerLeg2Body}) {
+            world->MoveBodyToFront(b);
+        }
+        _chestBody->SetSleepingAllowed(false);
+        _headBody->SetSleepingAllowed(false);
+        _pelvisBody->SetSleepingAllowed(false);
+    }
 
     _headBody->SetUserData(_headSprite);
     _chestBody->SetUserData(_chestSprite);
@@ -558,6 +626,17 @@ void CharacterB2D::createJoints()
     _kneeJoint2 = createJoint(_upperLeg2Body, _lowerLeg2Body, 0.0f, -150.0f,
                               PointFromString(joints.at("lowerLeg2Anchor").asString()), _origin);
 
+    if (online::flashLevel()) {
+        // ONLINE (PC addition): Flash's creation order.
+        b2World* world = getWorld();
+        for (b2Joint* j : {(b2Joint*)_neckJoint, (b2Joint*)_waistJoint, (b2Joint*)_shoulderJoint1,
+                           (b2Joint*)_shoulderJoint2, (b2Joint*)_elbowJoint1, (b2Joint*)_elbowJoint2,
+                           (b2Joint*)_hipJoint1, (b2Joint*)_hipJoint2, (b2Joint*)_kneeJoint1,
+                           (b2Joint*)_kneeJoint2}) {
+            world->MoveJointToFront(j);
+        }
+    }
+
     _shoulderBloodFlowPos = _shoulderJoint1->GetLocalAnchorA();
     _pelvisBloodFlowPos = _hipJoint1->GetLocalAnchorA();
 
@@ -596,7 +675,9 @@ void CharacterB2D::removeFromContactResultBufferDict(b2Fixture* fixture)
 // @0058eff0
 void CharacterB2D::actions()
 {
-    checkPose();
+    if (!online::browserPhysics()) {  // ONLINE (PC addition): posed before the step (LevelB2D.h)
+        checkPose();
+    }
     if (!_dead) {
         checkVocals();
         if (_dying) {
@@ -2600,6 +2681,10 @@ void CharacterB2D::addNeckBloodFlow()
 // @0059e1d0
 void CharacterB2D::setJoint(b2RevoluteJoint* joint, float angle, float gain, float maxSpeed)
 {
+    // ONLINE (PC addition): the browser game's setJoint always caps the motor at 10 rad/s.
+    if (online::browserPhysics()) {
+        maxSpeed = 10.0f;
+    }
     if (!joint->IsMotorEnabled()) {
         joint->EnableMotor(true);
     }
@@ -2654,32 +2739,34 @@ void CharacterB2D::cancelPose()
 // Control bit 0x01 while ejected: arms forward, legs back.
 void CharacterB2D::supermanPose()
 {
+    // ONLINE (PC addition): the browser game's gains are twice these.
+    const float k = online::browserPhysics() ? 2.0f : 1.0f;
     if (_neckJoint) {
-        setJoint(_neckJoint, -0.5f, 1.0f, 20.0f);
+        setJoint(_neckJoint, -0.5f, 1.0f * k, 20.0f);
     }
     if (_shoulderJoint1) {
-        setJoint(_shoulderJoint1, 0.0f, 10.0f, 20.0f);
+        setJoint(_shoulderJoint1, 0.0f, 10.0f * k, 20.0f);
         if (_elbowJoint1 && !_upperArm3Body) {
-            setJoint(_elbowJoint1, -2.5f, 7.5f, 20.0f);
+            setJoint(_elbowJoint1, -2.5f, 7.5f * k, 20.0f);
         }
     }
     if (_shoulderJoint2) {
-        setJoint(_shoulderJoint2, 0.0f, 10.0f, 20.0f);
+        setJoint(_shoulderJoint2, 0.0f, 10.0f * k, 20.0f);
         if (_elbowJoint2 && !_upperArm4Body) {
-            setJoint(_elbowJoint2, -2.5f, 7.5f, 20.0f);
+            setJoint(_elbowJoint2, -2.5f, 7.5f * k, 20.0f);
         }
     }
     if (_waistJoint) {
         if (_hipJoint1) {
-            setJoint(_hipJoint1, -2.6f, 1.0f, 20.0f);
+            setJoint(_hipJoint1, -2.6f, 1.0f * k, 20.0f);
             if (_kneeJoint1 && !_upperLeg3Body) {
-                setJoint(_kneeJoint1, 0.0f, 5.0f, 20.0f);
+                setJoint(_kneeJoint1, 0.0f, 5.0f * k, 20.0f);
             }
         }
         if (_hipJoint2) {
-            setJoint(_hipJoint2, -2.6f, 1.0f, 20.0f);
+            setJoint(_hipJoint2, -2.6f, 1.0f * k, 20.0f);
             if (_kneeJoint2 && !_upperLeg4Body) {
-                setJoint(_kneeJoint2, 0.0f, 5.0f, 20.0f);
+                setJoint(_kneeJoint2, 0.0f, 5.0f * k, 20.0f);
             }
         }
     }
@@ -2689,32 +2776,34 @@ void CharacterB2D::supermanPose()
 // Control bit 0x02 while ejected.
 void CharacterB2D::tuckPose()
 {
+    // ONLINE (PC addition): the browser game's gains are twice these.
+    const float k = online::browserPhysics() ? 2.0f : 1.0f;
     if (_neckJoint) {
-        setJoint(_neckJoint, -0.69f, 1.0f, 20.0f);
+        setJoint(_neckJoint, -0.69f, 1.0f * k, 20.0f);
     }
     if (_shoulderJoint1) {
-        setJoint(_shoulderJoint1, -3.0f, 10.0f, 20.0f);
+        setJoint(_shoulderJoint1, -3.0f, 10.0f * k, 20.0f);
         if (_elbowJoint1 && !_upperArm3Body) {
-            setJoint(_elbowJoint1, -1.5f, 7.5f, 20.0f);
+            setJoint(_elbowJoint1, -1.5f, 7.5f * k, 20.0f);
         }
     }
     if (_shoulderJoint2) {
-        setJoint(_shoulderJoint2, -3.0f, 10.0f, 20.0f);
+        setJoint(_shoulderJoint2, -3.0f, 10.0f * k, 20.0f);
         if (_elbowJoint2 && !_upperArm4Body) {
-            setJoint(_elbowJoint2, -1.5f, 7.5f, 20.0f);
+            setJoint(_elbowJoint2, -1.5f, 7.5f * k, 20.0f);
         }
     }
     if (_waistJoint) {
         if (_hipJoint1) {
-            setJoint(_hipJoint1, 0.0f, 1.0f, 20.0f);
+            setJoint(_hipJoint1, 0.0f, 1.0f * k, 20.0f);
             if (_kneeJoint1 && !_upperLeg3Body) {
-                setJoint(_kneeJoint1, -2.0f, 5.0f, 20.0f);
+                setJoint(_kneeJoint1, -2.0f, 5.0f * k, 20.0f);
             }
         }
         if (_hipJoint2) {
-            setJoint(_hipJoint2, 0.0f, 1.0f, 20.0f);
+            setJoint(_hipJoint2, 0.0f, 1.0f * k, 20.0f);
             if (_kneeJoint2 && !_upperLeg4Body) {
-                setJoint(_kneeJoint2, -2.0f, 5.0f, 20.0f);
+                setJoint(_kneeJoint2, -2.0f, 5.0f * k, 20.0f);
             }
         }
     }
@@ -2724,8 +2813,10 @@ void CharacterB2D::tuckPose()
 // Control bit 0x04 while ejected.
 void CharacterB2D::archPose()
 {
+    // ONLINE (PC addition): the browser game's gains are twice these for the neck and hips.
+    const float k = online::browserPhysics() ? 2.0f : 1.0f;
     if (_neckJoint) {
-        setJoint(_neckJoint, -0.5f, 1.0f, 20.0f);
+        setJoint(_neckJoint, -0.5f, 1.0f * k, 20.0f);
     }
     if (_shoulderJoint1) {
         setJoint(_shoulderJoint1, 0.0f, 20.0f, 20.0f);
@@ -2741,13 +2832,13 @@ void CharacterB2D::archPose()
     }
     if (_waistJoint) {
         if (_hipJoint1) {
-            setJoint(_hipJoint1, -3.0f, 1.0f, 20.0f);
+            setJoint(_hipJoint1, -3.0f, 1.0f * k, 20.0f);
             if (_kneeJoint1 && !_upperLeg3Body) {
                 setJoint(_kneeJoint1, -2.0f, 10.0f, 20.0f);
             }
         }
         if (_hipJoint2) {
-            setJoint(_hipJoint2, -3.0f, 1.0f, 20.0f);
+            setJoint(_hipJoint2, -3.0f, 1.0f * k, 20.0f);
             if (_kneeJoint2 && !_upperLeg4Body) {
                 setJoint(_kneeJoint2, -2.0f, 10.0f, 20.0f);
             }
@@ -2759,8 +2850,10 @@ void CharacterB2D::archPose()
 // Control bit 0x08 while ejected.
 void CharacterB2D::pushupPose()
 {
+    // ONLINE (PC addition): the browser game's gains are twice these for the neck and hips.
+    const float k = online::browserPhysics() ? 2.0f : 1.0f;
     if (_neckJoint) {
-        setJoint(_neckJoint, -0.5f, 1.0f, 20.0f);
+        setJoint(_neckJoint, -0.5f, 1.0f * k, 20.0f);
     }
     if (_shoulderJoint1) {
         setJoint(_shoulderJoint1, -1.7f, 20.0f, 20.0f);
@@ -2776,13 +2869,13 @@ void CharacterB2D::pushupPose()
     }
     if (_waistJoint) {
         if (_hipJoint1) {
-            setJoint(_hipJoint1, -2.6f, 1.0f, 20.0f);
+            setJoint(_hipJoint1, -2.6f, 1.0f * k, 20.0f);
             if (_kneeJoint1 && !_upperLeg3Body) {
                 setJoint(_kneeJoint1, 0.0f, 10.0f, 20.0f);
             }
         }
         if (_hipJoint2) {
-            setJoint(_hipJoint2, -2.6f, 1.0f, 20.0f);
+            setJoint(_hipJoint2, -2.6f, 1.0f * k, 20.0f);
             if (_kneeJoint2 && !_upperLeg4Body) {
                 setJoint(_kneeJoint2, 0.0f, 10.0f, 20.0f);
             }

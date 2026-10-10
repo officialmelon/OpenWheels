@@ -106,7 +106,7 @@ public:
 	b2Flash20ContactPoint* m_flash20Points;
 	void InitializeFlash20Constraints();
 	void SolveFlash20VelocityConstraints();
-	bool SolveFlash20PositionConstraints();
+	bool SolveFlash20PositionConstraints(float32 baumgarte = b2_baumgarte);
 };
 
 #endif

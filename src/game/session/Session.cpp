@@ -545,6 +545,10 @@ void Session::update(float dt)
         online::replays::physicsStep();  // ONLINE (PC addition): browser replays, per world step
         online::flashPreStep(_world);  // ONLINE (PC addition): Flash Box2D 2.0 contact rules
     }
+    if (online::browserPhysics() && _level != nullptr)
+    {
+        _level->onlinePoseBeforeStep();  // ONLINE (PC addition): see LevelB2D.h
+    }
     if (online::flashLevel())
     {
         online::flashWorldStep(_world, timeStep);  // ONLINE (PC addition): browser profile, FlashPhysics.h

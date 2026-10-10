@@ -9,6 +9,9 @@
 #include "Settings.h"
 #include "Sound.h"
 #include "SoundController.h"
+#include "online/FlashBodyShapes.h"  // ONLINE (PC addition)
+#include "online/FlashPhysics.h"  // ONLINE (PC addition)
+#include "online/FlashRuntime.h"  // ONLINE (PC addition)
 #include "platform/compat/Box2DFloat.h"
 #include "qol/QoL.h"  // QOL (PC addition): re-grab vehicle
 
@@ -79,6 +82,9 @@ void Vehicle::loadBodies(std::string name)
     std::string fileName = "vehicles/bodies/" + name + ".plist";
     std::string fullPath = FileUtils::getInstance()->fullPathForFilename(fileName);
     _bodiesDict = FileUtils::getInstance()->getValueMapFromFile(fullPath);
+    if (online::flashLevel()) {
+        online::applyFlashVehicleShapes(name, _bodiesDict);  // ONLINE (PC addition)
+    }
 }
 
 // @0063d89c
@@ -170,6 +176,10 @@ bool Vehicle::checkRevJoint(b2Joint* joint, float limit)
 // @0063de20
 void Vehicle::setJoint(b2RevoluteJoint* joint, float angle, float gain, float maxSpeed)
 {
+    // ONLINE (PC addition): the browser game's setJoint always caps the motor at 10 rad/s.
+    if (online::browserPhysics()) {
+        maxSpeed = 10.0f;
+    }
     if (!joint->IsMotorEnabled())
     {
         joint->EnableMotor(true);
@@ -482,7 +492,10 @@ void Vehicle::leanButtonsNull()
 // @0063f944
 void Vehicle::actions()
 {
-    checkPose();
+    if (!online::browserPhysics())  // ONLINE (PC addition): posed before the step (LevelB2D.h)
+    {
+        checkPose();
+    }
     checkJoints();
     handleContactAdds();
     handleContactResults();

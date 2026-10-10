@@ -517,9 +517,9 @@ prebuilt) and, while a browser level's world steps with the profile, switched to
 2.0.2's rules (`g_flash20Solver`): velocity clamps, damping, sleep, contact order, the per-point
 contact solver and its position correction, revolute and prismatic joints. The list, and what
 stays 2.3, is in `thirdparty/box2d/README.md`. Off the profile nothing changes (bit-identical to
-upstream source). The reference was Box2DFlash 2.0.2's source; the live site and
-archive.org could not be reached from the environment that made this change to diff against the
-browser game's own SWF.
+upstream source). Written from Box2DFlash 2.0.2's source and checked line by line
+against the Box2D in the browser game's decompiled client, which also moved the contact points to
+where 2.0 puts them (on the incident polygon / the circle's surface, not midway).
 
 **Smooth drawing** (`online/RenderInterpolation.*`). The world still steps at 30 Hz, but every
 display frame paints the level with each body at its pose interpolated between the last two steps
@@ -531,12 +531,87 @@ side effects (homing mine flicker, token animation) skips them on these extra pa
 
 **Checks** (`--online-test dont-move` against `tools/online/mock_tjf.py` with the level from
 `tools/online/make_dont_move_sample.py`: a ball rolls into dominoes, the last one falls into the
-victory zone; the Wheelchair Guy between two mines must not move): the level finishes at step 327
-(10.90 s), the character survives, and watching the run as a replay reaches the finish with every
-one of its 328 world states equal bit for bit to the run's. Drawn frames that moved: 670 of 676
+victory zone; the Wheelchair Guy between two mines must not move): the level finishes at step 326
+(10.87 s), the character survives, and watching the run as a replay reaches the finish with every
+one of its 327 world states equal bit for bit to the run's. Drawn frames that moved: 668 of 676
 with smooth drawing, 327 of 683 without (one per step). The same level on the 1/60 profile:
 finishes at step 656, replay exact.
 
+### 10.10 Matching real browser replays step by step (2026-10-10)
+
+Checked against the browser game itself: the HTML5 client was run with a hook on its Box2D that
+dumps every body's position, angle and velocities each step, and the same replays were played in
+OpenWheels with `TjfTestDriver`'s body dump and compared step by step.
+
+**What changed.**
+- Box2D 2.0's broad-phase, narrow phase, continuous collision and frozen bodies
+  (`thirdparty/box2d/README.md`), so contacts begin and end on the same steps and in the same order.
+- Creation order (`online/FlashPhysics.h`): Flash builds the level before the character; the
+  character's bodies, joints and proxy ids are moved to where 2.0 would have put them.
+- Exact body geometry (`online/FlashBodyShapes.*`): the mobile plists round part positions, sizes,
+  angles and joint anchors to the millimetre. On browser levels the characters (Wheelchair Guy,
+  Segway Guy, Irresponsible Dad and kid, Moped couple, Pogo Stick guy) and their vehicles use the
+  browser game's values, read from its art (shape guides at 62.5 px per metre).
+- Moped grips: the browser joins both hands to one handle point and both feet to one foot point;
+  OpenWheels used each limb's end (2 to 4 cm off).
+- Blade weapons and the mine button use the browser's shapes.
+- Explosions query like 2.0's `world.Query` (at most 30 shapes, 2.0's order); the shapes hit and
+  the impulses given were checked equal to the browser's.
+- Poses (arm and leg motors) are set before the world step, as in Flash.
+
+**Results** (first step where any body is more than 1 cm / 5 cm from the browser's run):
+
+| Replay | Character | Before | After | Outcome |
+|---|---|---|---|---|
+| 23178391 | Wheelchair Guy | 37 / 42 | 41 / 49 | misses the finish |
+| 56612689 | Segway Guy | 35 / 35 | 35 / 35 | finishes at step 439 (browser 403) |
+| 34460794 | Irresponsible Dad | 1 / 1 | 1 / 1 | misses the finish |
+| 32422304 | Moped couple | 9 / 11 | 42 / 55 | dies at step 89 |
+| 36254308 | Pogo Stick | 3 / 25 | 25 / 25 | dies at step 206 (was 76) |
+
+**Remaining gaps.**
+- Ragdolls are chaotic: a joint limit that is active in one run and not the other (from an angle
+  a hair apart) grows into centimetres within a few steps, so float against the browser's doubles
+  is enough to split runs eventually.
+- Segway: in the browser the NPC's hip breaks on the spike strip at step 34 (its filter changes);
+  in OpenWheels it holds, and the runs part there.
+- Irresponsible Dad: the mine at the start hits the kid's small bodies, and the blast amplifies
+  sub-millimetre differences on the first step (the blast's inputs match to the millimetre).
+- Effective Shopper and the motor cart have no browser dump yet, so their geometry is still the
+  plists'.
+
+**Second pass.**
+- NPC break limits use the browser's numbers: no 1.15 smash factor, joint limits at
+  `round(N * ratio)`, and the revolute "pulled apart" check at 0.25 m² (it was 0.5).
+- Polygon contacts are clipped in the Flash frame (the world mirrored at y = 160). 2.0's clipping
+  order follows vertex winding, and mirroring reverses it, so the contact points and their ids came
+  out in a different order and the solver applied impulses in a different order.
+- Contacts count 2.0's `Persist` events (a point keeping its id over a step, continuous collision
+  included). Fans and boost panels push only bodies whose contact persisted, after the world step,
+  as the browser's contact listener does; sensors keep their point ids for this.
+- Harpoon guns follow the browser's turret: the turret is static while it searches, a target
+  sensor is created and destroyed as in Flash (this keeps the proxy ids in step), it fires only
+  with a clear path, and a free turret's harpoon starts at the turret instead of 52.5 px ahead.
+
+| Replay | Character | Before | After | Outcome |
+|---|---|---|---|---|
+| 23178391 | Wheelchair Guy | 41 / 49 | 64 / 65 | misses the finish |
+| 56612689 | Segway Guy | 35 / 35 | 35 / 36 | finishes at step 361 (browser 403) |
+| 34460794 | Irresponsible Dad | 1 / 1 | 1 / 1 | misses the finish |
+| 32422304 | Moped couple | 42 / 55 | 50 / 57 | dies at step 347 (was 89) |
+| 36254308 | Pogo Stick | 25 / 25 | 40 / 41 | dies at step 88 |
+
+- Segway: the split at step 35 is in the solver impulses on the NPC's new contacts and the order of continuous-collision events.
+- Level shapes get 2.0 proxy ids in the browser's order: the level's fixed shapes go on one
+  static body, but 2.0 adds each as the level reaches it, between the bodies of loose shapes and
+  items, and the three border boxes come first. Proxy ids decide contact pair order, and so the
+  point ids of 2.0's asymmetric polygon collision; they now match the browser's on the pogo level.
+- Fans and boost panels push a body while any of its fixtures persists in the sensor (a harpoon's
+  tip leaving the panel dropped the whole harpoon before). Pogo now holds to step 41 / 46 and the
+  segway finishes at step 375 (browser 403).
+- Pogo, step 41: a harpoon hits the pogo stick, and the solver gives the impact about 10% more
+  impulse than the browser with the same contact point; the island's constraint order is the
+  next thing to compare.
 
 ### Replay check (2026-10-08)
 

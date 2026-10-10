@@ -162,6 +162,10 @@ public:
     void convertDirectionIfNecessaryBasedOnRegistration(float* value);
     std::vector<LevelItem*> getActionsVector();
     std::vector<CharacterB2D*> getCharacters();
+    // ONLINE (PC addition): the browser game poses its characters before the world step
+    // (Session.run: character.actions, then m_world.Step); browser physics calls this there and
+    // the characters' and vehicles' actions() leave the pose out.
+    void onlinePoseBeforeStep();
     // ONLINE (PC addition): the trigger list, for browser levels' click triggers.
     const std::vector<Trigger*>& onlineTriggers() const { return _triggers; }
 

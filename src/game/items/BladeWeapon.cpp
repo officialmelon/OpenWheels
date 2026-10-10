@@ -14,6 +14,7 @@
 #include "LevelSession.h"  // EDITOR (PC addition): user levels
 #include "Patch.h"
 #include "Session.h"
+#include "online/FlashPhysics.h"  // ONLINE (PC addition)
 #include "Sound.h"
 
 USING_NS_CC;
@@ -33,6 +34,29 @@ static Rect s_handleRects[12] = {
     Rect(0.04f, -0.16f, 0.07f, 0.22f), Rect(0.01f, -0.55f, 0.05f, 0.22f), Rect(0.04f, -0.09f, 0.08f, 0.86f),
     Rect(0.0f, -0.45f, 0.08f, 0.29f), Rect(0.0f, -0.32f, 0.04f, 2.02f),  Rect(0.0f, -0.02f, 0.12f, 0.12f),
     Rect(0.0f, -1.23f, 0.06f, 0.21f), Rect(0.0f, -0.36f, 0.06f, 0.28f),  Rect(0.0f, -0.23f, 0.06f, 1.76f),
+};
+// ONLINE (PC addition): the same boxes in the browser game, read from its art (the mobile table
+// above rounds them to the centimetre).
+static const Rect s_flashBladeRects[12] = {
+    Rect(0.0f, 0.5176f, 0.352f, 0.432f),     Rect(0.0184f, 0.1776f, 0.048f, 1.0256f),
+    Rect(0.0f, 0.1528f, 0.0688f, 1.0464f),   Rect(-0.0024f, 0.1096f, 0.328f, 0.1568f),
+    Rect(0.004f, 0.1128f, 0.128f, 1.1008f),  Rect(-0.0016f, 0.428f, 0.1664f, 0.2656f),
+    Rect(-0.0048f, 0.0856f, 0.096f, 0.784f), Rect(0.0f, 1.0104f, 0.0768f, 0.6464f),
+    Rect(0.0f, 0.4152f, 0.128f, 0.7568f),    Rect(0.0f, 0.0968f, 0.0576f, 2.4352f),
+    Rect(0.0f, 0.14f, 0.048f, 0.7104f),      Rect(-0.004f, 0.876f, 0.2912f, 0.4416f),
+};
+static const Rect s_flashHandleRects[12] = {
+    Rect(-0.0008f, -0.1736f, 0.048f, 1.0336f), Rect(-0.0008f, -0.5104f, 0.0512f, 0.3584f),
+    Rect(0.0f, -0.5216f, 0.0512f, 0.3072f),    Rect(0.044f, -0.1632f, 0.072f, 0.216f),
+    Rect(0.0136f, -0.5512f, 0.0496f, 0.2224f), Rect(0.0384f, -0.0856f, 0.0816f, 0.8608f),
+    Rect(0.004f, -0.4504f, 0.08f, 0.288f),     Rect(0.0f, -0.3224f, 0.0416f, 2.0208f),
+    Rect(0.0f, -0.0216f, 0.12f, 0.1168f),      Rect(0.0f, -1.228f, 0.0608f, 0.2064f),
+    Rect(0.0f, -0.3568f, 0.0608f, 0.2816f),    Rect(0.0f, -0.2256f, 0.0608f, 1.7632f),
+};
+// ONLINE (PC addition): the browser game's blade rotations, degrees (its art turns the first blade
+// with a skew, which leaves the box unturned).
+static const float s_flashBladeAngles[12] = {
+    0.0f, 2.97938f, 0.0f, -89.95437f, 0.0f, -90.01166f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
 };
 // Blade box rotation per type, degrees (.rodata).
 static const float s_bladeAngles[12] = {
@@ -93,6 +117,11 @@ bool BladeWeapon::init(LevelDataElement* element, b2Body* groupBody, b2Vec2 grou
     Rect bladeRect = s_bladeRects[_bladeType - 1];
     Rect handleRect = s_handleRects[_bladeType - 1];
     float bladeAngle = s_bladeAngles[_bladeType - 1];
+    if (online::flashLevel()) {  // ONLINE (PC addition)
+        bladeRect = s_flashBladeRects[_bladeType - 1];
+        handleRect = s_flashHandleRects[_bladeType - 1];
+        bladeAngle = s_flashBladeAngles[_bladeType - 1];
+    }
     _weaponBody = groupBody;
     b2Vec2 bladeCenter(flip * bladeRect.origin.x, bladeRect.origin.y);
     b2Vec2 handleCenter(flip * handleRect.origin.x, handleRect.origin.y);
@@ -117,7 +146,7 @@ bool BladeWeapon::init(LevelDataElement* element, b2Body* groupBody, b2Vec2 grou
         fixtureDef.filter.maskBits = 0xFFFF;
 
         shape.SetAsBox(handleRect.size.width * 0.5f, handleRect.size.height * 0.5f, handleCenter, 0.0f);
-        fixtureDef.density = 1.0f;
+        fixtureDef.density = online::browserPhysicsWanted() ? 0.5f : 1.0f;  // ONLINE (PC addition): the browser handle stays at 0.5
         fixtureDef.shape = &shape;
         _handleShape = _weaponBody->CreateFixture(&fixtureDef);
         _weaponBody->ResetMassData();
@@ -159,7 +188,7 @@ bool BladeWeapon::init(LevelDataElement* element, b2Body* groupBody, b2Vec2 grou
         }
         b2Vec2 handlePosition(position.x + transform.tx, position.y + transform.ty);
         shape.SetAsBox(handleRect.size.width * 0.5f, handleRect.size.height * 0.5f, handlePosition, rotation);
-        fixtureDef.density = 1.0f;
+        fixtureDef.density = online::browserPhysicsWanted() ? 0.5f : 1.0f;  // ONLINE (PC addition): the browser handle stays at 0.5
         fixtureDef.shape = &shape;
         _handleShape = _weaponBody->CreateFixture(&fixtureDef);
     }

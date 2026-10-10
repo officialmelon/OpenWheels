@@ -72,6 +72,10 @@ void setTestInput(std::function<uint8_t(int step)> input);
 // Called once when `step` world steps are done in a recorded or watched session (mode: 1 record,
 // 2 watch); with kObserveEveryStep, before every world step.
 constexpr int kObserveEveryStep = -2;
+// Fast-forward: every display frame takes one world step whatever the frame's real time
+// (Gameplay::update), so a replay plays as fast as the game can draw it.
+void setTestFastForward(bool on);
+bool testFastForward();
 void setTestStepObserver(int step, std::function<void(int mode)> observer);
 
 // Browser character id -> the character this build plays it with (restored or fallback).

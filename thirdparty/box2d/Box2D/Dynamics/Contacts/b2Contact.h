@@ -89,6 +89,11 @@ public:
 	/// Is this contact touching?
 	bool IsTouching() const;
 
+	/// OpenWheels: with Box2D 2.0's narrow phase, how many times in this world step a manifold
+	/// point (sensors included) kept its id from the update before: Box2D 2.0's contact listener
+	/// "Persist" calls, from the collide and the TOI updates.
+	int32 GetFlash20PersistCount() const { return m_flash20Persists; }
+
 	/// Enable/disable this contact. This can be used inside the pre-solve
 	/// contact listener. The contact is only disabled for the current
 	/// time step (or sub-step in continuous collisions).
@@ -150,6 +155,7 @@ protected:
 	friend class b2ContactSolver;
 	friend class b2Body;
 	friend class b2Fixture;
+	friend class b2Island;
 
 	// Flags stored in m_flags
 	enum
@@ -170,7 +176,13 @@ protected:
 		e_bulletHitFlag		= 0x0010,
 
 		// This contact has a valid TOI in m_toi
-		e_toiFlag			= 0x0020
+		e_toiFlag			= 0x0020,
+
+		// OpenWheels (b2Flash20World.cpp): Box2D 2.0's broad-phase pairs these fixtures ...
+		e_flash20PairFlag	= 0x0040,
+
+		// ... and 2.0 counts the contact as "slow" (two moving, non-bullet bodies: no TOI).
+		e_flash20SlowFlag	= 0x0080
 	};
 
 	/// Flag this contact for filtering. Filtering will occur the next time step.
@@ -212,6 +224,11 @@ protected:
 
 	int32 m_toiCount;
 	float32 m_toi;
+
+	// OpenWheels: see GetFlash20PersistCount; a sensor's 2.0 point count (its manifold is
+	// emptied, the ids stay in m_manifold.points).
+	uint8 m_flash20Persists = 0;
+	uint8 m_flash20SensorPoints = 0;
 
 	float32 m_friction;
 	float32 m_restitution;

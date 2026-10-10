@@ -43,6 +43,9 @@ public:
 
     // LevelItem overrides
     void frameAction() override;                                           // @00587dc0  vptr+0x40
+    // ONLINE (PC addition): with browser physics, Flash's Boost.actions pushes once per world step
+    // the bodies whose contact with the sensor persisted in that step (frameAction only animates).
+    void actions() override;
     void bodyWillBeDestroyed(b2Body* body) override;                       // @005880fc  vptr+0xb8  (empty)
     void prepareForTrigger() override;                                     // @00588100  vptr+0xe8
     void triggerSingleActivation(LevelItem* trigger, int action, std::vector<float> properties) override;  // @00588184  vptr+0xd8

@@ -48,18 +48,18 @@ Harpoon::~Harpoon()
 }
 
 // @005bf4e0
-Harpoon* Harpoon::create(b2Vec2 position, float angle, b2Vec2 velocity, int zOrder)
+Harpoon* Harpoon::create(b2Vec2 position, float angle, b2Vec2 velocity, int zOrder, bool moveForward)
 {
     Harpoon* harpoon = new (std::nothrow) Harpoon();
     if (harpoon) {
-        harpoon->init(position, angle, velocity, zOrder);
+        harpoon->init(position, angle, velocity, zOrder, moveForward);
         harpoon->autorelease();
     }
     return harpoon;
 }
 
 // @005bf5cc
-bool Harpoon::init(b2Vec2 position, float angle, b2Vec2 velocity, int zOrder)
+bool Harpoon::init(b2Vec2 position, float angle, b2Vec2 velocity, int zOrder, bool moveForward)
 {
     Node* levelItemsNode = getLevelItemsNode();
     _stabbableMaterials = 2;
@@ -73,7 +73,7 @@ bool Harpoon::init(b2Vec2 position, float angle, b2Vec2 velocity, int zOrder)
     _mc->setRotation(CC_RADIANS_TO_DEGREES(angle));
     levelItemsNode->addChild(_mc, zOrder - 1);
 
-    createBody(position, angle, velocity);
+    createBody(position, angle, velocity, moveForward);
     _harpoonBody->SetUserData(_mc);
 
     addToBeginContact(_sensorShape);
@@ -84,7 +84,7 @@ bool Harpoon::init(b2Vec2 position, float angle, b2Vec2 velocity, int zOrder)
 }
 
 // @005bf7b0
-void Harpoon::createBody(b2Vec2 position, float angle, b2Vec2 velocity)
+void Harpoon::createBody(b2Vec2 position, float angle, b2Vec2 velocity, bool moveForward)
 {
     b2BodyDef bodyDef;
     bodyDef.type = b2_dynamicBody;
@@ -113,7 +113,7 @@ void Harpoon::createBody(b2Vec2 position, float angle, b2Vec2 velocity)
     _harpoonBody->CreateFixture(&fixtureDef);
 
     // Move the body origin forward to the tip region.
-    _harpoonBody->SetTransform(_harpoonBody->GetWorldPoint(b2Vec2(52.5f / ptmRatio, 0.0f)), angle);
+    if (moveForward) _harpoonBody->SetTransform(_harpoonBody->GetWorldPoint(b2Vec2(52.5f / ptmRatio, 0.0f)), angle);
     _harpoonBody->ResetMassData();
     _harpoonBody->SetLinearVelocity(velocity);
 }

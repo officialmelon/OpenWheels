@@ -195,6 +195,9 @@ public:
 	/// Dump this fixture to the log file.
 	void Dump(int32 bodyIndex);
 
+	/// The Box2D 2.0 broad-phase proxy id (browser physics only; for debugging).
+	int32 GetFlash20ProxyId() const { return m_flash20ProxyId; }
+
 protected:
 
 	friend class b2Body;
@@ -233,6 +236,14 @@ protected:
 	bool m_isSensor;
 
 	void* m_userData;
+
+	// OpenWheels: its proxy in the world's Box2D 2.0 broad-phase (b2World::Flash20Begin), or
+	// b2Flash20BroadPhase::e_nullProxy.
+	int32 m_flash20ProxyId;
+
+	// OpenWheels: b2World::GetCreationSerial.
+	uint32 m_creationSerial;
+	friend class b2Island;
 };
 
 inline b2Shape::Type b2Fixture::GetType() const

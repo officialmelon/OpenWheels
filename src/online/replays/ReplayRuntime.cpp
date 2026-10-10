@@ -317,6 +317,10 @@ void physicsStep() {
 
 void setTestInput(std::function<uint8_t(int)> input) { g_testInput = std::move(input); }
 
+bool g_testFastForward = false;
+void setTestFastForward(bool on) { g_testFastForward = on; }
+bool testFastForward() { return g_testFastForward; }
+
 void setTestStepObserver(int step, std::function<void(int)> observer) {
     g_observeStep = step;
     g_observer = std::move(observer);

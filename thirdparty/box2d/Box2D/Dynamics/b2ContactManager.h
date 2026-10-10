@@ -25,6 +25,7 @@ class b2Contact;
 class b2ContactFilter;
 class b2ContactListener;
 class b2BlockAllocator;
+class b2Fixture;
 
 // Delegate of b2World.
 class b2ContactManager
@@ -40,6 +41,12 @@ public:
 	void Destroy(b2Contact* c);
 
 	void Collide();
+
+	// OpenWheels: Box2D 2.0's b2ContactManager::PairAdded once it has decided the pair collides
+	// (fixtureA has the lower proxy id; contact creation may still swap them), and the contact a
+	// removed pair ends, if it has one.
+	void AddFlash20Contact(b2Fixture* fixtureA, b2Fixture* fixtureB);
+	void DestroyFlash20Contact(b2Fixture* fixtureA, b2Fixture* fixtureB);
             
 	b2BroadPhase m_broadPhase;
 	b2Contact* m_contactList;
@@ -47,6 +54,9 @@ public:
 	b2ContactFilter* m_contactFilter;
 	b2ContactListener* m_contactListener;
 	b2BlockAllocator* m_allocator;
+
+	// OpenWheels: Box2D 2.0's broad-phase makes and ends the contacts (b2World::Flash20Begin).
+	bool m_flash20;
 };
 
 #endif

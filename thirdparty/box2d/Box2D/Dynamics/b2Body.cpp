@@ -141,6 +141,13 @@ void b2Body::SetType(b2BodyType type)
 	m_force.SetZero();
 	m_torque = 0.0f;
 
+	// OpenWheels: Box2D 2.0 makes the body's proxies anew, which re-pairs them.
+	if (m_world->m_flash20)
+	{
+		m_world->Flash20RefilterBody(this);
+		return;
+	}
+
 	// Delete the attached contacts.
 	b2ContactEdge* ce = m_contactList;
 	while (ce)
@@ -176,6 +183,7 @@ b2Fixture* b2Body::CreateFixture(const b2FixtureDef* def)
 	void* memory = allocator->Allocate(sizeof(b2Fixture));
 	b2Fixture* fixture = new (memory) b2Fixture;
 	fixture->Create(allocator, this, def);
+	fixture->m_creationSerial = m_world->m_creationSerial++;
 
 	if (m_flags & e_activeFlag)
 	{
@@ -188,6 +196,12 @@ b2Fixture* b2Body::CreateFixture(const b2FixtureDef* def)
 	++m_fixtureCount;
 
 	fixture->m_body = this;
+
+	// OpenWheels: its Box2D 2.0 proxy (b2Flash20World.cpp).
+	if (m_world->m_flash20 && (m_flags & e_activeFlag))
+	{
+		m_world->Flash20CreateProxy(fixture, m_xf);
+	}
 
 	// Adjust mass properties if needed.
 	if (fixture->m_density > 0.0f)
@@ -245,6 +259,12 @@ void b2Body::DestroyFixture(b2Fixture* fixture)
 	// You tried to remove a shape that is not attached to this body.
 	b2Assert(found);
 
+	// OpenWheels: Box2D 2.0 ends the fixture's contacts as it destroys its proxy.
+	if (m_world->m_flash20)
+	{
+		m_world->Flash20DestroyProxy(fixture);
+	}
+
 	// Destroy any contacts associated with the fixture.
 	b2ContactEdge* edge = m_contactList;
 	while (edge)
@@ -281,6 +301,26 @@ void b2Body::DestroyFixture(b2Fixture* fixture)
 
 	// Reset the mass data.
 	ResetMassData();
+}
+
+void b2Body::MoveFixtureToBack(b2Fixture* fixture)
+{
+	b2Fixture** node = &m_fixtureList;
+	while (*node != nullptr && *node != fixture)
+	{
+		node = &(*node)->m_next;
+	}
+	if (*node == nullptr)
+	{
+		return;
+	}
+	*node = fixture->m_next;
+	while (*node != nullptr)
+	{
+		node = &(*node)->m_next;
+	}
+	*node = fixture;
+	fixture->m_next = nullptr;
 }
 
 void b2Body::ResetMassData()
@@ -427,6 +467,12 @@ void b2Body::SetTransform(const b2Vec2& position, float32 angle)
 		return;
 	}
 
+	// OpenWheels: Box2D 2.0's SetXForm leaves a frozen body where it is.
+	if (m_world->m_flash20 && (m_flags & e_flash20FrozenFlag))
+	{
+		return;
+	}
+
 	m_xf.q.Set(angle);
 	m_xf.p = position;
 
@@ -441,9 +487,14 @@ void b2Body::SetTransform(const b2Vec2& position, float32 angle)
 	{
 		f->Synchronize(broadPhase, m_xf, m_xf);
 	}
+
+	if (m_world->m_flash20 && m_world->Flash20Synchronize(this, m_xf, m_xf))
+	{
+		m_world->m_flash20->Commit();
+	}
 }
 
-void b2Body::SynchronizeFixtures()
+void b2Body::SynchronizeFixtures(bool flash20)
 {
 	b2Transform xf1;
 	xf1.q.Set(m_sweep.a0);
@@ -453,6 +504,12 @@ void b2Body::SynchronizeFixtures()
 	for (b2Fixture* f = m_fixtureList; f; f = f->m_next)
 	{
 		f->Synchronize(broadPhase, xf1, m_xf);
+	}
+
+	// OpenWheels: Box2D 2.0's SynchronizeShapes, which freezes a body that left its world box.
+	if (flash20 && m_world->m_flash20 && (m_flags & e_flash20FrozenFlag) == 0)
+	{
+		m_world->Flash20Synchronize(this, xf1, m_xf);
 	}
 }
 
@@ -474,6 +531,10 @@ void b2Body::SetActive(bool flag)
 		for (b2Fixture* f = m_fixtureList; f; f = f->m_next)
 		{
 			f->CreateProxies(broadPhase, m_xf);
+			if (m_world->m_flash20)
+			{
+				m_world->Flash20CreateProxy(f, m_xf);
+			}
 		}
 
 		// Contacts are created the next time step.
@@ -486,6 +547,10 @@ void b2Body::SetActive(bool flag)
 		b2BroadPhase* broadPhase = &m_world->m_contactManager.m_broadPhase;
 		for (b2Fixture* f = m_fixtureList; f; f = f->m_next)
 		{
+			if (m_world->m_flash20)
+			{
+				m_world->Flash20DestroyProxy(f);
+			}
 			f->DestroyProxies(broadPhase);
 		}
 

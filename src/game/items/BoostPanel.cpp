@@ -64,6 +64,7 @@ bool BoostPanel::init(LevelDataElement* element, b2Body* groupBody, b2Vec2 group
     addToBeginContact(_sensor);
     addToEndContact(_sensor);
     getLevel()->addToFrameActions(this);
+    if (online::browserPhysicsWanted()) getLevel()->addToActions(this);  // ONLINE (PC addition)
     return true;
 }
 
@@ -152,7 +153,7 @@ void BoostPanel::frameAction()
 
     for (b2Body* body : _bodies)
     {
-        if (body->GetType() == b2_dynamicBody)
+        if (body->GetType() == b2_dynamicBody && !online::browserPhysics())  // ONLINE (PC addition): see actions()
         {
             float force = body->GetMass() * _power;
             body->ApplyForceToCenter(b2Vec2(-_sinVal * force, force * _cosVal), true);
@@ -198,6 +199,7 @@ void BoostPanel::bodyWillBeDestroyed(b2Body* body)
 void BoostPanel::prepareForTrigger()
 {
     getLevel()->removeFromFrameActions(this);
+    getLevel()->removeFromActions(this);  // ONLINE (PC addition)
     for (unsigned long i = 0; i < _panels.size(); i++)
     {
         Sprite* panel = _panels[i];
@@ -216,6 +218,7 @@ void BoostPanel::triggerSingleActivation(LevelItem* trigger, int action,
     }
     _triggered = true;
     getLevel()->addToFrameActions(this);
+    if (online::browserPhysicsWanted()) getLevel()->addToActions(this);  // ONLINE (PC addition)
     for (unsigned long i = 0; i < _panels.size(); i++)
     {
         Sprite* panel = _panels[i];
@@ -242,5 +245,19 @@ void BoostPanel::endContact(b2Fixture* fixture, b2Fixture* otherFixture, b2Conta
     if (it != _bodies.end())
     {
         _bodies.erase(it);
+    }
+}
+
+// ONLINE (PC addition): see BoostPanel.h.
+void BoostPanel::actions()
+{
+    if (!online::browserPhysics()) return;
+    for (b2Body* body : online::flashPersistingBodies(_sensor))
+    {
+        if (body->GetType() == b2_dynamicBody)
+        {
+            float force = body->GetMass() * _power;
+            body->ApplyForceToCenter(b2Vec2(-_sinVal * force, force * _cosVal), true);
+        }
     }
 }
