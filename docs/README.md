@@ -1,5 +1,11 @@
 # OpenWheels documentation
 
+## Start here
+
+* [FEATURES.md](FEATURES.md) — the feature tour with screenshots, and the default controls.
+* [BUILDING.md](BUILDING.md) — building from source on every platform, the game files you need,
+  command-line options, and the project layout.
+
 ## Overview and reconstruction
 
 * [RECONSTRUCTION.md](RECONSTRUCTION.md) — the reconstruction handbook: ground rules for
