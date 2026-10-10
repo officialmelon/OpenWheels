@@ -42,6 +42,29 @@ diff --git a/cocos/2d/CCFontAtlas.cpp b/cocos/2d/CCFontAtlas.cpp
          }
  #endif
      }
+diff --git a/cocos/audio/apple/AudioCache.h b/cocos/audio/apple/AudioCache.h
+--- a/cocos/audio/apple/AudioCache.h
++++ b/cocos/audio/apple/AudioCache.h
+@@ -30,6 +30,8 @@
+ 
+ #import <OpenAL/al.h>
+ 
++#include <functional>
++#include <memory>
+ #include <string>
+ #include <mutex>
+ #include <vector>
+diff --git a/cocos/audio/apple/AudioPlayer.h b/cocos/audio/apple/AudioPlayer.h
+--- a/cocos/audio/apple/AudioPlayer.h
++++ b/cocos/audio/apple/AudioPlayer.h
+@@ -32,6 +32,7 @@
+ #include "audio/apple/AudioMacros.h"
+ 
+ #include <condition_variable>
++#include <functional>
+ #include <mutex>
+ #include <string>
+ #include <thread>
 diff --git a/cocos/audio/mac/CDXMacOSXSupport.h b/cocos/audio/mac/CDXMacOSXSupport.h
 --- a/cocos/audio/mac/CDXMacOSXSupport.h
 +++ b/cocos/audio/mac/CDXMacOSXSupport.h
