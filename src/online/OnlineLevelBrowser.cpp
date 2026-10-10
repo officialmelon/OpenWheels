@@ -246,7 +246,9 @@ void OnlineLevelBrowser::buildHeader() {
     const float accountW = BrowserExtras::accountButtonWidth();
     _extras->buildAccountButton(this, Vec2(titleRight + 70.0f + accountW * 0.5f, cy), fieldH);
     const float fieldLeft = titleRight + 70.0f + accountW + 60.0f;
-    const float fieldW = std::max(700.0f, fieldRight - fieldLeft);
+    // A smaller floor than the field would like, so it doesn't slide over the account button on
+    // 4:3 and narrower screens.
+    const float fieldW = std::max(400.0f, fieldRight - fieldLeft);
     _field = ui::SearchField::create(Size(fieldW, fieldH), "Search levels...");
     _field->setPosition(fieldRight - fieldW * 0.5f, cy);
     _field->onChange = [this]() { scheduleSearch(); };
