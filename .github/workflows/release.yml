@@ -295,8 +295,11 @@ jobs:
       - name: Package (.ipa for sideloading)
         run: |
           set -euo pipefail
+          # bin/OpenWheels/Release-iphoneos/ or bin/OpenWheels/Release/, depending on the CMake version
           app="$(find build-ios -name 'OpenWheels.app' -type d -path '*iphoneos*' | head -1)"
-          [ -n "${app}" ] || { echo "::error::OpenWheels.app not found"; exit 1; }
+          [ -n "${app}" ] || app="$(find build-ios -name 'OpenWheels.app' -type d -not -path '*.build/*' -prune | head -1)"
+          [ -n "${app}" ] || { echo "::error::OpenWheels.app not found"; find build-ios -name '*.app' -prune; exit 1; }
+          echo "app: ${app}"
           mkdir -p dist/Payload
           cp -R "${app}" dist/Payload/OpenWheels.app
           cp -R game-data/generated dist/Payload/OpenWheels.app/generated
