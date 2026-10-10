@@ -459,7 +459,7 @@ class Level(_ShapeOwner):
 
     # triggers -------------------------------------------------------------------------------
     def trigger(self, x, y, w, h, targets=(), by=1, kind=1, repeat=1, delay=0, interval=None,
-                disabled=False, rot=0):
+                disabled=False, rot=0, system_id=None):
         """kind 1 activate targets, 3 victory. by: 1 player, 2 any character, 3 any non-fixed
         shape, 4 its targets, 5 other triggers. repeat: 1 once, 2 each touch, 3 while touched,
         4 continuously once triggered.
@@ -467,7 +467,11 @@ class Level(_ShapeOwner):
         special that has none (mine, wrecking ball, fan, boost, homing mine)."""
         pairs = [('x', x), ('y', y), ('w', w), ('h', h), ('a', rot), ('b', by), ('t', kind),
                  ('r', repeat), ('sd', disabled)]
-        if repeat > 2:
+        if system_id is not None:
+            if kind != 10000:
+                raise ValueError('system_id is only valid for system triggers (kind=10000)')
+            pairs.append(('i', system_id))
+        elif repeat > 2:
             pairs.append(('i', interval if interval is not None else 1))
         if kind == 1:
             pairs.append(('d', delay))
@@ -482,6 +486,12 @@ class Level(_ShapeOwner):
                               '<t%s/>' % attrs(pairs),
                               dict(x=x, y=y, w=w, h=h, by=by, kind=kind, targets=list(targets))))
         return Ref('t', len(self.triggers) - 1, self)
+
+    def system_trigger(self, x, y, w, h, control_id, by=1):
+        """Show the game's native tutorial arrow for a control (0..4); id 5 clears it."""
+        if control_id not in (0, 1, 2, 3, 4, 5):
+            raise ValueError('tutorial control id must be 0..5')
+        return self.trigger(x, y, w, h, by=by, kind=10000, system_id=control_id)
 
     def victory(self, x, y, w, h, by=1):
         return self.trigger(x, y, w, h, by=by, kind=3)

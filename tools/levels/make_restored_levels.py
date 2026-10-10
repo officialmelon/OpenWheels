@@ -241,6 +241,14 @@ def lm_01():
     L.ground([(4300, G), (4460, G + 40), (4840, G + 40), (5000, G)], bottom=G + 600, color=GRASS)
     L.box(4400, G + 12, 4900, G + 40, color=WATER, opacity=60, inter=False)
     L.ground([(5000, G), (7600, G)], bottom=G + 600, color=GRASS)
+    # Native gameplay arrows: forward, lean before the hill, and deck lift before the pool.
+    # Every highlight is explicitly cleared so it never stacks or follows the player forever.
+    L.system_trigger(700, G - 130, 90, 300, 0)
+    L.system_trigger(1100, G - 130, 90, 300, 5)
+    L.system_trigger(2450, G - 130, 90, 300, 2)
+    L.system_trigger(2850, G - 130, 90, 300, 5)
+    L.system_trigger(4100, G - 130, 90, 300, 4)
+    L.system_trigger(4260, G - 130, 90, 300, 5)
     L.box(7600, G - 400, 7700, G + 600, color=HEDGE)                # end wall (hedge)
     # Grass tufts along the lawn (the "tall grass" you are here to mow)
     for k in range(18):
@@ -826,6 +834,9 @@ def ex_03():
           color=rgb('f6e7b0'))
     temple_wall(L, 0, 9000, G - 700, G)
     L.box(0, G - 760, 9000, G - 640, color=TEMPLE, outline=TEMPLE_DARK)          # ceiling
+    # Native control arrows: drive into the chamber, then use SPACE before each rail crossing.
+    L.system_trigger(700, G - 130, 90, 300, 0)
+    L.system_trigger(1050, G - 130, 90, 300, 5)
     L.ground([(0, G), (2600, G)], bottom=G + 600, color=TEMPLE)
     for x in (900, 1500):
         L.box(x, G - 640, x + 60, G, color=TEMPLE, inter=False)
@@ -849,6 +860,8 @@ def ex_03():
     rail_span(L, 4580, 5420, G)
     L.text(4300, G - 330, 'Crystal doors and a spike pit.\nAncient engineering was mostly vibes.', size=15,
            color=rgb('f6e7b0'))
+    L.system_trigger(4350, G - 130, 90, 300, 4)
+    L.system_trigger(4700, G - 130, 90, 300, 5)
     # axes: wrecking balls swinging from the ceiling, released by a trigger
     L.ground([(5400, G), (7000, G)], bottom=G + 600, color=TEMPLE)
     axes = [L.wrecking_ball(x, G - 640, rope=500) for x in (5800, 6250, 6700)]
@@ -860,6 +873,8 @@ def ex_03():
     L.box(9000, G - 760, 9060, G - 300, color=TEMPLE)
     L.finish(10300, G - 200)
     L.text(9800, G - 520, 'Idol acquired. Curse acquired.\nNet worth: complicated.', size=16, color=BLACK)
+    L.system_trigger(6850, G - 130, 90, 300, 4)
+    L.system_trigger(7150, G - 130, 90, 300, 5)
     L.box(11000, G - 800, 11100, G + 600, color=STONE_DARK)
     for x in (9900, 10050):
         L.token(x, G - 260, 6)
@@ -1839,6 +1854,13 @@ def he_01():
           'Bring the crate to the red pad to open the hangar.')
     L.ground([(0, G), (7600, G)], bottom=G + 500, color=GRASS)
     L.box(0, G, 7600, G + 6, color=CONCRETE, inter=False)
+    # Native tutorial arrows: lift off, toggle the magnet over the crate, then release over the pad.
+    L.system_trigger(750, G - 130, 90, 300, 0)
+    L.system_trigger(1050, G - 130, 90, 300, 5)
+    L.system_trigger(1450, G - 130, 90, 300, 4)
+    L.system_trigger(1950, G - 130, 90, 300, 5)
+    L.system_trigger(2850, G - 300, 90, 500, 4)
+    L.system_trigger(3550, G - 250, 90, 500, 5)
     helipad(L, 500, G)
     L.box(900, G - 300, 912, G, color=METAL, inter=False)                       # wind sock
     L.tri(950, G - 285, 30, 80, rot=90, color=ORANGE, inter=False)

@@ -179,6 +179,11 @@ unknown.
   elements `<sh i="2"><a i="3" p0="100" p1="2"/></sh>`; older Flash and all mobile levels put a
   single action inline: `<sh i="2" a="3" p0="100" p1="2"/>`.
 
+  **OpenWheels extension:** the converter preserves mobile `t="10000"` system triggers for the
+  restored campaign. Their `i` attribute is an event ID: 0–4 highlight gameplay controls, 5 clears
+  tutorial highlights, and 6–9 are camera events. The original Flash publisher accepts only trigger
+  types 1–3, so do not use this extension in levels intended for upload to Totaljerkface.
+
 ## 6. Converter plan (original plan; implemented, see section 10)
 
 1. **Fetch + decode** with `hwflash.py` (or let the player paste exported level XML, which the
