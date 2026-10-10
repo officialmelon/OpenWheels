@@ -285,14 +285,21 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE="${PWD}/thirdparty/cocos2d-x/cmake/ios.toolchain.cmake" \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DOW_ANDROID_ASSETS="${PWD}/game-data/assets"
+          status=0
           cmake --build build-ios --config Release -- -sdk iphoneos \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | tail -40
-          exit "${PIPESTATUS[0]}"
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" > build-ios.log 2>&1 || status=$?
+          # The xcodebuild log is huge: show the compiler errors (if any) and the summary.
+          grep -E -A8 '(error|fatal error): ' build-ios.log | head -300 || true
+          tail -40 build-ios.log
+          exit "${status}"
       - name: Package (.ipa for sideloading)
         run: |
           set -euo pipefail
+          # bin/OpenWheels/Release-iphoneos/ or bin/OpenWheels/Release/, depending on the CMake version
           app="$(find build-ios -name 'OpenWheels.app' -type d -path '*iphoneos*' | head -1)"
-          [ -n "${app}" ] || { echo "::error::OpenWheels.app not found"; exit 1; }
+          [ -n "${app}" ] || app="$(find build-ios -name 'OpenWheels.app' -type d -not -path '*.build/*' -prune | head -1)"
+          [ -n "${app}" ] || { echo "::error::OpenWheels.app not found"; find build-ios -name '*.app' -prune; exit 1; }
+          echo "app: ${app}"
           mkdir -p dist/Payload
           cp -R "${app}" dist/Payload/OpenWheels.app
           cp -R game-data/generated dist/Payload/OpenWheels.app/generated
