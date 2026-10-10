@@ -15,6 +15,7 @@
 #include "Sound.h"
 #include "TargetRaycast.h"
 #include "online/FlashPhysics.h"  // ONLINE (PC addition)
+#include "online/RenderInterpolation.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -448,6 +449,11 @@ void HomingMine::paint()
     _mc->setPosition(Vec2(center.x * getPtm(), center.y * getPtm()));
     float angle = _mineBody->GetAngle();
     _mc->setRotation(angle * -57.29578f);
+    // ONLINE (PC addition): the frames drawn between browser physics steps only move the mine;
+    // the jets' flicker draws rand() and stays once per step (online/RenderInterpolation.h).
+    if (online::interp::drawing()) {
+        return;
+    }
 
     // Thrust in the mine's frame, with some flicker, drives the four jet sprites.
     float impulseX = _totalImpulseVector.x;

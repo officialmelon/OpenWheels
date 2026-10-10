@@ -18,6 +18,7 @@
 #include "online/FlashRuntime.h"  // ONLINE (PC addition)
 #include "online/replays/ReplayRuntime.h"  // ONLINE (PC addition)
 #include "online/FlashPhysics.h"  // ONLINE (PC addition)
+#include "online/RenderInterpolation.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -520,13 +521,25 @@ bool Session::getIsReplay()
 void Session::update(float dt)
 {
     const float timeStep = s_sessionTimeStep;
+    // ONLINE (PC addition): with the browser physics profile (1/30) every display frame is drawn
+    // between the last two steps (online/RenderInterpolation.h), so the world moves smoothly at
+    // the display's rate while it steps at 30 Hz.
+    const bool interpolate = online::interp::enabled();
     _timeAccumulator += dt;
     if (_timeAccumulator < timeStep)
     {
+        if (interpolate)
+        {
+            onlineDrawInterpolated(_timeAccumulator / timeStep);
+        }
         return;
     }
     _timeAccumulator -= timeStep;
 
+    if (interpolate)
+    {
+        online::interp::beforeStep(_world, this);
+    }
     if (online::flashLevel())
     {
         online::replays::physicsStep();  // ONLINE (PC addition): browser replays, per world step
@@ -555,6 +568,29 @@ void Session::update(float dt)
     _backgroundDrawNode->update();
     _camera->center();
     _soundController->update(_camera->getMidScreen());
+    if (interpolate)
+    {
+        online::interp::afterStep(this);
+        onlineDrawInterpolated(_timeAccumulator / timeStep);
+    }
+}
+
+// ONLINE (PC addition): draw the level between its last two steps (online/RenderInterpolation.h):
+// the bodies, the level's sprites and shape vertices, and the camera; the simulated state is put
+// back before returning.
+void Session::onlineDrawInterpolated(float alpha)
+{
+    online::interp::beginDraw(_world, alpha);
+    if (_level != nullptr)
+    {
+        _level->paint();
+    }
+    _shapesNode->updateVerts();
+    _foregroundShapesNode->updateVerts();
+    _midgroundDrawNode->update();
+    _backgroundDrawNode->update();
+    online::interp::endDraw(_world);
+    online::interp::drawCamera(this, alpha);
 }
 
 // @0060ffb8

@@ -2,13 +2,16 @@
 #include "online/account/TjfTestDriver.h"
 
 #include <cmath>
+#include <cstring>
 #include <cstdlib>
 #include <functional>
 #include <memory>
 #include <vector>
 
 #include "cocos2d.h"
+#include "CharacterB2D.h"
 #include "Gameplay.h"
+#include "LevelB2D.h"
 #include "HWWindow.h"
 #include "Session.h"
 #include "Settings.h"
@@ -239,6 +242,159 @@ uint8_t pattern(int step) {
     return b;
 }
 
+
+// Moves of everything drawn in the running level: a checksum of every sprite position under the
+// Session node, compared display frame to display frame.
+float drawnChecksum(Node* root) {
+    float sum = root->getPositionX() * 0.37f + root->getPositionY() * 0.61f + root->getRotation() * 0.13f;
+    for (Node* c : root->getChildren()) sum += drawnChecksum(c);
+    return sum;
+}
+
+struct DontMove {
+    int levelId = 0;
+    bool completed = false;  // the recorded run reached the finish line
+    bool deadRecording = false, deadWatching = false;
+    int frames = 0, movedFrames = 0;  // display frames, frames whose picture moved
+    float lastChecksum = 0.0f;
+    bool counting = false;
+    std::vector<uint64_t> recorded, watched;  // world state before every step
+    int finishStep = 0;
+};
+DontMove g_dontMove;
+
+bool characterDead() {
+    Session* s = Settings::getInstance()->getCurrentSession();
+    CharacterB2D* c = s && s->getLevel() ? s->getLevel()->getCharacter() : nullptr;
+    return c && c->getDead();
+}
+
+// Every body's position, angle and velocity, bit for bit.
+uint64_t worldState() {
+    Session* s = Settings::getInstance()->getCurrentSession();
+    uint64_t h = 1469598103934665603ull;
+    auto mix = [&h](float f) {
+        uint32_t bits;
+        std::memcpy(&bits, &f, sizeof bits);
+        h = (h ^ bits) * 1099511628211ull;
+    };
+    if (!s || !s->getWorld()) return 0;
+    for (b2Body* b = s->getWorld()->GetBodyList(); b; b = b->GetNext()) {
+        mix(b->GetPosition().x);
+        mix(b->GetPosition().y);
+        mix(b->GetAngle());
+        mix(b->GetLinearVelocity().x);
+        mix(b->GetLinearVelocity().y);
+        mix(b->GetAngularVelocity());
+    }
+    return h;
+}
+
+// The don't-move check (--online-test dont-move): plays a browser level without touching a key,
+// with browser physics on, until its finish line; then watches that run as a replay to its end
+// and checks every step of it matches the run. OW_TJF_TEST_LEVEL_ID picks the level (default
+// 900001), OW_TJF_TEST_BROWSER_PHYSICS=0 runs it on the 1/60 profile instead.
+void dontMoveScenario() {
+    const char* id = std::getenv("OW_TJF_TEST_LEVEL_ID");
+    const char* physics = std::getenv("OW_TJF_TEST_BROWSER_PHYSICS");
+    g_dontMove.levelId = id ? std::atoi(id) : 900001;
+    setBrowserPhysicsOption(!(physics && physics[0] == '0'));
+    say("dont-move: level " + std::to_string(g_dontMove.levelId) + ", browser physics " +
+        (browserPhysicsOption() ? "on" : "off"));
+    // Every display frame: does the picture move? With 60 fps drawing over 30 Hz steps it moves
+    // on every frame while things fall; drawn at the step rate it moves on every other one.
+    Director::getInstance()->getScheduler()->schedule([](float) {
+        if (!g_dontMove.counting) return;
+        Session* s = Settings::getInstance()->getCurrentSession();
+        if (!s) return;
+        const float sum = drawnChecksum(s);
+        if (g_dontMove.frames > 0 && sum != g_dontMove.lastChecksum) g_dontMove.movedFrames++;
+        g_dontMove.lastChecksum = sum;
+        g_dontMove.frames++;
+    }, &g_dontMove, 0.0f, false, "dont_move_frames");
+
+    add("level info", []() {
+        static bool asked = false;
+        if (!asked) {
+            asked = true;
+            HWApi::getInstance()->getLevelInfo(g_dontMove.levelId, [](bool ok, const std::string& e, const OnlineLevelInfo& l) {
+                if (ok) g_driver->runLevel = l;
+                else say("level info failed: " + e);
+            });
+        }
+        return g_driver->runLevel.id != 0;
+    }, 30.0f);
+    doit("play without input", []() {
+        replays::setTestInput([](int) { return (uint8_t)0; });
+        replays::setTestStepObserver(replays::kObserveEveryStep, [](int mode) {
+            (mode == 1 ? g_dontMove.recorded : g_dontMove.watched).push_back(worldState());
+            bool& dead = mode == 1 ? g_dontMove.deadRecording : g_dontMove.deadWatching;
+            dead = dead || characterDead();
+        });
+        OnlineLevelBrowser::levelStarting(0);
+        playOnlineLevel(g_driver->runLevel, false, nullptr);
+    });
+    add("playing", []() { return inGameplay(); }, 30.0f);
+    doit("count frames", []() { g_dontMove.counting = true; });
+    wait(1.0f);
+    shot("dm_01_playing");
+    add("finish line", []() {
+        for (replays::RunRecord* run : replays::recentRuns(g_dontMove.levelId)) {
+            if (run->completed) {
+                g_dontMove.completed = true;
+                g_dontMove.finishStep = run->completeStep;
+                return true;
+            }
+        }
+        return false;
+    }, 60.0f);
+    doit("frame report", []() {
+        g_dontMove.counting = false;
+        say("finished at step " + std::to_string(g_dontMove.finishStep) + " (" +
+            std::to_string(g_dontMove.finishStep / (float)stepsPerFlashFrame() / 30.0f) + " s); " +
+            std::to_string(g_dontMove.frames) + " frames drawn, " + std::to_string(g_dontMove.movedFrames) +
+            " of them moved");
+    });
+    wait(1.0f);
+    shot("dm_02_finished");
+    doit("exit level", []() {
+        replays::setTestInput(nullptr);
+        say(std::string("run: the character ") + (g_dontMove.deadRecording ? "DIED" : "survived"));
+        if (g_dontMove.deadRecording) g_driver->failures++;
+        int a = 1;
+        Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("gameplayMenuAction", &a);
+    });
+    add("level closed", []() { return !inGameplay(); }, 30.0f);
+    wait(1.0f);
+    doit("open its replays", []() { replays::ReplayPanel::show(g_driver->runLevel); });
+    waitModal(true);
+    wait(1.5f);
+    shot("dm_03_replays");
+    doit("watch own run", []() { key(EventKeyboard::KeyCode::KEY_ENTER); });
+    add("watching own run", []() { return inGameplay(); }, 30.0f);
+    add("replay at the finish step", []() { return (int)g_dontMove.watched.size() > g_dontMove.finishStep; }, 60.0f);
+    wait(1.5f);
+    shot("dm_04_replay_end");
+    doit("compare", []() {
+        const size_t n = std::min<size_t>(g_dontMove.finishStep + 1, g_dontMove.recorded.size());
+        size_t firstDifference = n;
+        for (size_t i = 0; i < n && firstDifference == n; ++i)
+            if (i >= g_dontMove.watched.size() || g_dontMove.watched[i] != g_dontMove.recorded[i]) firstDifference = i;
+        if (firstDifference == n) {
+            say("replay matches the run at all " + std::to_string(n) + " steps (exact)");
+        } else {
+            say("replay DIFFERS from the run from step " + std::to_string(firstDifference));
+            g_driver->failures++;
+        }
+        say(std::string("replay: the character ") + (g_dontMove.deadWatching ? "DIED" : "survived"));
+        if (g_dontMove.deadWatching) g_driver->failures++;
+        replays::setTestStepObserver(-1, nullptr);
+        int a = 1;
+        Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("gameplayMenuAction", &a);
+    });
+    add("replay closed", []() { return !inGameplay(); }, 30.0f);
+}
+
 }  // namespace
 
 void runTjfTestScenario(const std::string& scenario) {
@@ -289,6 +445,14 @@ void runTjfTestScenario(const std::string& scenario) {
     if (!localBase()) {
         say("refusing to run: OW_TJF_BASE must point at the local mock (http://127.0.0.1:<port>/)");
         Director::getInstance()->end();
+        return;
+    }
+    if (scenario == "dont-move") {
+        const char* out = std::getenv("OW_TJF_TEST_OUT");
+        g_driver = new Driver();
+        g_driver->out = out ? std::string(out) + "/" : FileUtils::getInstance()->getWritablePath();
+        dontMoveScenario();
+        Director::getInstance()->getScheduler()->schedule([](float dt) { tick(dt); }, g_driver, 0.1f, false, "tjf_test");
         return;
     }
     const char* email = std::getenv("OW_TJF_TEST_EMAIL");

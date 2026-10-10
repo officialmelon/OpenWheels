@@ -12,10 +12,12 @@
 #include "LevelItem.h"
 #include "Session.h"
 #include "online/FlashRuntime.h"
+#include "online/RenderInterpolation.h"
 
 // Box2D 2.3.1's switch for the 2-point block solver (b2ContactSolver.cpp, not in its headers).
-// Every v3-deps-158 prebuilt (win32, linux, mac, ios, android) exports it.
 extern bool g_blockSolve;
+// OpenWheels' Box2D (thirdparty/box2d): the browser game's Box2D 2.0 solver rules (b2Settings.h).
+extern bool g_flash20Solver;
 
 namespace online {
 namespace {
@@ -45,7 +47,7 @@ void settle(Session* session, float timeStep)
 
 bool browserPhysicsOption()
 {
-    return cocos2d::UserDefault::getInstance()->getBoolForKey(kOptionKey, false);
+    return cocos2d::UserDefault::getInstance()->getBoolForKey(kOptionKey, true);
 }
 
 void setBrowserPhysicsOption(bool on)
@@ -99,6 +101,7 @@ float perStep(float per60HzStepValue)
 
 void resetLevelTimeStep(Session* session)
 {
+    interp::reset();
     if (!g_active) return;
     g_active = false;
     settle(session, kMobileTimeStep);
@@ -119,7 +122,9 @@ void flashWorldStep(b2World* world, float timeStep)
     }
     const bool blockSolve = g_blockSolve;
     g_blockSolve = false;
+    g_flash20Solver = true;
     world->Step(timeStep, kFlashIterations, kFlashIterations);
+    g_flash20Solver = false;
     g_blockSolve = blockSolve;
 }
 

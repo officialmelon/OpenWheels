@@ -13,8 +13,10 @@
 // Recorded clicks / roll-outs of click triggers (Trigger::onlineMouseClick / onlineMouseMove) go
 // into the Flash mouse entries.
 //
-// Browser replays are input-only, and OpenWheels' Box2D 2.3 physics are not the browser's
-// Box2D 2.0 at 30 Hz, so playback is a re-simulation: labelled "approximate" in game.
+// Browser replays are input-only, so playback is a re-simulation. With browser physics on
+// (online/FlashPhysics.h: 30 Hz steps, Box2D 2.0 solver rules) it follows the browser game
+// closely but not bit for bit (float vs the Flash game's doubles, the reconstructed game logic);
+// with it off, it is labelled approximate.
 
 #include <functional>
 #include <string>
@@ -68,7 +70,8 @@ bool watch(const OnlineLevelInfo& level, const ReplayInfo& replay, const ReplayI
 // Record mode: the control byte for world step `step` instead of the player's.
 void setTestInput(std::function<uint8_t(int step)> input);
 // Called once when `step` world steps are done in a recorded or watched session (mode: 1 record,
-// 2 watch).
+// 2 watch); with kObserveEveryStep, before every world step.
+constexpr int kObserveEveryStep = -2;
 void setTestStepObserver(int step, std::function<void(int mode)> observer);
 
 // Browser character id -> the character this build plays it with (restored or fallback).

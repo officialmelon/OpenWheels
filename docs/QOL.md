@@ -22,7 +22,7 @@ The page has two columns, "visuals" and "game", a "keyboard controls" page (desk
 | music | 0-100 % | Slider. Scales the menu music on top of the master volume; "intro music: off" still turns it off. |
 | unlock all levels | off / on | Every campaign level is selectable. |
 | any character | on / off | User and online (browser) levels that force a character still offer CHANGE CHARACTER (pause and victory menus, and CHANGE in the online browser); the picked character replaces the forced one until another level is selected (`qol/CharacterChoice.h`). On by default: these levels are not the original campaign, whose forced levels (and ghost races) always keep their character. |
-| browser physics (online levels) | on / off | Browser (converted Flash) levels step their world once per 30 Hz Flash frame (1/30 s, 10 + 10 iterations, no block solver), as the browser game did; off plays them on the mobile profile (1/60 s, 8 + 3), as in OpenWheels 0.2. Campaign levels always step at 1/60. Off by default, and only for online levels (restored campaign and editor levels never use it); a change applies from the next level. See "Browser physics" below and `docs/FLASH_LEVELS.md` 10.8. |
+| browser physics (online levels) | on / off | Browser (converted Flash) levels step their world once per 30 Hz Flash frame (1/30 s, 10 + 10 iterations) with the browser game's Box2D 2.0 solver rules, and are drawn smoothly between steps at the display's frame rate; off plays them on the mobile profile (1/60 s, 8 + 3, Box2D 2.3), as in OpenWheels 0.2. Campaign levels always step at 1/60. On by default, and only for online levels (restored campaign and editor levels never use it); a change applies from the next level. See "Browser physics" below and `docs/FLASH_LEVELS.md` 10.8 / 10.9. |
 | child gore | on / off | Gore for Irresponsible Dad's kid (and Irresponsible Mom's kids, `docs/RESTORED.md`). Shows "no art" when the gore sheet was not generated. Also respects the global gore setting. |
 | re-grab vehicle | on / off | An ejected rider who grabs his own vehicle gets back on and rides again (below). On by default; off is the original (a grabbed vehicle is just held). |
 | fullscreen | off / on | Desktop only (also F11 by default). |
@@ -80,6 +80,11 @@ scheduler tick steps the world, so in browser levels `Gameplay::update` runs the
 timer only on ticks that will step (`Session::onlineWillStep`): one control byte and one timer
 increment per world step, as at 1/60. The 30 FPS option still works: its two 1/60 s ticks per
 frame take one 1/30 s step between them.
+
+The solver switch (`g_flash20Solver`, `thirdparty/box2d/README.md`) is set only around the world
+step of a browser level with the profile. Drawing is interpolated between the last two steps
+(`online/RenderInterpolation.*`, called from `Session::update`), so the picture moves on every
+display frame while the simulation stays at 30 Hz.
 
 ### Keyboard controls page
 
