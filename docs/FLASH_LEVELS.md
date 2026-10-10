@@ -463,7 +463,7 @@ black fill) showed black shapes or nothing at all.
 
 ### 10.8 Browser physics profile: one world step per Flash frame (2026-10-08)
 
-With the QOL option "browser physics (online levels)" (default off, online levels only, `src/online/FlashPhysics.*`)
+With the QOL option "browser physics (online levels)" (default on since 10.9, online levels only, `src/online/FlashPhysics.*`)
 a browser level steps its world once per 30 Hz Flash frame: `Session` time step 1/30
 (`LevelItem::s_timeStep` 1/30, `s_timeStepOverFlashTimeStep` 1, `s_timeStepInverse` 30),
 10 + 10 iterations, no block solver. Off, or in any campaign level, everything steps at 1/60 as
@@ -502,8 +502,35 @@ actions, text boxes, spring box, homing mine, character bleeding, ligaments), le
 acceleration steps (`Vehicle::_accelStep`, RoadBike, Moped, Wheelchair...) and Irresponsible
 Mom's bike (built as RoadBike) stay per step: the mobile port kept the Flash per-frame values
 (RoadBike = Flash BicycleGuy's accelStep 1), so one per 1/30 step is the browser game's rate.
-Bodies are drawn when the world steps, so with the profile they move at 30 Hz on screen
-(no interpolation), as in the browser game.
+Bodies were drawn when the world stepped, so with the profile they moved at 30 Hz on screen;
+10.9 draws every display frame in between.
+
+### 10.9 Box2D 2.0 solver and smooth drawing (2026-10-10)
+
+**Solver.** Box2D is now built from source (`thirdparty/box2d`, the exact source of the engine's
+prebuilt) and, while a browser level's world steps with the profile, switched to Box2DFlash
+2.0.2's rules (`g_flash20Solver`): velocity clamps, damping, sleep, contact order, the per-point
+contact solver and its position correction, revolute and prismatic joints. The list, and what
+stays 2.3, is in `thirdparty/box2d/README.md`. Off the profile nothing changes (bit-identical to
+upstream source). The reference was Box2DFlash 2.0.2's source; the live site and
+archive.org could not be reached from the environment that made this change to diff against the
+browser game's own SWF.
+
+**Smooth drawing** (`online/RenderInterpolation.*`). The world still steps at 30 Hz, but every
+display frame paints the level with each body at its pose interpolated between the last two steps
+(alpha = time accumulated / step) and the camera (the Session node position) likewise; the
+simulated state is put back bit for bit before anything else runs, so the drawing is one step
+(1/30 s) behind and nothing the simulation sees changes. Bodies created, destroyed or moved further
+than their velocity explains (a respawn, a teleport) are drawn where they are. `paint()` code with
+side effects (homing mine flicker, token animation) skips them on these extra paints.
+
+**Checks** (`--online-test dont-move` against `tools/online/mock_tjf.py` with the level from
+`tools/online/make_dont_move_sample.py`: a ball rolls into dominoes, the last one falls into the
+victory zone; the Wheelchair Guy between two mines must not move): the level finishes at step 327
+(10.90 s), the character survives, and watching the run as a replay reaches the finish with every
+one of its 328 world states equal bit for bit to the run's. Drawn frames that moved: 670 of 676
+with smooth drawing, 327 of 683 without (one per step). The same level on the 1/60 profile:
+finishes at step 656, replay exact.
 
 
 ### Replay check (2026-10-08)
@@ -512,7 +539,8 @@ The fastest replay of POKEMON TRAINING (562820, Chrepuhon, 34.13 s), watched to 
 `OW_TJF_WATCH_SECONDS=48 OpenWheels --online-test live-replays`: on the mobile profile (1/60, 8 + 3,
 block solver) the rider dies at 7.4 s in the first Thunderbolt battle; with browser physics the run
 survives every battle to the end of its keys (still not counted as finished, so replays remain
-approximate: the remaining Box2D 2.0 / 2.3 differences are internal to the prebuilt solver).
+approximate; 10.9 then moved the solver itself to the Box2D 2.0 rules, which this check has not
+been re-run against: the live site is not reachable from the environment that made 10.9).
 
 ## 11. Replays, the player's account and publishing (2026-10-04)
 

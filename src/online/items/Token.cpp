@@ -2,6 +2,7 @@
 // the token HUD of com.totaljerkface.game.level.UserLevel.
 #include "online/items/Token.h"
 #include "online/FlashRuntime.h"
+#include "online/RenderInterpolation.h"
 
 #include <cmath>
 
@@ -188,6 +189,9 @@ void Token::singleAction()
 
 void Token::paint()
 {
+    // The spin animation advances once per world step, not on the frames drawn between browser
+    // physics steps (online/RenderInterpolation.h).
+    if (online::interp::drawing()) return;
     const int frames = _clock.advance(getTimeStepOverFlashTimeStep());
     if (frames == 0) return;
     _frame = (_frame + frames) % 16;

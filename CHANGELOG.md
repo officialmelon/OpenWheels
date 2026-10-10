@@ -21,6 +21,12 @@
 - **User vehicles on touch screens:** riding a browser user vehicle shows SHIFT / CTRL buttons for
   its assigned actions and an eject button, which only existed as PC keys.
 
+- **Browser physics, closer to the browser game and smooth.** Online levels now use the browser
+  game's Box2D 2.0 solver rules (contacts, joints, damping, speed limits, sleep) on top of its
+  30 Hz step, and are drawn smoothly at your display's frame rate instead of moving at 30 fps.
+  Replays of your own runs play back exactly. On by default (QOL "browser physics"); campaign
+  levels are unchanged. Box2D is now built from source (`thirdparty/box2d`).
+
 ### Fixed
 - **Jets on user vehicles (jetpack levels) didn't fire** when the vehicle had come to rest: a
   sleeping jet ignored its key. The jet key now wakes them.

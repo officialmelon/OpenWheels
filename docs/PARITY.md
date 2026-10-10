@@ -62,6 +62,11 @@ frames with the clang-built TUs.
 * Note: MSVC/x86 also evaluates some float-returning inline helpers on x87 in *our* code
   (out-of-line copies of `b2Dot`/`b2Cross`, ~280 x87 arithmetic instructions across 83 game
   functions, see recommendation below). Only a compiler change removes those systematically.
+* Since 2026-10-10 Box2D is no longer the prebuilt `libbox2d.lib` but built from the same source
+  (`thirdparty/box2d`, MSVC with its default SSE2 code generation, no contraction), so Box2D's own
+  internals round every float op as on arm64; the x87 return convention of the 32-bit ABI is
+  unchanged, so `owb2::jointAngle` / `jointSpeed` stay. The Win32 frame-by-frame comparison above
+  was made with the prebuilt and has not been re-run with the source build.
 
 ### Separate verification build tree (`build_parity/`)
 * Made while the editor port was still in progress in the shared `build/` tree.

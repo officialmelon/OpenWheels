@@ -6,13 +6,17 @@
 // that resolves every contact point on its own (Box2D 2.0 had no 2-point block solver). The
 // mobile game (Box2D 2.3) steps at 1/60 with 8 + 3 iterations and the block solver. Stacks,
 // balances, "don't move" levels, joint stiffness and every browser replay (one input byte per
-// 30 Hz frame) depend on that difference, so with "browser physics" on (QOL page, default off)
+// 30 Hz frame) depend on that difference, so with "browser physics" on (QOL page, default on)
 // a converted browser level runs:
 //   * one world step per Flash frame: the Session's time step is 1/30 (Session::setTimeStep, the
 //     original game's own variable-step mechanism: characters rescale their joint limits, items
 //     their impulses through LevelItem::s_timeStepOverFlashTimeStep);
 //   * 10 / 10 iterations and g_blockSolve off during the step;
-//   * the Box2D 2.0 contact rules of FlashRuntime (no polygon skin, no bounding-box wakes).
+//   * Box2D's solver switched to the browser game's Box2D 2.0 rules (g_flash20Solver,
+//     thirdparty/box2d/README.md): velocity clamps, damping, sleep, contact and joint solvers;
+//   * the Box2D 2.0 contact rules of FlashRuntime (no polygon skin, no bounding-box wakes);
+//   * smooth drawing: every display frame is drawn between the last two 30 Hz steps
+//     (online/RenderInterpolation.h), so it looks like 60 fps or more without changing a step.
 // Campaign and other mobile levels never see any of it. With the option off, browser levels play
 // on the mobile profile (1/60, 8 + 3), as in OpenWheels 0.2.
 
@@ -24,7 +28,7 @@ class Session;
 
 namespace online {
 
-// The QOL option (persisted; default off).
+// The QOL option (persisted; default on).
 bool browserPhysicsOption();
 void setBrowserPhysicsOption(bool on);
 
