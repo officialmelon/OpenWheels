@@ -212,9 +212,46 @@ jobs:
           ./gradlew --no-daemon assembleRelease \
             -POW_GAME_ASSETS="${GITHUB_WORKSPACE}/game-data/assets" \
             -POW_PREBUILT_DATA="${GITHUB_WORKSPACE}/game-data" \
-            -POW_GAME_RES="${GITHUB_WORKSPACE}/none"
+            -POW_GAME_RES="${GITHUB_WORKSPACE}/none" \
+            -POW_BETA_BUILD=true \
+            -POW_BETA_VERSION="${{ inputs.tag || github.ref_name }}"
           mkdir -p "${GITHUB_WORKSPACE}/dist"
           cp app/build/outputs/apk/release/OpenWheels-release.apk "${GITHUB_WORKSPACE}/dist/"
+      - name: Verify restored campaign is packaged
+        run: |
+          python3 - <<'PY'
+          import plistlib
+          import sys
+          import zipfile
+
+          apk = "dist/OpenWheels-release.apk"
+          required = {
+              "assets/levels/restored/chapters.plist",
+              "assets/levels/restored/06_lawnmower_man/01_lawn_and_order.xml",
+              "assets/levels/restored/07_explorer_guy/03_idol_hands.xml",
+              "assets/levels/restored/11_helicopter_man/01_lift_off.xml",
+              "assets/generated/restored/shared/Characters_restored.plist",
+          }
+          with zipfile.ZipFile(apk) as archive:
+              names = set(archive.namelist())
+              missing = sorted(required - names)
+              levels = [name for name in names
+                        if name.startswith("assets/levels/restored/")
+                        and name.endswith(".xml")]
+              if missing:
+                  sys.exit("APK is missing required restored-campaign files: " + ", ".join(missing))
+              if len(levels) != 30:
+                  sys.exit(f"Expected 30 restored campaign XMLs, found {len(levels)}")
+              characters = plistlib.loads(
+                  archive.read("assets/generated/restored/shared/Characters_restored.plist")
+              )
+              ids = {entry.get("id") for entry in characters if isinstance(entry, dict)}
+              missing_ids = sorted({6, 7, 8, 10, 11} - ids)
+              if missing_ids:
+                  sys.exit("APK is missing restored character data for IDs: "
+                           + ", ".join(map(str, missing_ids)))
+          print("Verified: 30 restored campaign levels, all five restored characters, and the three pilot levels.")
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: OpenWheels-android
