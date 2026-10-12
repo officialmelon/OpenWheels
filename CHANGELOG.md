@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.4.0
 
 ### New
 - **Game controllers on every platform.** Windows and Linux (Xbox and PlayStation pads, any pad
@@ -20,12 +20,24 @@
   controller is connected.
 - **User vehicles on touch screens:** riding a browser user vehicle shows SHIFT / CTRL buttons for
   its assigned actions and an eject button, which only existed as PC keys.
-
 - **Browser physics, closer to the browser game and smooth.** Online levels now use the browser
-  game's Box2D 2.0 solver rules (contacts, joints, damping, speed limits, sleep) on top of its
-  30 Hz step, and are drawn smoothly at your display's frame rate instead of moving at 30 fps.
-  Replays of your own runs play back exactly. On by default (QOL "browser physics"); campaign
-  levels are unchanged. Box2D is now built from source (`thirdparty/box2d`).
+  game's Box2D 2.0 rules: its solver (contacts, joints, damping, speed limits, sleep), its
+  sweep-and-prune broad-phase, continuous collision and contact points, on top of its 30 Hz step.
+  Characters and vehicles use the browser's exact shapes, level shapes are built in its order, and
+  fans, boost panels, harpoon guns, explosions and NPC break limits behave as in Flash. Checked step
+  by step against the HTML5 client on real replays. Levels are drawn smoothly at your display's
+  frame rate instead of moving at 30 fps, and replays of your own runs play back exactly. On by
+  default for online levels (QOL "browser physics"); campaign, restored and editor levels keep the
+  mobile physics. Box2D is now built from source (`thirdparty/box2d`).
+- **Tutorial arrows in the restored campaigns.** Lawn and Order, Idol Hands and Lift Off show the
+  game's own control arrows to teach each restored character's controls; browser-format levels
+  keep their system triggers when converted.
+- **Main menu fits small screens.** The button row shrinks, scales or wraps to two lines on 4:3,
+  16:10 and narrow windows instead of running off the edge, and the logo shrinks on very narrow
+  windows. A credit line under the logo and an OpenWheels section in the credits.
+- **macOS and iOS packages with every release.** `OpenWheels-macos.zip` (Intel, runs on Apple
+  Silicon through Rosetta) and `OpenWheels-ios-unsigned.ipa` for sideloading, built by the release
+  workflow alongside Windows, Android and Linux.
 
 ### Fixed
 - **Jets on user vehicles (jetpack levels) didn't fire** when the vehicle had come to rest: a
@@ -38,6 +50,18 @@
   handle's collision box at the weapon's centre instead of under the drawn handle, so the blade
   hit but the handle had nothing to hold. On browser levels, user levels and the editor's test
   play it now sits where it is drawn (the campaign keeps the original's box).
+- **Browser physics only on online levels:** restored campaign and editor levels no longer run at
+  the browser step.
+- The "select a character" chapter is now the last chapter in level select.
+- **Lawn and Order:** a seam in the lawn terrain is closed.
+- **Online browser:** the search field no longer covers the account button on 4:3 screens.
+- **Controls page:** the table and hint fit narrow windows.
+- A rare crash when closing the level editor's inspector.
+- **Android:** the APK is signed with the OpenWheels release key again, so it installs over
+  v0.3.0. Test builds from the workflow install alongside it as "OpenWheels beta"
+  (`org.openwheels.game.beta`).
+- Builds: macOS (Xcode 16 SDK), iOS (CMake 4, Xcode 15+) and Windows (MSVC) release builds compile
+  again.
 
 ## v0.3.0
 
@@ -60,13 +84,11 @@
 - **Browser physics for online levels.** Browser levels step like the Flash game: one 1/30 s step
   per frame, its iterations and contact solver (no block solver). Balances, stacks, "don't move"
   levels and joint stiffness behave as in the browser, and browser replays are re-simulated one
-  input per step (QOL "browser physics", off by default, online levels only).
+  input per step (QOL "browser physics", on by default).
 - **Online levels:** change character on levels that force one (QOL "any character"), NEXT plays
   the next level of the browser list, and leaving a level returns to the browser or Your Levels.
 
 ### Fixed
-- **Browser physics only for online levels.** Restored campaign and editor levels no longer run at the
-  browser step, and the option is off by default. The "select a character" chapter is now last.
 - **Missing scenery everywhere:** every static polygon and art shape (trees, roots, cliffs,
   windows, walls...) was drawn far off-screen. The swamp level alone lost 262 shapes.
 - **Neon / outline levels showed black:** shape outlines are drawn, outline-only shapes are kept,

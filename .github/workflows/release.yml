@@ -3,8 +3,8 @@
 #   Windows (Win32)    OpenWheels-windows.zip              required
 #   Android            OpenWheels-release.apk              required
 #   Linux (x86_64)     OpenWheels-linux-x86_64.tar.gz      required
-#   macOS (x86_64)     OpenWheels-macos.zip                best effort (unsigned)
-#   iOS                OpenWheels-ios-unsigned.ipa         best effort (unsigned, sideload)
+#   macOS (x86_64)     OpenWheels-macos.zip                best effort (ad-hoc / Developer ID signed)
+#   iOS                OpenWheels-ios[-unsigned].ipa       best effort (unsigned for sideloading unless signed)
 #
 # Game files: the repository never contains Happy Wheels assets. The packages are built with the
 # game data of a previous OpenWheels release (its Windows zip: assets/, generated/, ios/ and the
@@ -16,9 +16,10 @@
 #   * Actions -> Release -> Run workflow: builds everything; with a tag it also creates the
 #     release (as a draft unless "draft" is unticked), without one it only keeps the artifacts.
 #
-# Android signing: set the secrets ANDROID_KEYSTORE_BASE64 (base64 of the .jks / .keystore),
-# ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD to sign with your release
-# key (so the APK installs over earlier releases); without them the APK is debug-signed.
+# Signing (docs/RELEASING.md): the ANDROID_KEYSTORE_* secrets sign the APK with the release key so
+# it installs over earlier releases; a published release requires them, other runs build a
+# debug-signed beta. Optional MACOS_*, IOS_* and WINDOWS_CERT_* secrets sign the other packages;
+# without them macOS is ad-hoc signed and the iOS .ipa and Windows .exe are unsigned.
 
 name: Release
 
@@ -49,6 +50,8 @@ concurrency:
 
 env:
   ENGINE_CACHE_VERSION: 1
+  # SHA-256 of the certificate every OpenWheels release APK has been signed with (CN=OpenWheels).
+  OW_ANDROID_CERT_SHA256: 380d7580d468bfab2ff71ce47c3cd88d6dd064e8631ee87d7b77139f85ae0605
 
 jobs:
   game-data:
@@ -145,6 +148,24 @@ jobs:
       - name: Build
         shell: pwsh
         run: powershell -ExecutionPolicy Bypass -File tools\build.ps1 -Config Release
+      - name: Sign
+        shell: pwsh
+        env:
+          CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          if (-not $env:CERT_PFX_BASE64) {
+            Write-Output 'no WINDOWS_CERT_PFX_BASE64 secret - OpenWheels.exe is not Authenticode-signed'
+            exit 0
+          }
+          $pfx = Join-Path $env:RUNNER_TEMP 'cert.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERT_PFX_BASE64))
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object FullName | Select-Object -Last 1
+          & $signtool.FullName sign /f $pfx /p $env:CERT_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 `
+            build\bin\OpenWheels\Release\OpenWheels.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Remove-Item $pfx
       - uses: actions/download-artifact@v4
         with:
           name: game-data
@@ -162,6 +183,8 @@ jobs:
   android:
     name: Android
     needs: game-data
+    outputs:
+      beta: ${{ steps.signing.outputs.beta }}
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     steps:
@@ -186,14 +209,25 @@ jobs:
           name: game-data
           path: game-data
       - name: Release signing key
+        id: signing
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+          PUBLISH: ${{ github.event_name == 'push' || (inputs.tag != '' && !inputs.draft) }}
         run: |
+          # With the release key: the real app (org.openwheels.game), which installs over earlier
+          # releases. Without it: a debug-signed beta (org.openwheels.game.beta) that installs
+          # alongside them; a published release refuses to ship that.
           if [ -z "${KEYSTORE_BASE64}" ]; then
-            echo "::warning::no ANDROID_KEYSTORE_BASE64 secret - the APK is signed with a debug key and won't install over earlier releases"
+            if [ "${PUBLISH}" = "true" ]; then
+              echo "::error::no ANDROID_KEYSTORE_BASE64 secret - a published release must be signed with the release key (see docs/RELEASING.md)"
+              exit 1
+            fi
+            echo "::warning::no ANDROID_KEYSTORE_BASE64 secret - building a debug-signed beta APK (org.openwheels.game.beta)"
+            echo "beta=true" >> "${GITHUB_OUTPUT}"
             exit 0
           fi
           mkdir -p "${RUNNER_TEMP}/signing"
@@ -205,6 +239,8 @@ jobs:
             echo "keyPassword=${KEY_PASSWORD}"
           } > "${RUNNER_TEMP}/signing/keystore.properties"
           echo "OW_KEYSTORE_PROPERTIES=${RUNNER_TEMP}/signing/keystore.properties" >> "${GITHUB_ENV}"
+          # Artifact-only runs (no tag) stay betas so test builds don't replace the installed game.
+          if [ -n "${TAG}" ]; then echo "beta=false" >> "${GITHUB_OUTPUT}"; else echo "beta=true" >> "${GITHUB_OUTPUT}"; fi
       - name: Build
         working-directory: android
         run: |
@@ -213,7 +249,7 @@ jobs:
             -POW_GAME_ASSETS="${GITHUB_WORKSPACE}/game-data/assets" \
             -POW_PREBUILT_DATA="${GITHUB_WORKSPACE}/game-data" \
             -POW_GAME_RES="${GITHUB_WORKSPACE}/none" \
-            -POW_BETA_BUILD=true \
+            -POW_BETA_BUILD="${{ steps.signing.outputs.beta }}" \
             -POW_BETA_VERSION="${{ inputs.tag || github.ref_name }}"
           mkdir -p "${GITHUB_WORKSPACE}/dist"
           cp app/build/outputs/apk/release/OpenWheels-release.apk "${GITHUB_WORKSPACE}/dist/"
@@ -252,6 +288,17 @@ jobs:
                            + ", ".join(map(str, missing_ids)))
           print("Verified: 30 restored campaign levels, all five restored characters, and the three pilot levels.")
           PY
+      - name: Check the APK's signing certificate
+        env:
+          BETA: ${{ steps.signing.outputs.beta }}
+        run: |
+          set -euo pipefail
+          certs="$("${ANDROID_HOME}/build-tools/35.0.0/apksigner" verify --print-certs dist/OpenWheels-release.apk)"
+          echo "${certs}"
+          if [ "${BETA}" != "true" ] && ! grep -qi "SHA-256 digest: ${OW_ANDROID_CERT_SHA256}" <<< "${certs}"; then
+            echo "::error::the APK is not signed with the OpenWheels release key (SHA-256 ${OW_ANDROID_CERT_SHA256}): it would not install over earlier releases"
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: OpenWheels-android
@@ -291,7 +338,54 @@ jobs:
           [ -d game-data/ios ] && cp -R game-data/ios dist/OpenWheels.app/Contents/MacOS/ios
           cp game-data/*.tsv dist/OpenWheels.app/Contents/MacOS/ 2>/dev/null || true
           cp LICENSE NOTICE.md dist/
-          (cd dist && ditto -c -k --keepParent OpenWheels.app OpenWheels-macos.zip)
+      - name: Sign
+        env:
+          CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          NOTARY_APPLE_ID: ${{ secrets.MACOS_NOTARY_APPLE_ID }}
+          NOTARY_PASSWORD: ${{ secrets.MACOS_NOTARY_PASSWORD }}
+          NOTARY_TEAM_ID: ${{ secrets.MACOS_NOTARY_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          cd dist
+          if [ -n "${CERT_P12_BASE64}" ]; then
+            # Developer ID: sign with the hardened runtime, then notarize and staple.
+            kc="${RUNNER_TEMP}/ow.keychain-db"
+            kcpw="$(uuidgen)"
+            security create-keychain -p "${kcpw}" "${kc}"
+            security set-keychain-settings -lut 21600 "${kc}"
+            security unlock-keychain -p "${kcpw}" "${kc}"
+            echo "${CERT_P12_BASE64}" | base64 --decode > "${RUNNER_TEMP}/cert.p12"
+            security import "${RUNNER_TEMP}/cert.p12" -k "${kc}" -P "${CERT_PASSWORD}" -T /usr/bin/codesign
+            security set-key-partition-list -S apple-tool:,apple: -s -k "${kcpw}" "${kc}" > /dev/null
+            # shellcheck disable=SC2046 # one argument per existing keychain
+            security list-keychains -d user -s "${kc}" $(security list-keychains -d user | tr -d '"')
+            identity="$(security find-identity -v -p codesigning "${kc}" | awk -F'"' '/Developer ID Application/ {print $2; exit}')"
+            [ -n "${identity}" ] || { echo "::error::no Developer ID Application identity in MACOS_CERT_P12_BASE64"; exit 1; }
+            codesign --force --deep --options runtime --timestamp -s "${identity}" OpenWheels.app
+            codesign --verify --deep --strict --verbose=2 OpenWheels.app
+            if [ -n "${NOTARY_APPLE_ID}" ]; then
+              ditto -c -k --keepParent OpenWheels.app notarize.zip
+              xcrun notarytool submit notarize.zip --apple-id "${NOTARY_APPLE_ID}" \
+                --password "${NOTARY_PASSWORD}" --team-id "${NOTARY_TEAM_ID}" --wait
+              xcrun stapler staple OpenWheels.app
+              rm notarize.zip
+            else
+              echo "::warning::signed with Developer ID but not notarized (no MACOS_NOTARY_APPLE_ID secret)"
+            fi
+          else
+            # No Apple Developer ID: ad-hoc signature. Signed on a copy so that a bundle codesign
+            # can't seal is shipped unsigned rather than with a broken signature.
+            cp -R OpenWheels.app adhoc.app
+            if codesign --force --deep -s - adhoc.app && codesign --verify --deep --strict adhoc.app; then
+              rm -rf OpenWheels.app && mv adhoc.app OpenWheels.app
+              echo "ad-hoc signed"
+            else
+              rm -rf adhoc.app
+              echo "::warning::ad-hoc signing failed - the app is shipped unsigned"
+            fi
+          fi
+          ditto -c -k --keepParent OpenWheels.app OpenWheels-macos.zip
       - uses: actions/upload-artifact@v4
         with:
           name: OpenWheels-macos
@@ -342,11 +436,53 @@ jobs:
           cp -R game-data/generated dist/Payload/OpenWheels.app/generated
           [ -d game-data/ios ] && cp -R game-data/ios dist/Payload/OpenWheels.app/ios
           cp game-data/*.tsv dist/Payload/OpenWheels.app/ 2>/dev/null || true
-          (cd dist && zip -qry OpenWheels-ios-unsigned.ipa Payload)
+      - name: Sign (.ipa)
+        env:
+          CERT_P12_BASE64: ${{ secrets.IOS_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
+          PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+          cd dist
+          if [ -z "${CERT_P12_BASE64}" ] || [ -z "${PROFILE_BASE64}" ]; then
+            # No Apple signing identity: sideload tools (AltStore, Sideloadly) sign it on install.
+            zip -qry OpenWheels-ios-unsigned.ipa Payload
+            exit 0
+          fi
+          app=Payload/OpenWheels.app
+          kc="${RUNNER_TEMP}/ow.keychain-db"
+          kcpw="$(uuidgen)"
+          security create-keychain -p "${kcpw}" "${kc}"
+          security set-keychain-settings -lut 21600 "${kc}"
+          security unlock-keychain -p "${kcpw}" "${kc}"
+          echo "${CERT_P12_BASE64}" | base64 --decode > "${RUNNER_TEMP}/cert.p12"
+          security import "${RUNNER_TEMP}/cert.p12" -k "${kc}" -P "${CERT_PASSWORD}" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "${kcpw}" "${kc}" > /dev/null
+          # shellcheck disable=SC2046 # one argument per existing keychain
+          security list-keychains -d user -s "${kc}" $(security list-keychains -d user | tr -d '"')
+          identity="$(security find-identity -v -p codesigning "${kc}" | awk -F'"' '/Apple (Distribution|Development)|iPhone (Distribution|Developer)/ {print $2; exit}')"
+          [ -n "${identity}" ] || { echo "::error::no iOS signing identity in IOS_CERT_P12_BASE64"; exit 1; }
+          # The profile decides the bundle ID and the entitlements.
+          echo "${PROFILE_BASE64}" | base64 --decode > "${app}/embedded.mobileprovision"
+          security cms -D -i "${app}/embedded.mobileprovision" > "${RUNNER_TEMP}/profile.plist"
+          /usr/libexec/PlistBuddy -x -c 'Print :Entitlements' "${RUNNER_TEMP}/profile.plist" > "${RUNNER_TEMP}/entitlements.plist"
+          appid="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "${RUNNER_TEMP}/profile.plist")"
+          bundle="${appid#*.}"
+          case "${bundle}" in
+            *'*'*) ;;   # wildcard profile: keep the app's own bundle ID
+            *) /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier ${bundle}" "${app}/Info.plist" ;;
+          esac
+          if [ -d "${app}/Frameworks" ]; then
+            find "${app}/Frameworks" -maxdepth 1 \( -name '*.framework' -o -name '*.dylib' \) \
+              -exec codesign --force -s "${identity}" {} \;
+          fi
+          codesign --force -s "${identity}" --entitlements "${RUNNER_TEMP}/entitlements.plist" "${app}"
+          codesign --verify --deep --strict --verbose=2 "${app}"
+          zip -qry OpenWheels-ios.ipa Payload
       - uses: actions/upload-artifact@v4
         with:
           name: OpenWheels-ios
-          path: dist/OpenWheels-ios-unsigned.ipa
+          path: dist/OpenWheels-ios*.ipa
 
   release:
     name: Publish release
@@ -367,6 +503,7 @@ jobs:
           merge-multiple: true
       - name: Release notes
         env:
+          ANDROID_BETA: ${{ needs.android.outputs.beta }}
           TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
         run: |
           set -euo pipefail
@@ -377,9 +514,14 @@ jobs:
             echo
             echo "## Downloads"
             echo "- **Windows:** \`OpenWheels-windows.zip\` - unzip and run \`OpenWheels.exe\`."
-            echo "- **Android:** \`OpenWheels-release.apk\`."
+            if [ "${ANDROID_BETA}" = "true" ]; then
+              echo "- **Android:** \`OpenWheels-release.apk\` (beta: debug-signed, installs alongside the release app)."
+            else
+              echo "- **Android:** \`OpenWheels-release.apk\` - installs over earlier releases."
+            fi
             echo "- **Linux (x86_64):** \`OpenWheels-linux-x86_64.tar.gz\` - unpack and run \`./OpenWheels\`."
-            [ -f packages/OpenWheels-macos.zip ] && echo "- **macOS:** \`OpenWheels-macos.zip\` (unsigned: right-click the app, Open)."
+            [ -f packages/OpenWheels-macos.zip ] && echo "- **macOS:** \`OpenWheels-macos.zip\` (not notarized: right-click the app, Open, the first time)."
+            [ -f packages/OpenWheels-ios.ipa ] && echo "- **iOS:** \`OpenWheels-ios.ipa\`."
             [ -f packages/OpenWheels-ios-unsigned.ipa ] && echo "- **iOS:** \`OpenWheels-ios-unsigned.ipa\` (unsigned: sideload with AltStore, Sideloadly or similar)."
             echo
             echo "## Legal"
