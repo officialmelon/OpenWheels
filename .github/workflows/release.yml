@@ -402,6 +402,8 @@ jobs:
             gh release upload "${TAG}" packages/* -R "${GITHUB_REPOSITORY}" --clobber
             gh release edit "${TAG}" -R "${GITHUB_REPOSITORY}" --title "OpenWheels ${TAG}" \
               --notes-file notes.md --target "${GITHUB_SHA}" --draft="${DRAFT:-false}"
+            # publishing an existing draft does not move "Latest" (creating a release does)
+            [ "${DRAFT}" = "true" ] || gh release edit "${TAG}" -R "${GITHUB_REPOSITORY}" --latest
           else
             gh release create "${TAG}" packages/* -R "${GITHUB_REPOSITORY}" "${args[@]}"
           fi
