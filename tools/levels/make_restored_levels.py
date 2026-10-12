@@ -254,8 +254,9 @@ def _pavement(L, x1, x2, bottom, color=CONCRETE_LIGHT, joint=150, kerb=True, y=G
         L.box(x2 - 30, y - 3, x2, y + 40, color=S.shade(color, 1.1), inter=False)
 
 
-def _sunbather(L, profile, x, char, towel, stripe=0xffffff):
-    """An NPC lying feet first along the ground at x, on a towel that follows the slope."""
+def _sunbather(L, profile, x, char, towel, stripe=0xffffff, person=True):
+    """An NPC lying feet first along the ground at x, on a towel that follows the slope
+    (person=False: just the towel, a paperback and sunglasses; the sunbather has gone in)."""
     y = S.y_at(profile, x)
     ang = math.degrees(math.atan2(S.y_at(profile, x + 20) - S.y_at(profile, x - 20), 40))
     if towel is None:
@@ -264,6 +265,10 @@ def _sunbather(L, profile, x, char, towel, stripe=0xffffff):
     for k in (-60, 0, 60):
         L.rect(x + k * math.cos(math.radians(ang)), y - 3 + k * math.sin(math.radians(ang)), 10, 6,
                rot=round(ang, 2), color=stripe, inter=False)
+    if not person:
+        L.rect(x - 30, y - 9, 34, 8, rot=round(ang, 2), color=rgb('c0392b'), inter=False)
+        L.rect(x + 40, y - 8, 26, 4, rot=round(ang, 2), color=rgb('222222'), inter=False)
+        return None
     return L.npc(x, y, char=char, angle=round(90 + ang, 2), y=y - 17)
 
 
@@ -311,7 +316,9 @@ def lm_01():
     for x, (ua, ub) in ((1860, (rgb('e8463c'), 0xffffff)), (2420, (rgb('2e86de'), rgb('f6d548')))):
         S.umbrella(L, x, S.y_at(lawn_a, x) + 2, 240, 250, ua, ub)
     _sunbather(L, lawn_a, 1950, 3, rgb('e8463c'))
-    _sunbather(L, lawn_a, 2330, 7, rgb('2e86de'), rgb('f6d548'))
+    # (fewer victims than towels: everything ground on this lawn heaps up at the foot of the
+    # hill, and a bigger heap stalled the mower there)
+    _sunbather(L, lawn_a, 2330, 7, rgb('2e86de'), rgb('f6d548'), person=False)
     _sunbather(L, lawn_a, 2720, 16, rgb('8e44ad'), rgb('f39cc0'))
     # a boombox on the grass (art: a loose solid box jammed the blade together with the bodies)
     bx, by = 2150, S.y_at(lawn_a, 2150) + 2
@@ -334,8 +341,10 @@ def lm_01():
     for k in range(3):
         L.box(3238, P - 40 + k * 12, 3302, P - 36 + k * 12, color=rgb('8a5a33'), inter=False)
     L.art(S.ellipse(3270, P - 46, 32, 22, 12, 180, 360), color=rgb('8a5a33'))
-    L.food(3360, P - 26, kind=1)
-    L.food(3460, P - 26, kind=3)
+    # whole fruit is art: the blade shoves it along instead of grinding it, and it led a heap
+    # of chunks through the rest of the level
+    L.art(S.ellipse(3360, P - 20, 30, 20, 16), color=rgb('2e7d32'))
+    L.art(S.ellipse(3360, P - 20 - 4, 24, 12, 14), color=rgb('43a047'))
     for k in range(3):                                                    # plates and cups
         L.art(S.ellipse(3400 + k * 26, P - 8, 11, 3, 10), color=0xffffff)
     L.box(3500, P - 22, 3510, P - 6, color=rgb('f6d548'), inter=False)
@@ -345,8 +354,12 @@ def lm_01():
     L.box(cx - 30, P - 56, cx + 22, P - 48, color=rgb('2e86de'), inter=False)
     L.art([(cx + 16, P - 56), (cx + 24, P - 56), (cx + 36, P - 110), (cx + 28, P - 110)], color=rgb('2e86de'))
     S.bbq_grill(L, 3600, S.y_at(lawn_a, 3600) + 2)
-    _sunbather(L, lawn_a, 3740, 5, rgb('27ae60'))             # the chef, napping by his grill
+    _sunbather(L, lawn_a, 3740, 5, rgb('27ae60'), person=False)   # the chef's towel by his grill
     _lawn(L, lawn_a, BOT, 11)
+    # Native gameplay arrows: forward, lean before the hill, and deck lift before the pool.
+    # Every highlight is explicitly cleared so it never stacks or follows the player forever.
+    L.system_trigger(600, G - 130, 90, 300, 0)
+    L.system_trigger(1100, G - 130, 90, 300, 5)
 
     # ---- 3. Lemonade Hill: a real climb, a crest stand, a long run down ---------------------
     hill = S.smooth_profile([(4000, G + 140), (5500, G - 60), (5800, G - 60), (6600, G)])
@@ -375,12 +388,17 @@ def lm_01():
         L.box(x - 16, top - 118, x + 16, top - 110, color=0xffffff, inter=False)
     L.npc_standing(6200, S.y_at(hill, 6200), char=15, sleep=True, reverse=True)   # the vendor
     _lawn(L, hill, BOT, 15)
+    L.system_trigger(3950, S.y_at(lawn_a, 3950) - 130, 90, 300, 2)       # lean into Lemonade Hill
+    L.system_trigger(5450, S.y_at(hill, 5450) - 130, 90, 300, 5)
+    L.system_trigger(6300, S.y_at(hill, 6300) - 130, 90, 300, 4)          # lift the deck for the pool
+    L.system_trigger(7700, G - 130, 90, 300, 5)                         # past both rims
 
     # ---- 4. The kiddie pool: inflatable rims catch the deck unless you lift it ---------------
-    pool = [(6600, G), (6660, G)] + S.smooth_profile([(6660, G), (6720, G - 24), (6760, G - 24)], 20)[1:] + \
-        S.smooth_profile([(6760, G - 24), (6880, G + 46)], 20)[1:] + [(7300, G + 46)] + \
-        S.smooth_profile([(7300, G + 46), (7560, G - 24)], 20)[1:] + \
-        S.smooth_profile([(7560, G - 24), (7600, G - 24), (7660, G)], 20)[1:] + [(7750, G)]
+    # (rims 14 px over 100 px ramps: at 24 px the deck stuck on them even when lifted)
+    pool = [(6600, G), (6620, G)] + S.smooth_profile([(6620, G), (6720, G - 14), (6760, G - 14)], 20)[1:] + \
+        S.smooth_profile([(6760, G - 14), (6880, G + 46)], 20)[1:] + [(7300, G + 46)] + \
+        S.smooth_profile([(7300, G + 46), (7560, G - 14)], 20)[1:] + \
+        S.smooth_profile([(7560, G - 14), (7600, G - 14), (7700, G)], 20)[1:] + [(7750, G)]
     S.solid_profile(L, pool, BOT)
     # deck boards around it (art), the pool tub, its water and the inflatable rims
     for x1, x2 in ((6600, 6670), (7650, 7750)):
@@ -436,13 +454,16 @@ def lm_01():
         dx = k * 100
         plank.rect(px + dx * math.cos(math.radians(ang)), py + dx * math.sin(math.radians(ang)), 4, 24,
                    rot=ang, color=rgb('8a5a33'), inter=False)
-    L.pin(px, py, plank, LEVEL, limit=True, lower=-10, upper=10)
+    # an invisible dense insert inside the near end keeps that end down on the boarding ramp (a
+    # loose melon used to); the mower past the pivot still tips it
+    plank.rect(px - 340 * math.cos(math.radians(ang)), py - 340 * math.sin(math.radians(ang)), 200, 16,
+               rot=ang, color=rgb('c08a52'), opacity=0, fixed=False, density=2.0)
+    L.pin(px, py, plank, LEVEL, limit=True, lower=-12, upper=0)     # rests on its ramp, tips only forward
     # a little boarding ramp up to the plank's resting end (the plank lifts away from it)
     end_x = px - 450 * math.cos(math.radians(ang)) + 2
     end_top = py - 450 * math.sin(math.radians(ang)) - 12 / math.cos(math.radians(ang)) + 1
     L.poly([(end_x - 130, G), (end_x, end_top), (end_x, G)], color=rgb('8a5a33'))
     L.art([(end_x - 130, G), (end_x, end_top), (end_x, end_top + 6), (end_x - 110, G)], color=rgb('b07a45'))
-    L.food(8235, G - 58, kind=1)                                   # ammunition for the seesaw
     L.circle(px, py, 12, color=rgb('9aa3ab'), inter=False)
 
     # ---- 6. Mrs. Henderson's garden ----------------------------------------------------------
@@ -480,9 +501,14 @@ def lm_01():
     # above), so it fires as soon as the pumpkin is knocked off or pulled up into the deck, and
     # Mrs. Henderson (asleep, posed) wakes, lets go of her pose and swoons over backwards (waking
     # alone kept her standing in her held pose).
+    # One master trigger (b=5) so it all happens once whichever zone fires first. The pumpkin is
+    # also tossed up and back over the mower: shoved ahead, it jammed the deck for the rest of
+    # the level.
+    swoon = L.trigger(11180, T - 330, 40, 40, [(henderson, [(0,), (3,), (1, 2.5, -1.5, 0)]),
+                                                (pumpkin, [(1, -3, -9, 4)])], by=5)
     for zx, zy, zw, zh in ((11060, T - 100, 140, 120), (11300, T - 100, 140, 120),
                            (11180, T - 190, 120, 100)):
-        L.trigger(zx, zy, zw, zh, [(pumpkin, []), (henderson, [(0,), (3,), (1, 2.5, -1.5, 0)])], by=4)
+        L.trigger(zx, zy, zw, zh, [(pumpkin, []), (swoon, [(0,)])], by=4)
     S.birdbath(L, 11850, G)
     S.topiary(L, 12000, G, 1)
     for x in (12100, 12150, 12200, 12250):
@@ -1232,6 +1258,12 @@ def ex_03():
     S.polyline_art(L, [(x, S.y_at(jungle, x) - 76) for x in range(1540, 1980, 40)], 12, TSTONE)
     _jungle_ground(L, [p for p in jungle if p[0] <= 1350], BOT, 2)
     causeway = [p for p in jungle if p[0] >= 1300]
+    # Native control arrows: drive on, lean up the causeway (the cart tips back), then SPACE
+    # (clamp to the rail) before the spike pit's rail crossing.
+    L.system_trigger(600, G - 130, 90, 300, 0)
+    L.system_trigger(1000, G - 130, 90, 300, 5)
+    L.system_trigger(1250, G - 130, 90, 300, 2)
+    L.system_trigger(2100, T1 - 130, 90, 300, 5)
     S.terrain(L, causeway, BOT, S.shade(TSTONE, 0.6), strata=[(0, 30, TSTONE), (30, 36, TSTONE_DARK)])
     for x in range(1520, 2420, 64):
         y = S.y_at(causeway, x)
@@ -1281,25 +1313,25 @@ def ex_03():
     # its fist on a free pin. The idol hangs low enough that the cart's rim or the rider always
     # clips it; hit below its pivot it swings up and away, so it never ends up under the wheels.
     chamber = S.smooth_profile([(2420, T1), (4700, T1)], 40)
-    HX, HP = 3700, T1 - 168                 # the fist's pin
+    HX, HP = 3700, T1 - 158                 # the fist's pin
     S.light_shaft(L, HX, T1 - 640, HX, T1 - 40, 120, 300)              # behind the arm
     arm = S.shade(TINTERIOR, 1.3)
     arm_dark = S.shade(TINTERIOR, 0.95)
-    L.art([(HX - 58, T1 - 700), (HX + 58, T1 - 700), (HX + 44, T1 - 420), (HX + 40, T1 - 236),
-           (HX - 40, T1 - 236), (HX - 46, T1 - 420)], color=arm)
-    L.art([(HX + 18, T1 - 700), (HX + 58, T1 - 700), (HX + 44, T1 - 420), (HX + 40, T1 - 236),
-           (HX + 16, T1 - 236)], color=S.shade(arm, 0.88))
+    L.art([(HX - 58, T1 - 700), (HX + 58, T1 - 700), (HX + 44, T1 - 420), (HX + 40, T1 - 226),
+           (HX - 40, T1 - 226), (HX - 46, T1 - 420)], color=arm)
+    L.art([(HX + 18, T1 - 700), (HX + 58, T1 - 700), (HX + 44, T1 - 420), (HX + 40, T1 - 226),
+           (HX + 16, T1 - 226)], color=S.shade(arm, 0.88))
     for yy in (T1 - 560, T1 - 520, T1 - 330):            # carved bracelets
         L.box(HX - 54, yy, HX + 54, yy + 18, color=arm_dark, inter=False)
         L.box(HX - 54, yy, HX + 54, yy + 5, color=S.shade(arm, 1.12), inter=False)
-    L.art(S.ellipse(HX, T1 - 206, 62, 44, 16), color=arm)                       # the fist
+    L.art(S.ellipse(HX, T1 - 196, 62, 44, 16), color=arm)                       # the fist
     for k in range(4):                                                     # curled fingers
         fx = HX - 45 + k * 30
-        L.art(S.ellipse(fx, T1 - 178, 15, 18, 10), color=S.shade(arm, 0.95 - 0.03 * k))
-        L.box(fx - 13, T1 - 190, fx + 13, T1 - 186, color=arm_dark, inter=False)
-    L.art(S.ellipse(HX - 58, T1 - 214, 18, 30, 10, 200, 400), color=S.shade(arm, 1.08))   # thumb
+        L.art(S.ellipse(fx, T1 - 168, 15, 18, 10), color=S.shade(arm, 0.95 - 0.03 * k))
+        L.box(fx - 13, T1 - 180, fx + 13, T1 - 176, color=arm_dark, inter=False)
+    L.art(S.ellipse(HX - 58, T1 - 204, 18, 30, 10, 200, 400), color=S.shade(arm, 1.08))   # thumb
     idol = L.group()
-    IY = T1 - 100 - 34                      # the idol's centre: bottom edge 100 px above the floor
+    IY = T1 - 90 - 34                       # the idol's centre: bottom edge 90 px above the floor
     idol.rect(HX, IY, 44, 68, color=rgb('e5b80b'), fixed=False, density=0.5)
     idol.art([(HX - 16, IY - 2), (HX + 16, IY - 2), (HX + 22, IY + 20), (HX + 16, IY + 34),
               (HX - 16, IY + 34), (HX - 22, IY + 20)], color=rgb('d4a20a'))
@@ -1408,8 +1440,8 @@ def ex_03():
         S.crystal(L, x, T2 - 480, 120, rgb('9fe8f5'), rot=180)
     hall = [(C1, T2), (9300, T2)]
     _stone_floor(L, hall, BOT, 13, color=rgb('3d5a66'))
-    L.glass(9000, T2 - 130, w=16, h=260, strength=3, sleep=True)
-    L.glass(9180, T2 - 130, w=16, h=260, strength=3, sleep=True)
+    L.glass(9000, T2 - 130, w=16, h=260, strength=2, sleep=True)
+    L.glass(9180, T2 - 130, w=16, h=260, strength=2, sleep=True)
     # the pit: spikes at the bottom, a rail across (clamp on or roll it), a dart gun in the far wall
     pit = [(9300, T2), (9320, T2 + 400), (9980, T2 + 400), (10000, T2)]
     L.box(9300, T2 - 2, 10000, T2 + 400, color=rgb('16262e'), inter=False)              # pit depths
@@ -1419,12 +1451,14 @@ def ex_03():
     for k, x in enumerate(range(9360, 9960, 90)):
         S.crystal(L, x, T2 + 380, 60 + (k % 3) * 20, rgb('8fe3f0'))
     rail_span(L, 9280, 10020, T2)
+    L.system_trigger(9230, T2 - 130, 90, 300, 4)
+    L.system_trigger(10060, T2 - 130, 90, 300, 5)
     for x in (9400, 9650, 9900):
         S.seg(L, x, T2 + 9, x, T2 + 380, 10, rgb('5a6a70'))
     hall2 = [(10000, T2), (C2, T2)]
     _stone_floor(L, hall2, BOT, 14, color=rgb('3d5a66'))
-    L.spikes(10300, T2 - 284, count=30, rot=180)                       # crystal spikes in the roof
-    _ceiling(L, [(C1, T2 - 520), (10150, T2 - 520), (10200, T2 - 285), (10450, T2 - 285), (C2, T2 - 400)],
+    L.spikes(10300, T2 - 329, count=30, rot=180)                       # crystal spikes in the roof
+    _ceiling(L, [(C1, T2 - 520), (10150, T2 - 520), (10200, T2 - 330), (10450, T2 - 330), (C2, T2 - 400)],
              T2 - 1000, color=rgb('2c4a58'))
 
     # ---- 6. The axe hall: two great axes on pins, out of step ---------------------------------
@@ -2630,6 +2664,13 @@ def he_01():
     spare1 = L.rect(1500, G - 35, 70, 70, color=rgb('a06a3a'), fixed=False, density=0.5)
     S.crate_art(L, 2200, G, 90, 60)
     red1, green1 = _delivery_bay(L, 1800, G, 240, 'BAY 1')
+    # Native tutorial arrows: lift off, toggle the magnet over the crate, then release over the bay.
+    L.system_trigger(280, G - 350, 90, 700, 0)
+    L.system_trigger(750, G - 350, 90, 700, 5)
+    L.system_trigger(950, G - 350, 90, 700, 4)
+    L.system_trigger(1300, G - 350, 90, 700, 5)
+    L.system_trigger(1680, G - 350, 90, 700, 4)
+    L.system_trigger(2100, G - 350, 90, 700, 5)
     door1 = _lift_door(L, 2440, G, 640, H1T)
     L.box(0, H1T - 400, 2400, H1T, color=HANGAR_DARK)                                 # roof (solid)
     L.box(2480, H1T - 400, 2520, H1T, color=HANGAR_DARK, inter=False)

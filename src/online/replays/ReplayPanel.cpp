@@ -6,6 +6,7 @@
 #include <map>
 
 #include "cocos2d.h"
+#include "online/FlashPhysics.h"
 #include "online/OnlineLevelBrowser.h"
 #include "online/OnlineUi.h"
 #include "online/account/AccountPanels.h"
@@ -436,8 +437,11 @@ void ReplayListPanel::refreshDetail() {
         const std::string comment = trim(i.comment);
         _dComment->setString(comment.empty() ? "No comment." : comment);
         _dNote->setString(
-            "Browser replays store only the keys pressed. OpenWheels re-simulates them with its own physics, so "
-            "the replay is approximate and can go differently.");
+            browserPhysicsOption()
+                ? "Browser replays store only the keys pressed. OpenWheels re-simulates them with the browser game's "
+                  "physics rules, so most play the same; a long or chaotic run can still go differently."
+                : "Browser replays store only the keys pressed. Browser physics is off (QOL), so OpenWheels "
+                  "re-simulates them with the mobile physics and the replay can go differently.");
         _rateBtn->setVisible(true);
         _rateBtn->setEnabled(!_busy);
         _saveBtn->setVisible(false);

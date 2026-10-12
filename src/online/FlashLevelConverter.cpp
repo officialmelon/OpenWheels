@@ -1411,7 +1411,13 @@ void Converter::parseTriggers(const XMLElement* triggers) {
         // Trigger: repeatFrames = int(repeatInterval * 30), delayFrames = int(triggerDelay * 30)
         // (Flash frames, 30 Hz); the mobile trigger counts seconds, so pass whole Flash frames.
         auto frames = [](double seconds) { return std::trunc(seconds * 30.0) / 30.0; };
-        if (t.repeat > 2) n.setNum("i", frames(numClamped(e, "i", 0.0, 0.1, 30.0)));
+        // Native tutorial / camera system triggers use "i" as their event ID, not a repeat
+        // interval. Keep the IDs used by Gameplay::systemTrigger (0..5) and StageCamera (6..9).
+        if (t.type == 10000) {
+            n.setInt("i", inumClamped(e, "i", 0, 0, 9));
+        } else if (t.repeat > 2) {
+            n.setNum("i", frames(numClamped(e, "i", 0.0, 0.1, 30.0)));
+        }
         t.delay = frames(numClamped(e, "d", 0.0, 0.0, 30.0));
         if (t.type == 2) {
             int sound = inum(e, "s", -1);
@@ -1426,13 +1432,13 @@ void Converter::parseTriggers(const XMLElement* triggers) {
                 n.setNum("v", numClamped(e, "v", 0.0, 0.0, 1.0));
                 n.setNum("p", numClamped(e, "p", 0.0, -1.0, 1.0));
             }
-        } else if (t.type != 1 && t.type != 3) {
+        } else if (t.type != 1 && t.type != 3 && t.type != 10000) {
             t.type = 0;
             count("badTrigger");
         }
         n.setInt("t", t.type);
 
-        const bool hasTargets = t.type == 1 || t.triggeredBy == 4;
+        const bool hasTargets = t.type == 1 || (t.type != 10000 && t.triggeredBy == 4);
         if (hasTargets) {
             for (const XMLElement* c = e->FirstChildElement(); c; c = c->NextSiblingElement()) {
                 TargetRec target;

@@ -47,6 +47,9 @@ public:
 
     // Flash Vehicle.characterPose (0 none, 1 arms forward, 2 arms overhead, 3 hold position).
     int getCharacterPose() const { return _characterPose; }
+    // The Action of the shift / ctrl keys (ActionNone when unassigned).
+    int getShiftAction() const { return _shiftAction; }
+    int getCtrlAction() const { return _ctrlAction; }
 
     void addCharacter(CharacterB2D* character);
     void removeCharacter(CharacterB2D* character);
@@ -119,6 +122,10 @@ struct UserVehicleRider
 // The record of `character` in the current level (created when `create`), or nullptr.
 UserVehicleRider* userVehicleRider(CharacterB2D* character, bool create);
 
+// The vehicle the running level's main character rides (browser levels), or nullptr. Drives the
+// on-screen shift / ctrl / eject buttons of the ejected layout (GameplayControls).
+UserVehicle* riddenUserVehicle();
+
 // The user vehicle whose handle `fixture` is (current level only), or nullptr.
 UserVehicle* userVehicleForHandle(b2Fixture* fixture);
 
@@ -136,6 +143,9 @@ void destroyUserVehicles(LevelB2D* level);
 // (or on the key's virtual finger following a layout change). PCInput reports them,
 // Gameplay::update ORs them into the control byte of converted levels.
 void setPcExtraKey(unsigned char bit, bool down);
-unsigned char pcExtraControlBits();
+// PAD (PC addition): the same bits from the game controller bindings (input/PadInput.cpp), kept
+// apart so a controller release never clears a held key's bit and vice versa.
+void setPadExtraBits(unsigned char bits);
+unsigned char pcExtraControlBits();  // keys | controller
 
 }  // namespace online

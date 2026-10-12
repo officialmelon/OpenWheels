@@ -133,8 +133,11 @@ void buildOverlay() {
     g_overlay->addChild(g_overlayState);
 
     Label* note = Label::createWithTTF(
-        "Approximate replay: re-simulated from the recorded keys. The browser game's physics differ, so it can go "
-        "differently.",
+        browserPhysics()
+            ? "Re-simulated from the recorded keys with the browser game's physics (Box2D 2.0 rules, 30 Hz). Very "
+              "close, but not bit for bit: a long or chaotic run can still go differently."
+            : "Approximate replay: re-simulated from the recorded keys. Browser physics is off (QOL), so it can go "
+              "differently.",
         ui::kFontBody, 34.0f);
     note->setColor(ui::kTextDim);
     note->setAnchorPoint(Vec2(0.0f, 0.5f));
@@ -284,7 +287,7 @@ void gameplayState(ReplayData* data, bool isReplay, unsigned char* state) {
 
 void physicsStep() {
     if (!g_token.matches(session())) return;
-    if (g_observer && g_steps == g_observeStep && g_mode != Mode::None) {
+    if (g_observer && (g_steps == g_observeStep || g_observeStep == kObserveEveryStep) && g_mode != Mode::None) {
         auto observer = g_observer;
         observer(g_mode == Mode::Record ? 1 : 2);
     }
@@ -313,6 +316,10 @@ void physicsStep() {
 }
 
 void setTestInput(std::function<uint8_t(int)> input) { g_testInput = std::move(input); }
+
+bool g_testFastForward = false;
+void setTestFastForward(bool on) { g_testFastForward = on; }
+bool testFastForward() { return g_testFastForward; }
 
 void setTestStepObserver(int step, std::function<void(int)> observer) {
     g_observeStep = step;

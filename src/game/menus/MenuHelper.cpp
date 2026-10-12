@@ -57,6 +57,7 @@ MenuItemSprite* MenuHelper::addBackBtn(Node* parent, int zOrder, const std::func
     btn->setNormalImage(normal);
     btn->setSelectedImage(selected);
     btn->setPosition(Vec2(origin.x + size.width * 0.5f + 90.0f, origin.y + size.height * 0.5f + 90.0f));
+    btn->setName("ow_back");  // PAD (PC addition): the controller's back button presses it (input/MenuFocus.h)
 
     Menu* menu = Menu::create(btn, nullptr);
     menu->setPosition(Vec2(0.0f, 0.0f));

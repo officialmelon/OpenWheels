@@ -17,7 +17,9 @@
 //   * size changes without an activity restart (rotation, fold/unfold, split screen, freeform
 //     windows - see configChanges in AndroidManifest.xml) resize the cocos2d-x frame
 //     (nativeSurfaceResized, src/platform/android/main.cpp) instead of stretching the old one;
-//   * the screen stays on while the game is in front.
+//   * the screen stays on while the game is in front;
+//   * PAD (PC addition): game controllers (including handhelds' built-in controls), rumble and
+//     tilt steering go through GameInput.
 package org.openwheels.game;
 
 import android.content.Context;
@@ -26,6 +28,8 @@ import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.DisplayCutout;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -47,6 +51,7 @@ public class AppActivity extends Cocos2dxActivity {
     private static native void nativeSurfaceResized(int width, int height);
 
     private GameFrame mGameFrame;
+    private GameInput mGameInput;  // PAD (PC addition)
 
     // NET (PC addition): Wi-Fi drivers drop broadcast / multicast datagrams unless an app holds a
     // MulticastLock. src/net/LanDiscovery holds it only while a "Send to Nearby" list is open
@@ -104,6 +109,44 @@ public class AppActivity extends Cocos2dxActivity {
 
         installCutoutInsets();
         installResizeHandling();
+
+        mGameInput = GameInput.install(this);  // PAD (PC addition)
+        mGameInput.start();
+    }
+
+    // PAD (PC addition): controller buttons and sticks go to GameInput before cocos2d-x's view
+    // (which would turn the d-pad and A / B into keyboard keys, and Android a pad's B into Back).
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (mGameInput != null && mGameInput.onKeyEvent(event)) return true;
+        return super.dispatchKeyEvent(event);
+    }
+
+    @Override
+    public boolean dispatchGenericMotionEvent(MotionEvent event) {
+        if (mGameInput != null && mGameInput.onMotionEvent(event)) return true;
+        return super.dispatchGenericMotionEvent(event);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (mGameInput != null) mGameInput.onResume();
+    }
+
+    @Override
+    protected void onPause() {
+        if (mGameInput != null) mGameInput.onPause();
+        super.onPause();
+    }
+
+    // PAD (PC addition): native entry points (src/platform/android/AndroidGamepad.cpp, GL thread).
+    public static void padRumble(float strength, int ms, boolean phoneAllowed) {
+        GameInput.rumble(strength, ms, phoneAllowed);
+    }
+
+    public static void padTiltSensor(boolean on) {
+        GameInput.setTiltSensor(on);
     }
 
     // Keeps the GL view out of the display cutout: the game frame is padded by the cutout's safe

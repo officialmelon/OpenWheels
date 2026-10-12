@@ -71,6 +71,15 @@ void QoLSliderItem::setFromTouch(Touch* touch)
     refresh();
 }
 
+void QoLSliderItem::nudge(int direction)
+{
+    const float value = std::max(0.0f, std::min(1.0f, std::round(_get() * 20.0f + direction) / 20.0f));
+    if (std::fabs(value - _get()) < 0.001f) return;
+    _set(value);
+    refresh();
+    UserDefault::getInstance()->flush();
+}
+
 void QoLSliderItem::refresh()
 {
     const float value = _get();
@@ -92,7 +101,11 @@ QoLRowItem* QoLRowItem::create(const std::string& text, int tag, float width,
                                const std::function<void(Ref*)>& callback, OptionsMenuItemAppearance appearance)
 {
     QoLRowItem* item = new (std::nothrow) QoLRowItem();
-    item->init(text, tag, callback, appearance);
+    if (!item || !item->init(text, tag, callback, appearance))
+    {
+        delete item;
+        return nullptr;
+    }
     // Same row at another width: redraw the background and re-centre the text.
     const Size size(width, item->getContentSize().height);
     Color4F colour = appearance == OptionsMenuItemAppearanceRed ? Color4F::RED : Color4F::WHITE;

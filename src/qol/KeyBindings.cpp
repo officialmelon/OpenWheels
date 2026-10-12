@@ -7,6 +7,9 @@
 #include "cocos2d.h"
 
 #include "Globals.h"
+#include "input/Gamepad.h"  // PAD (PC addition)
+#include "qol/PadBindings.h"  // PAD (PC addition)
+#include "qol/QoL.h"
 
 USING_NS_CC;
 
@@ -232,6 +235,10 @@ std::string keysText(KeyAction action)
 
 std::string keyHint(KeyAction action)
 {
+    // PAD (PC addition): the controller's buttons when it is what drives the game (the first ten
+    // key actions and the controller actions are in the same order).
+    const bool padDrives = openwheels::pad::lastInputWasPad() || (!desktopBuild() && openwheels::pad::anyConnected());
+    if (padDrives && (int)action < (int)KeyAction::Fullscreen) return padHint((PadAction)(int)action);
     std::string text = keysText(action);
     for (char& c : text) c = (char)toupper((unsigned char)c);
     return text;

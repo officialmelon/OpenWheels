@@ -92,6 +92,9 @@ public:
 
     // Fixed-step accumulator: at most one b2World::Step(step, 8, 3) per call.
     virtual void update(float dt) override;
+    // ONLINE (PC addition): draws the frame between the last two steps (browser physics profile,
+    // online/RenderInterpolation.h).
+    void onlineDrawInterpolated(float alpha);
 
     EmitterNode* getParticlesForeground();
     EmitterNode* getParticlesMidground();

@@ -5,6 +5,7 @@
 #include "cocos2d.h"
 
 #include "SoundController.h"
+#include "input/Gamepad.h"  // PAD (PC addition)
 
 USING_NS_CC;
 
@@ -25,10 +26,16 @@ const char* const kEffectsVolume = "qol_effects_volume";
 const char* const kMusicVolume = "qol_music_volume";
 const char* const kTouchControls = "qol_touch_controls";
 const char* const kRegrabVehicle = "qol_regrab_vehicle";
+const char* const kRumble = "qol_pad_rumble";
+const char* const kTiltSteering = "qol_tilt_steering";
+const char* const kPhoneVibration = "qol_phone_vibration";
 
 bool g_keyboardTouch = false;
 bool g_regrabSuspended = false;
 int g_regrab = -1;  // cached: UserDefault reads its file on every get on desktop builds
+int g_rumble = -1;  // cached (read on every rumble)
+int g_tilt = -1;    // cached (read every frame)
+int g_phoneVibration = -1;
 
 std::function<void(bool)>& fullscreenHandler() {
     static std::function<void(bool)> handler;
@@ -176,13 +183,89 @@ const char* touchControlsName(TouchControls mode) {
     switch (mode) {
         case TouchControls::Show: return "show";
         case TouchControls::Hide: return "hide";
-        default: return desktopBuild() ? "auto (hidden)" : "auto (shown)";
+        default:
+            if (desktopBuild()) return "auto (hidden)";
+            return openwheels::pad::anyConnected() ? "auto (hidden, controller)" : "auto (shown)";
     }
 }
 
 bool touchControlsShown() {
-    if (!desktopBuild()) return true;  // a touch device has nothing else to drive with
-    return touchControls() == TouchControls::Show;
+    switch (touchControls()) {
+        case TouchControls::Show: return true;
+        // PAD (PC addition): touch devices can hide them too (a controller, e.g. a handheld's
+        // built-in one, drives the game).
+        case TouchControls::Hide: return false;
+        default:
+            // Auto: hidden on desktop builds; on touch devices hidden while a controller is
+            // connected (decided when the gameplay controls are laid out).
+            if (desktopBuild()) return false;
+            return !openwheels::pad::anyConnected();
+    }
+}
+
+RumbleLevel rumbleLevel() {
+    if (g_rumble < 0) g_rumble = std::max(0, std::min(3, store()->getIntegerForKey(kRumble, (int)RumbleLevel::High)));
+    return (RumbleLevel)g_rumble;
+}
+void setRumbleLevel(RumbleLevel level) {
+    g_rumble = (int)level;
+    store()->setIntegerForKey(kRumble, g_rumble);
+}
+const char* rumbleLevelName(RumbleLevel level) {
+    switch (level) {
+        case RumbleLevel::Off: return "off";
+        case RumbleLevel::Low: return "low";
+        case RumbleLevel::Medium: return "medium";
+        default: return "high";
+    }
+}
+float rumbleScale() {
+    switch (rumbleLevel()) {
+        case RumbleLevel::Off: return 0.0f;
+        case RumbleLevel::Low: return 0.35f;
+        case RumbleLevel::Medium: return 0.65f;
+        default: return 1.0f;
+    }
+}
+
+bool phoneVibration() {
+    if (g_phoneVibration < 0) g_phoneVibration = store()->getBoolForKey(kPhoneVibration, false) ? 1 : 0;
+    return g_phoneVibration == 1 && phoneVibrationSupported();
+}
+void setPhoneVibration(bool on) {
+    g_phoneVibration = on ? 1 : 0;
+    store()->setBoolForKey(kPhoneVibration, on);
+}
+bool phoneVibrationSupported() {
+#if CC_TARGET_PLATFORM == CC_PLATFORM_ANDROID
+    return true;
+#else
+    return false;
+#endif
+}
+
+TiltSteering tiltSteering() {
+    if (g_tilt < 0) g_tilt = std::max(0, std::min(3, store()->getIntegerForKey(kTiltSteering, 0)));
+    return (TiltSteering)g_tilt;
+}
+void setTiltSteering(TiltSteering mode) {
+    g_tilt = (int)mode;
+    store()->setIntegerForKey(kTiltSteering, g_tilt);
+}
+const char* tiltSteeringName(TiltSteering mode) {
+    switch (mode) {
+        case TiltSteering::Low: return "low";
+        case TiltSteering::Medium: return "medium";
+        case TiltSteering::High: return "high";
+        default: return "off";
+    }
+}
+bool tiltSteeringSupported() {
+#if CC_TARGET_PLATFORM == CC_PLATFORM_ANDROID || CC_TARGET_PLATFORM == CC_PLATFORM_IOS
+    return true;
+#else
+    return false;
+#endif
 }
 
 bool regrabVehicleSetting() {

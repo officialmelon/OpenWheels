@@ -347,6 +347,17 @@ void UserVehicle::operateKeys(unsigned int iteration, unsigned char state)
     if (state & 0x40) actions[_ctrlAction] = actions[_shiftAction] + 1;  // (sic) Flash reads shift's slot
     if (actions[ActionBrake] > 0) brake();
     setJetsFiring(actions[ActionJets] > 0);
+    if (_jetsFiring) {
+        // Jet::frameAction does nothing while the jet's body sleeps (a "sleeping" jet fires once
+        // something wakes it). A parked vehicle - a jetpack with its rider standing still - falls
+        // asleep after half a second, and unlike the joint motors and the lean impulse nothing
+        // else here wakes it: wake the jets so the jet key fires them (Flash: the vehicle is
+        // never left asleep while operated).
+        for (Jet* jet : _jets) {
+            b2Body* jetBody = jet->getJointBody(b2Vec2(0.0f, 0.0f));
+            if (jetBody && !jetBody->IsAwake()) jetBody->SetAwake(true);
+        }
+    }
     setArrowsFiring(actions[ActionArrows] > 0);
     std::vector<UserVehicle*> linked = _vehicles;
     for (UserVehicle* vehicle : linked) {
@@ -580,12 +591,24 @@ void destroyUserVehicles(LevelB2D* level)
     registry().erase(it);
 }
 
+UserVehicle* riddenUserVehicle()
+{
+    Session* session = Settings::getInstance()->getCurrentSession();
+    LevelB2D* level = session ? session->getLevel() : nullptr;
+    CharacterB2D* character = level ? level->getCharacter() : nullptr;
+    UserVehicleRider* rider = character ? userVehicleRider(character, false) : nullptr;
+    return rider ? rider->vehicle : nullptr;
+}
+
 void setPcExtraKey(unsigned char bit, bool down)
 {
     if (down) g_pcExtraBits |= bit;
     else g_pcExtraBits &= (unsigned char)~bit;
 }
 
-unsigned char pcExtraControlBits() { return g_pcExtraBits; }
+unsigned char g_padExtraBits = 0;
+void setPadExtraBits(unsigned char bits) { g_padExtraBits = bits; }
+
+unsigned char pcExtraControlBits() { return g_pcExtraBits | g_padExtraBits; }
 
 }  // namespace online

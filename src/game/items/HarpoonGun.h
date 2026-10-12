@@ -44,6 +44,11 @@ public:
     void fireHarpoon();                                                         // @005c263c  aimed shot
     void fireHarpoon2();                                                        // @005c293c  straight shot (fixed turret / trigger)
     void harpoonHit(Harpoon* harpoon);                                          // @005c2b9c
+    // ONLINE (PC addition): Flash's HarpoonGun.actions on browser levels (flashActions).
+    void flashActions();
+    bool flashPathBlocked();
+    void flashCreateTargetSensor();
+    void flashRemoveTargetSensor();
 
     // LevelItem overrides
     void die() override;                                                        // @005c194c  vptr+0x20

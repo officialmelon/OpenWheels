@@ -77,6 +77,9 @@ void Mine::createBody(b2Vec2 position, float angle)
 
     // Small trigger button on top of the mine.
     shape.SetAsBox(0.008f, 0.004f, b2Vec2(0.0f, 0.04f), 0.0f);
+    if (online::browserPhysicsWanted()) {
+        shape.SetAsBox(0.016f, 0.008f, b2Vec2(0.0f, 0.04f), 0.0f);  // ONLINE (PC addition): the browser game's button
+    }
     fixtureDef.shape = &shape;
     _sensor = _body->CreateFixture(&fixtureDef);
     getSession()->getContactListener()->addPostSolveListener(_sensor, this);
@@ -137,7 +140,7 @@ void Mine::blastBodies(b2Vec2 center, float radius)
     b2AABB aabb;
     aabb.lowerBound = b2Vec2(center.x - radius, center.y - radius);
     aabb.upperBound = b2Vec2(center.x + radius, center.y + radius);
-    getWorld()->QueryAABB(&callback, aabb);
+    online::flashQueryAABB(getWorld(), &callback, aabb);  // ONLINE (PC addition)
 
     for (unsigned int i = 0; i < callback._fixtures.size(); i++) {
         b2Body* body = callback._fixtures[i]->GetBody();

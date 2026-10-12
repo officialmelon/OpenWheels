@@ -132,6 +132,9 @@ Scene* Gameplay::createScene(std::string levelXml, ReplayData* replayData)
     return scene;
 }
 
+// EDITOR (PC addition): set while a test play's level is built (buildingTestLevel()).
+static bool s_buildingTestLevel = false;
+
 // EDITOR (iOS port): +[GameplayLayer testingScene] @ios 100045408
 Scene* Gameplay::createTestingScene(std::string levelXml)
 {
@@ -155,6 +158,12 @@ void Gameplay::setIsTesting(bool isTesting)
 bool Gameplay::isTesting()
 {
     return _isTesting;
+}
+
+// EDITOR (PC addition)
+bool Gameplay::buildingTestLevel()
+{
+    return s_buildingTestLevel;
 }
 
 // @005b91e4
@@ -195,7 +204,9 @@ void Gameplay::beginGameplayFollowingInterstitial()
     _backgroundLayer = BackgroundLayer::create();
     _session->setBackgroundLayer(_backgroundLayer);
     addChild(_backgroundLayer, 0);
+    s_buildingTestLevel = _isTesting;  // EDITOR (PC addition): see buildingTestLevel()
     _session->setupLevel(_levelXml, false);
+    s_buildingTestLevel = false;
     _level = _session->getLevel();
 
     _controls = GameplayControls::createWithControlsType(
@@ -412,6 +423,12 @@ void Gameplay::checkCharacterPosition()
 // @005b9e20
 void Gameplay::update(float dt)
 {
+    // ONLINE (PC addition): test fast-forward, one world step per display frame
+    // (online/replays/ReplayRuntime.h).
+    if (online::replays::testFastForward())
+    {
+        dt = Settings::getInstance()->getCurrentSession()->getTimeStep();
+    }
     unsigned char state;
     if (_isReplay)
     {

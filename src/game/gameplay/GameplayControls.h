@@ -126,6 +126,9 @@ public:
     void addAnimationToRing(cocos2d::Sprite* ring);  // @005b8714
     void bannerAdShown(int height);            // @005b87cc  getBannerAdSize() only; no callers
     void bannerRemoved();                      // @005b881c  getBannerAdSize() only; no callers
+    // ONLINE (PC addition): the ejected layout's buttons for a browser user vehicle's shift / ctrl
+    // actions and its eject (shown only while riding one; GameplayControls.cpp).
+    void onlineAddUserVehicleButtons(const cocos2d::Vec2& grabPos, const cocos2d::Size& grabSize);
 
     // Centres of the state buttons, recorded by addControls (vehicle sets) for the tutorial arrows.
     cocos2d::Vec2 getForwardPos();             // @005b886c

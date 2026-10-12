@@ -67,6 +67,7 @@
 #include "online/FlashPhysics.h"  // ONLINE (PC addition)
 #include "online/items/FlashSpecials.h"  // ONLINE (PC addition)
 #include "online/vehicles/UserVehicle.h"  // ONLINE (PC addition)
+#include "Vehicle.h"  // ONLINE (PC addition): onlinePoseBeforeStep
 #include "qol/CharacterChoice.h"  // QOL (PC addition)
 #include "restored/Restored.h"  // RESTORED (PC addition)
 
@@ -167,6 +168,11 @@ bool LevelB2D::init(std::string xml)
     LevelXMLParser* parser = new LevelXMLParser();
     bool result = parser->init(xml, this);
     delete parser;
+    if (online::flashLevel())
+    {
+        // ONLINE (PC addition): Flash's creation order (online/FlashPhysics.h).
+        online::flashLevelBuilt(Settings::getInstance()->getCurrentSession()->getWorld());
+    }
     _levelComplete = false;
     return result;
 }
@@ -287,6 +293,21 @@ void LevelB2D::update(float dt)
         }
     }
     _frameActionsToRemove.clear();
+}
+
+void LevelB2D::onlinePoseBeforeStep()
+{
+    std::vector<Vehicle*> vehicles;
+    for (CharacterB2D* character : getCharacters())
+    {
+        character->checkPose();
+        Vehicle* vehicle = character->getVehicle();
+        if (vehicle && std::find(vehicles.begin(), vehicles.end(), vehicle) == vehicles.end())
+        {
+            vehicles.push_back(vehicle);
+            vehicle->checkPose();
+        }
+    }
 }
 
 // @005ce02c
@@ -667,6 +688,11 @@ void LevelB2D::addInfo(LevelDataElement* info)
     {
         characterId = settings->getSelectedCharacterId();
     }
+    b2World* world = Settings::getInstance()->getCurrentSession()->getWorld();
+    if (online::flashLevel())
+    {
+        online::flashCharacterBegin(world);  // ONLINE (PC addition): see online/FlashPhysics.h
+    }
     if (online::flashLevel() && hideVehicle)
     {
         // ONLINE (PC addition): browser "hide vehicle" levels start with the bare character.
@@ -674,6 +700,10 @@ void LevelB2D::addInfo(LevelDataElement* info)
     }
     else
     addCharacter(x, y, (CharacterId)characterId, VehicleIdDefault, hideVehicle, -1);
+    if (online::flashLevel())
+    {
+        online::flashCharacterEnd(world);
+    }
 
     // ONLINE (PC addition): browser levels step once per Flash frame (1/30 s) with the browser
     // physics profile; the characters exist now, so they rescale with the step (FlashPhysics.h).

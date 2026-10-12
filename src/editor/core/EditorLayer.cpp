@@ -1912,7 +1912,10 @@ void EditorLayer::showInspector()
     _inspector->setPosition(Vec2(vo.x + vs.width - w - uikit::notchOffset() * ptd - 12.0f, vo.y + bar));
     getParent()->addChild(_inspector, uikit::kWindowZOrder - 10);
     _inspector->onClose = [this]() {
-        Director::getInstance()->getScheduler()->performFunctionInCocosThread([this]() { closeInspector(); });
+        RefPtr<EditorLayer> keep(this);
+        Director::getInstance()->getScheduler()->performFunctionInCocosThread([keep]() {
+            if (keep->isRunning()) keep->closeInspector();
+        });
     };
     _inspector->onFunction = [this](const std::string& key) {
         RefPtr<EditorLayer> keep(this);

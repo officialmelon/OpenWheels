@@ -1,5 +1,5 @@
 diff --git a/src/platform/desktop/WorldDumpRunner.cpp b/src/platform/desktop/WorldDumpRunner.cpp
-index d4e5a21..97bad0d 100644
+index d4e5a21..9446020 100644
 --- a/src/platform/desktop/WorldDumpRunner.cpp
 +++ b/src/platform/desktop/WorldDumpRunner.cpp
 @@ -3,18 +3,22 @@
@@ -25,7 +25,7 @@ index d4e5a21..97bad0d 100644
  
  USING_NS_CC;
  
-@@ -48,11 +52,126 @@ int runWorldDump(const std::string& outPath, const std::string& levelPath, int f
+@@ -48,11 +52,152 @@ int runWorldDump(const std::string& outPath, const std::string& levelPath, int f
      }
      auto replay = new ReplayData();
      int state = 0;
@@ -122,6 +122,32 @@ index d4e5a21..97bad0d 100644
 +        for (int k = f; k < f + 3 && k < 18000; ++k) d[k] = v;
 +    };
 +
++    // LOCAL TEST PATCH: OW_UNSTICK=1 plays like someone stuck on a heap: no progress for 1.5 s ->
++    // reverse 0.5 s, then drive on with the deck lifted (special) for 1.5 s.
++    const bool unstick = std::getenv("OW_UNSTICK") != nullptr;
++    float lastX = -1e9f; int lastProgress = 0, phaseEnd = 0, phase = 0;
++    auto unsticker = [&](int f) {
++        if (!unstick) return;
++        Session* s = Settings::getInstance()->getCurrentSession();
++        if (!s || !s->getWorld()) return;
++        b2Body* best = nullptr; int bestN = 0;
++        for (b2Body* b = s->getWorld()->GetBodyList(); b; b = b->GetNext()) {
++            if (b->GetType() != b2_dynamicBody) continue;
++            int n = 0;
++            for (b2Fixture* fx = b->GetFixtureList(); fx; fx = fx->GetNext()) ++n;
++            if (n > bestN) { bestN = n; best = b; }
++        }
++        if (!best) return;
++        const float x = best->GetPosition().x * 62.5f;
++        if (x > lastX + 40.0f) { lastX = x; lastProgress = f; }
++        if (phase == 0 && f - lastProgress > 90) { phase = 1; phaseEnd = f + 30; }
++        if (phase == 1 && f >= phaseEnd) { phase = 2; phaseEnd = f + 90; }
++        if (phase == 2 && f >= phaseEnd) { phase = 0; lastProgress = f; lastX = x; }
++        if (phase == 0) return;
++        unsigned char* d = replay->getData();
++        for (int k = f; k < f + 3 && k < 18000; ++k) d[k] = phase == 1 ? 0x02 : 0x11;
++    };
++
 +    // LOCAL TEST PATCH: OW_AUTOBALANCE=1 leans like a player keeping the vehicle level.
 +    const bool balance = std::getenv("OW_AUTOBALANCE") != nullptr;
 +    auto autobalance = [&](int f) {
@@ -152,12 +178,13 @@ index d4e5a21..97bad0d 100644
      replay->resetPosition();
  
      const std::string xml = FileUtils::getInstance()->getStringFromFile(levelPath);
-@@ -84,7 +203,19 @@ int runWorldDump(const std::string& outPath, const std::string& levelPath, int f
+@@ -84,7 +229,20 @@ int runWorldDump(const std::string& outPath, const std::string& levelPath, int f
      director->mainLoop(loopDt);
      dumpExtra(0);
      for (int f = 0; f < frames; f += ticksPerLoop) {
 +        autobalance(f);
 +        autopilot(f);
++        unsticker(f);
          director->mainLoop(loopDt);
 +        // LOCAL TEST PATCH: OW_SHOTS="dir:f1,f2,..." captures the rendered frame after those ticks
 +        if (const char* sh = std::getenv("OW_SHOTS")) {

@@ -15,6 +15,7 @@
 #include "Sound.h"
 #include "TargetRaycast.h"
 #include "online/FlashPhysics.h"  // ONLINE (PC addition)
+#include "online/RenderInterpolation.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -274,7 +275,7 @@ void HomingMine::blastBodies(b2Vec2 center, float radius)
     b2AABB aabb;
     aabb.lowerBound = b2Vec2(center.x - radius, center.y - radius);
     aabb.upperBound = b2Vec2(center.x + radius, center.y + radius);
-    getWorld()->QueryAABB(&callback, aabb);
+    online::flashQueryAABB(getWorld(), &callback, aabb);  // ONLINE (PC addition)
 
     for (unsigned int i = 0; i < callback._fixtures.size(); i++) {
         b2Fixture* fixture = callback._fixtures[i];
@@ -448,6 +449,11 @@ void HomingMine::paint()
     _mc->setPosition(Vec2(center.x * getPtm(), center.y * getPtm()));
     float angle = _mineBody->GetAngle();
     _mc->setRotation(angle * -57.29578f);
+    // ONLINE (PC addition): the frames drawn between browser physics steps only move the mine;
+    // the jets' flicker draws rand() and stays once per step (online/RenderInterpolation.h).
+    if (online::interp::drawing()) {
+        return;
+    }
 
     // Thrust in the mine's frame, with some flicker, drives the four jet sprites.
     float impulseX = _totalImpulseVector.x;

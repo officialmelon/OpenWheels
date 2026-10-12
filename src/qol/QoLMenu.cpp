@@ -11,6 +11,7 @@
 #include "qol/QoL.h"
 #include "qol/CharacterChoice.h"
 #include "qol/QoLControlsMenu.h"
+#include "qol/QoLPadMenu.h"  // PAD (PC addition)
 #include "qol/QoLWidgets.h"
 #include "online/FlashPhysics.h"
 
@@ -77,7 +78,8 @@ std::string QoLMenu::labelFor(int row) const
     case RowFps: return std::string("fps counter: ") + onOff(qol::showFps());
     case RowFullscreen: return std::string("fullscreen: ") + onOff(qol::fullscreen());
     case RowUnlockLevels: return std::string("unlock all levels: ") + onOff(qol::unlockAllLevels());
-    case RowControls: return "controls";
+    case RowControls: return "keyboard controls";
+    case RowController: return "controller";
     case RowChildGore:
         // The sheet is built from the player's browser-game SWF; without it the row says so.
         return std::string("child gore: ") + (qol::childGoreAvailable() ? onOff(qol::childGore()) : "no art");
@@ -94,7 +96,8 @@ std::string QoLMenu::labelFor(int row) const
 OptionsMenuItem* QoLMenu::makeRow(int row)
 {
     return OptionsMenuItem::create(labelFor(row), row, CC_CALLBACK_1(QoLMenu::rowPressed, this),
-                                   row == RowControls ? OptionsMenuItemAppearanceBlue : OptionsMenuItemAppearanceDefault);
+                                   row == RowControls || row == RowController ? OptionsMenuItemAppearanceBlue
+                                                                              : OptionsMenuItemAppearanceDefault);
 }
 
 void QoLMenu::addContent()
@@ -116,9 +119,13 @@ void QoLMenu::addContent()
     if (qol::fullscreenSupported())
     {
         game->addChild(makeRow(RowFullscreen));
-        game->addChild(makeRow(RowTouchControls));  // touch devices always show them
+    }
+    game->addChild(makeRow(RowTouchControls));  // PAD (PC addition): touch devices too (controllers)
+    if (qol::desktopBuild())
+    {
         game->addChild(makeRow(RowControls));  // the keyboard bridge is desktop-only
     }
+    game->addChild(makeRow(RowController));  // PAD (PC addition): every platform
     const float padding = 35.0f;
     visuals->alignItemsVerticallyWithPadding(padding);
     game->alignItemsVerticallyWithPadding(padding);
@@ -221,6 +228,12 @@ void QoLMenu::rowPressed(Ref* sender)
         // Pushed, so the back button returns here.
         Director::getInstance()->pushScene(
             TransitionFade::create(globals::ui::menuFadeTime, QoLControlsMenu::createScene(), Color3B(0, 0, 0)));
+        return;
+    }
+    case RowController:
+    {
+        Director::getInstance()->pushScene(
+            TransitionFade::create(globals::ui::menuFadeTime, QoLPadMenu::createScene(), Color3B(0, 0, 0)));
         return;
     }
     default:

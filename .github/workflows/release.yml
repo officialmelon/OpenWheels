@@ -212,9 +212,46 @@ jobs:
           ./gradlew --no-daemon assembleRelease \
             -POW_GAME_ASSETS="${GITHUB_WORKSPACE}/game-data/assets" \
             -POW_PREBUILT_DATA="${GITHUB_WORKSPACE}/game-data" \
-            -POW_GAME_RES="${GITHUB_WORKSPACE}/none"
+            -POW_GAME_RES="${GITHUB_WORKSPACE}/none" \
+            -POW_BETA_BUILD=true \
+            -POW_BETA_VERSION="${{ inputs.tag || github.ref_name }}"
           mkdir -p "${GITHUB_WORKSPACE}/dist"
           cp app/build/outputs/apk/release/OpenWheels-release.apk "${GITHUB_WORKSPACE}/dist/"
+      - name: Verify restored campaign is packaged
+        run: |
+          python3 - <<'PY'
+          import plistlib
+          import sys
+          import zipfile
+
+          apk = "dist/OpenWheels-release.apk"
+          required = {
+              "assets/levels/restored/chapters.plist",
+              "assets/levels/restored/06_lawnmower_man/01_lawn_and_order.xml",
+              "assets/levels/restored/07_explorer_guy/03_idol_hands.xml",
+              "assets/levels/restored/11_helicopter_man/01_lift_off.xml",
+              "assets/generated/restored/shared/Characters_restored.plist",
+          }
+          with zipfile.ZipFile(apk) as archive:
+              names = set(archive.namelist())
+              missing = sorted(required - names)
+              levels = [name for name in names
+                        if name.startswith("assets/levels/restored/")
+                        and name.endswith(".xml")]
+              if missing:
+                  sys.exit("APK is missing required restored-campaign files: " + ", ".join(missing))
+              if len(levels) != 30:
+                  sys.exit(f"Expected 30 restored campaign XMLs, found {len(levels)}")
+              characters = plistlib.loads(
+                  archive.read("assets/generated/restored/shared/Characters_restored.plist")
+              )
+              ids = {entry.get("id") for entry in characters if isinstance(entry, dict)}
+              missing_ids = sorted({6, 7, 8, 10, 11} - ids)
+              if missing_ids:
+                  sys.exit("APK is missing restored character data for IDs: "
+                           + ", ".join(map(str, missing_ids)))
+          print("Verified: 30 restored campaign levels, all five restored characters, and the three pilot levels.")
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: OpenWheels-android
@@ -285,14 +322,21 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE="${PWD}/thirdparty/cocos2d-x/cmake/ios.toolchain.cmake" \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DOW_ANDROID_ASSETS="${PWD}/game-data/assets"
+          status=0
           cmake --build build-ios --config Release -- -sdk iphoneos \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | tail -40
-          exit "${PIPESTATUS[0]}"
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" > build-ios.log 2>&1 || status=$?
+          # The xcodebuild log is huge: show the compiler errors (if any) and the summary.
+          grep -E -A8 '(error|fatal error): ' build-ios.log | head -300 || true
+          tail -40 build-ios.log
+          exit "${status}"
       - name: Package (.ipa for sideloading)
         run: |
           set -euo pipefail
+          # bin/OpenWheels/Release-iphoneos/ or bin/OpenWheels/Release/, depending on the CMake version
           app="$(find build-ios -name 'OpenWheels.app' -type d -path '*iphoneos*' | head -1)"
-          [ -n "${app}" ] || { echo "::error::OpenWheels.app not found"; exit 1; }
+          [ -n "${app}" ] || app="$(find build-ios -name 'OpenWheels.app' -type d -not -path '*.build/*' -prune | head -1)"
+          [ -n "${app}" ] || { echo "::error::OpenWheels.app not found"; find build-ios -name '*.app' -prune; exit 1; }
+          echo "app: ${app}"
           mkdir -p dist/Payload
           cp -R "${app}" dist/Payload/OpenWheels.app
           cp -R game-data/generated dist/Payload/OpenWheels.app/generated

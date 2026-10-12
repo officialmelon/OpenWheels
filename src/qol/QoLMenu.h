@@ -1,7 +1,8 @@
 #pragma once
 // "Quality of Life" options page (PC addition), reached from Options. Built like the original's
 // Advanced Options screen (SecondaryMenu + OptionsMenuItem rows), in two columns: "visuals" and
-// "game" (sound and music sliders, gameplay options, and the "controls" page on desktop).
+// "game" (sound and music sliders, gameplay options, the "controls" page on desktop and the
+// "controller" page).
 
 #include "SecondaryMenu.h"
 
@@ -33,6 +34,7 @@ private:
         RowAnyCharacter,   // qol/CharacterChoice.h
         RowBrowserPhysics, // online/FlashPhysics.h
         RowRegrabVehicle,  // QoL.h regrabVehicle
+        RowController,     // PAD (PC addition): qol/QoLPadMenu.h
     };
     std::string labelFor(int row) const;
     void rowPressed(cocos2d::Ref* sender);

@@ -96,7 +96,9 @@ void QoLControlsMenu::addContent()
 
     const float top = visibleSize.height - 380.0f;  // below the title
     const float bottom = 120.0f;
-    const float scale = std::min({0.7f, (visibleSize.width - 900.0f) / tableWidth, (top - bottom) / tableHeight});
+    // Clamped: on very narrow windows the width term goes to zero or below (mirrored / invisible table).
+    const float scale = std::max(
+        0.2f, std::min({0.7f, (visibleSize.width - 900.0f) / tableWidth, (top - bottom) / tableHeight}));
     table->setScale(scale);
     // The back button sits bottom left: keep the table centred, slightly right on narrow screens.
     table->setPosition(Vec2(visibleSize.width * 0.5f + 150.0f * (1.0f - scale), top - rowHeight * 0.5f * scale));
@@ -105,6 +107,8 @@ void QoLControlsMenu::addContent()
     Label* hint = Label::createWithTTF("click a key, then press the new one  -  esc cancels, backspace clears",
                                        "fonts/ClarendonLTStd-Bold.ttf", 55.0f);
     hint->setColor(Color3B(170, 170, 170));
+    // Shrink rather than run past the screen edges on narrow windows.
+    hint->setScale(std::min(1.0f, (visibleSize.width - 160.0f) / hint->getContentSize().width));
     hint->setPosition(Vec2(visibleSize.width * 0.5f, top + 90.0f));
     addChild(hint, 100);
     refresh();

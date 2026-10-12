@@ -1,0 +1,84 @@
+diff --git a/cmake/ios.toolchain.cmake b/cmake/ios.toolchain.cmake
+--- a/cmake/ios.toolchain.cmake
++++ b/cmake/ios.toolchain.cmake
+@@ -37,17 +37,16 @@
+ 
+ # support iOS on cmake 3.11+
+ # cmake 3.11 milestone feature, https://gitlab.kitware.com/cmake/cmake/issues/17431 
+-set(CMAKE_OSX_DEPLOYMENT_TARGET "8.0" CACHE STRING "set of the deployment target for iOS" FORCE)
++set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "set of the deployment target for iOS" FORCE)
+ 
+ # Determine the cmake host system version so we know where to find the iOS SDKs
+ find_program(CMAKE_UNAME uname /bin /usr/bin /usr/local/bin)
+ if(CMAKE_UNAME)
+-    exec_program(uname ARGS -r OUTPUT_VARIABLE CMAKE_HOST_SYSTEM_VERSION)
++    execute_process(COMMAND uname -r OUTPUT_VARIABLE CMAKE_HOST_SYSTEM_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
+     string(REGEX REPLACE "^([0-9]+)\\.([0-9]+).*$" "\\1" DARWIN_MAJOR_VERSION "${CMAKE_HOST_SYSTEM_VERSION}")
+ endif(CMAKE_UNAME)
+ 
+ # Force the compilers to Clang for iOS
+-include(CMakeForceCompiler)
+ set(CMAKE_C_COMPILER /usr/bin/clang Clang)
+ set(CMAKE_CXX_COMPILER /usr/bin/clang++ Clang)
+ set(CMAKE_AR ar CACHE FILEPATH "" FORCE)
+diff --git a/cocos/2d/CCFontAtlas.cpp b/cocos/2d/CCFontAtlas.cpp
+--- a/cocos/2d/CCFontAtlas.cpp
++++ b/cocos/2d/CCFontAtlas.cpp
+@@ -130,7 +130,7 @@
+ #if CC_TARGET_PLATFORM != CC_PLATFORM_WIN32 && CC_TARGET_PLATFORM != CC_PLATFORM_WINRT && CC_TARGET_PLATFORM != CC_PLATFORM_ANDROID
+     if (_iconv)
+     {
+-        iconv_close(_iconv);
++        iconv_close((iconv_t)_iconv);
+         _iconv = nullptr;
+     }
+ #endif
+@@ -240,7 +240,7 @@
+             size_t inLen = strLen * 2;
+             size_t outLen = gb2312StrSize;
+ 
+-            iconv(_iconv, (char**)&pin, &inLen, &pout, &outLen);
++            iconv((iconv_t)_iconv, (char**)&pin, &inLen, &pout, &outLen);
+         }
+ #endif
+     }
+diff --git a/cocos/audio/apple/AudioCache.h b/cocos/audio/apple/AudioCache.h
+--- a/cocos/audio/apple/AudioCache.h
++++ b/cocos/audio/apple/AudioCache.h
+@@ -30,6 +30,8 @@
+ 
+ #import <OpenAL/al.h>
+ 
++#include <functional>
++#include <memory>
+ #include <string>
+ #include <mutex>
+ #include <vector>
+diff --git a/cocos/audio/apple/AudioPlayer.h b/cocos/audio/apple/AudioPlayer.h
+--- a/cocos/audio/apple/AudioPlayer.h
++++ b/cocos/audio/apple/AudioPlayer.h
+@@ -32,6 +32,7 @@
+ #include "audio/apple/AudioMacros.h"
+ 
+ #include <condition_variable>
++#include <functional>
+ #include <mutex>
+ #include <string>
+ #include <thread>
+diff --git a/cocos/audio/mac/CDXMacOSXSupport.h b/cocos/audio/mac/CDXMacOSXSupport.h
+--- a/cocos/audio/mac/CDXMacOSXSupport.h
++++ b/cocos/audio/mac/CDXMacOSXSupport.h
+@@ -39,6 +39,13 @@
+ 
+ #import <Foundation/Foundation.h>
+ #import <AppKit/NSSound.h>
++#import <AudioToolbox/AudioToolbox.h>
++
++// Newer macOS SDKs declare the iOS AudioSession API too (as unavailable on macOS): keep these
++// stand-ins under their own names.
++#define kAudioSessionProperty_OtherAudioIsPlaying CDX_kAudioSessionProperty_OtherAudioIsPlaying
++#define kAudioSessionProperty_AudioRoute CDX_kAudioSessionProperty_AudioRoute
++#define AudioSessionGetProperty CDX_AudioSessionGetProperty
+ 
+ enum AudioSessionProperties {
+ 	kAudioSessionProperty_OtherAudioIsPlaying,

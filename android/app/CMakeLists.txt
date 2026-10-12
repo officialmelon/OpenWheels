@@ -56,6 +56,10 @@ add_compile_options(
 
 add_subdirectory(${COCOS2DX_ROOT_PATH}/cocos ${ENGINE_BINARY_PATH}/cocos/core)
 
+# Box2D from source (thirdparty/box2d): the prebuilt's own source with the browser game's Box2D 2.0
+# solver rules behind a switch (online/FlashPhysics.*); it replaces ext_box2d in `external`.
+add_subdirectory(${OW_ROOT}/thirdparty/box2d ${CMAKE_BINARY_DIR}/box2d)
+
 file(GLOB_RECURSE GAME_SOURCES CONFIGURE_DEPENDS
      ${OW_ROOT}/src/*.cpp
      ${OW_ROOT}/src/*.c

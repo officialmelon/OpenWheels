@@ -6,25 +6,35 @@
 // that resolves every contact point on its own (Box2D 2.0 had no 2-point block solver). The
 // mobile game (Box2D 2.3) steps at 1/60 with 8 + 3 iterations and the block solver. Stacks,
 // balances, "don't move" levels, joint stiffness and every browser replay (one input byte per
-// 30 Hz frame) depend on that difference, so with "browser physics" on (QOL page, default off)
+// 30 Hz frame) depend on that difference, so with "browser physics" on (QOL page, default on)
 // a converted browser level runs:
 //   * one world step per Flash frame: the Session's time step is 1/30 (Session::setTimeStep, the
 //     original game's own variable-step mechanism: characters rescale their joint limits, items
 //     their impulses through LevelItem::s_timeStepOverFlashTimeStep);
 //   * 10 / 10 iterations and g_blockSolve off during the step;
-//   * the Box2D 2.0 contact rules of FlashRuntime (no polygon skin, no bounding-box wakes).
+//   * Box2D's solver switched to the browser game's Box2D 2.0 rules (g_flash20Solver,
+//     thirdparty/box2d/README.md): velocity clamps, damping, sleep, contact and joint solvers;
+//   * the Box2D 2.0 contact rules of FlashRuntime (no polygon skin, no bounding-box wakes);
+//   * smooth drawing: every display frame is drawn between the last two 30 Hz steps
+//     (online/RenderInterpolation.h), so it looks like 60 fps or more without changing a step.
 // Campaign and other mobile levels never see any of it. With the option off, browser levels play
 // on the mobile profile (1/60, 8 + 3), as in OpenWheels 0.2.
 
+#include <functional>
 #include <string>
+#include <vector>
 
 class b2World;
+class b2Body;
+class b2Fixture;
+class b2QueryCallback;
+struct b2AABB;
 class LevelB2D;
 class Session;
 
 namespace online {
 
-// The QOL option (persisted; default off).
+// The QOL option (persisted; default on).
 bool browserPhysicsOption();
 void setBrowserPhysicsOption(bool on);
 
@@ -37,6 +47,10 @@ void setOfflineLevel(bool offline);
 // True while the running level plays with the browser profile (latched when the level starts,
 // so toggling the option mid-level waits for the next level).
 bool browserPhysics();
+
+// Whether the level being built will play with the browser profile (known before
+// beginLevelTimeStep, while the characters are created).
+bool browserPhysicsWanted();
 
 // World steps per browser (30 Hz) frame: 1 with the browser profile, 2 on the mobile profile.
 int stepsPerFlashFrame();
@@ -58,5 +72,27 @@ void beginLevelTimeStep(Session* session);
 
 // The world step of a browser level (profile-dependent iterations and solver).
 void flashWorldStep(b2World* world, float timeStep);
+// Test tools: called right after each browser-profile world step (before the items' actions).
+void setAfterWorldStepObserver(std::function<void()> observer);
+
+// LevelB2D: Flash builds the level's shapes and items before its character, and Box2D 2.0 orders
+// its bodies, joints and contacts by creation. LevelB2D reads the character first, so it brackets
+// the character's creation with these and calls flashLevelBuilt once the level is built: the
+// character's bodies and joints move to the front of the lists (the newest) and the fixtures get
+// Box2D 2.0's proxy ids in Flash's order.
+void flashCharacterBegin(b2World* world);
+void flashCharacterEnd(b2World* world);
+void flashLevelBuilt(b2World* world);
+
+// b2World::QueryAABB for the browser game's explosions (Mine, HomingMine, Jet, the wheelchair's
+// jet): under Box2D 2.0's broad-phase it reports what 2.0's world.Query(aabb, shapes, 30) returns,
+// at most 30 fixtures, in 2.0's order.
+void flashQueryAABB(b2World* world, b2QueryCallback* callback, const b2AABB& aabb);
+
+// Fan and BoostPanel push the bodies their sensor reported to Box2D 2.0's contact listener as
+// "Persist" in the last step (a contact point that kept its id): the bodies with such a contact
+// with sensor, each once. A body counts while any of its fixtures persists, even after another
+// of its fixtures left the sensor.
+std::vector<b2Body*> flashPersistingBodies(b2Fixture* sensor);
 
 }  // namespace online
