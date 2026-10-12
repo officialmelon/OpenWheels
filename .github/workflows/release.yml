@@ -213,7 +213,7 @@ jobs:
             -POW_GAME_ASSETS="${GITHUB_WORKSPACE}/game-data/assets" \
             -POW_PREBUILT_DATA="${GITHUB_WORKSPACE}/game-data" \
             -POW_GAME_RES="${GITHUB_WORKSPACE}/none" \
-            -POW_BETA_BUILD=true \
+            -POW_BETA_BUILD=${{ (inputs.tag != '' || github.ref_type == 'tag') && 'false' || 'true' }} \
             -POW_BETA_VERSION="${{ inputs.tag || github.ref_name }}"
           mkdir -p "${GITHUB_WORKSPACE}/dist"
           cp app/build/outputs/apk/release/OpenWheels-release.apk "${GITHUB_WORKSPACE}/dist/"
@@ -397,7 +397,11 @@ jobs:
           args=(--title "OpenWheels ${TAG}" --notes-file notes.md --target "${GITHUB_SHA}")
           [ "${DRAFT}" = "true" ] && args+=(--draft)
           if gh release view "${TAG}" -R "${GITHUB_REPOSITORY}" > /dev/null 2>&1; then
+            # A release that already exists (e.g. an earlier draft) gets the new packages and this
+            # run's notes, title and target; it is published unless this run is a draft.
             gh release upload "${TAG}" packages/* -R "${GITHUB_REPOSITORY}" --clobber
+            gh release edit "${TAG}" -R "${GITHUB_REPOSITORY}" --title "OpenWheels ${TAG}" \
+              --notes-file notes.md --target "${GITHUB_SHA}" --draft="${DRAFT:-false}"
           else
             gh release create "${TAG}" packages/* -R "${GITHUB_REPOSITORY}" "${args[@]}"
           fi
