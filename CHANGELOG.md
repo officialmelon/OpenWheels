@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4.2
+
+### Fixed
+- **Jets on user-built vehicles produced no thrust.** A vehicle's jets are held back until the jet
+  key is pressed, and the first idle frame zeroed the thrust ramp of every jet without a ramp time
+  (the default), so they never pushed again. Jets without a ramp now keep full thrust; ramped jets
+  behave as before.
+
+### New
+- **Switch camera** (key **C**, remappable under Controls) between your character and the ones
+  travelling with it: Irresponsible Dad's kid, the moped couple's girl, Santa's elves and
+  Irresponsible Mom's kids. On touch screens a **CAM** button appears next to pause whenever
+  there is more than one character to follow.
+- **New launcher icon:** an OpenWheels wheel on the menu blue (adaptive and themed icon on
+  Android 8+/13+; used when the original game's icon is not part of the build).
+
 ## v0.4.1
 
 ### Fixed

@@ -30,6 +30,7 @@ enum class KeyAction
     Pause,
     Restart,
     Fullscreen,
+    Camera,          // switch the camera between the player's character and its companions
     Count
 };
 

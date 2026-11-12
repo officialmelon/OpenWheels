@@ -39,6 +39,7 @@ Slots defaults(KeyAction action)
     case KeyAction::Pause: return {{K::KEY_ESCAPE, K::KEY_P}};
     case KeyAction::Restart: return {{K::KEY_R, K::KEY_NONE}};
     case KeyAction::Fullscreen: return {{K::KEY_F11, K::KEY_NONE}};
+    case KeyAction::Camera: return {{K::KEY_C, K::KEY_NONE}};
     default: return {{K::KEY_NONE, K::KEY_NONE}};
     }
 }
@@ -104,6 +105,7 @@ const char* keyActionName(KeyAction action)
     case KeyAction::Pause: return "pause";
     case KeyAction::Restart: return "restart";
     case KeyAction::Fullscreen: return "fullscreen";
+    case KeyAction::Camera: return "switch camera";
     default: return "";
     }
 }

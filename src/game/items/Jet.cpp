@@ -10,6 +10,7 @@
 #include "QueryCallback.h"
 #include "Sound.h"
 #include "online/FlashPhysics.h"  // ONLINE (PC addition)
+#include "online/FlashRuntime.h"  // ONLINE (PC addition)
 
 USING_NS_CC;
 
@@ -249,7 +250,12 @@ void Jet::frameAction()
             _lights->setVisible(false);
             stopSoundLoop();
         }
-        if (_accelScaler != 0.0f) {
+        if (online::flashLevel() && _accelStep <= 0.0f) {
+            // ONLINE (PC addition): a jet without a thrust ramp (accel time 0) has no step to climb
+            // back with: dropping its scaler to 0 would leave a vehicle's jet without any thrust
+            // once the key is pressed (the first idle frame already did that). Keep full thrust.
+            _accelScaler = 1.0f;
+        } else if (_accelScaler != 0.0f) {
             // (sic) scaler - scaler: the thrust ramp drops to 0 at once.
             _accelScaler = fmaxf(_accelScaler - _accelScaler, 0.0f);
         }

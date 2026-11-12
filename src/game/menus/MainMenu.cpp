@@ -504,14 +504,14 @@ void MainMenu::logoScaleInComplete()
     {
         // PC addition: a one-time "what's new" toast after an update (the modal alerts above keep
         // priority; this one waits for the next visit to the main menu).
-        const char* const whatsNewKey = "whatsnew_0_4_1";
+        const char* const whatsNewKey = "whatsnew_0_4_2";
         if (!userDefault->getBoolForKey(whatsNewKey))
         {
-            online::ui::showToast("OpenWheels updated to 0.4.1",
-                                  {"The on-screen keyboard now opens in the level editor (Android)",
-                                   "Searching online levels with several words works again",
-                                   "Online levels: more accurate trigger timing and sharper text",
-                                   "The restored characters' levels are coming later"},
+            online::ui::showToast("OpenWheels updated to 0.4.2",
+                                  {"Jets on user-built vehicles push again",
+                                   "New: switch camera with C (or the CAM button) between you and the others on the vehicle",
+                                   "New launcher icon",
+                                   "Also: Android editor keyboard fix, multi-word online search"},
                                   1.0f);
             userDefault->setBoolForKey(whatsNewKey, true);
             userDefault->flush();

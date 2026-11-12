@@ -98,6 +98,7 @@ public:
     // Removes all state buttons, then builds the set for `type` (no-op after victory, or if
     // type == _controlsType, which is never assigned). Case 1004 is only visible in the asm.
     void addControls(ControlsType type);       // @005b5178
+    void onlineAddCameraButton();              // QOL (PC addition): switch camera (touch)
     void addPauseBtn();                        // @005b738c  pause button (tag 0) + timer background
     void updateUpperUIToAccommodateBanner();   // @005b75ec  getBannerAdSize() only
     void addResetBtn();                        // @005b763c  reset button (tag 1)

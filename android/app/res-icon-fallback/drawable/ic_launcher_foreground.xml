@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- OpenWheels launcher icon, foreground: a wheel (tyre, rim, six spokes, red hub) on the blue
+     of the game's menus. Original artwork; drawn inside the 66x66 adaptive-icon safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- soft ground shadow -->
+    <path android:fillColor="#33000000" android:pathData="M30,84a24,4 0,1 0,48 0a24,4 0,1 0,-48 0z" />
+    <!-- tyre -->
+    <path android:fillColor="#1E2229" android:pathData="M54,27a27,27 0,1 1,0 54a27,27 0,1 1,0 -54z" />
+    <path android:fillColor="#3A414C" android:pathData="M54,31a23,23 0,1 1,0 46a23,23 0,1 1,0 -46z" />
+    <path android:fillColor="#1E2229" android:pathData="M54,34a20,20 0,1 1,0 40a20,20 0,1 1,0 -40z" />
+    <!-- rim -->
+    <path android:fillColor="#E4E8EF" android:pathData="M54,37a17,17 0,1 1,0 34a17,17 0,1 1,0 -34z" />
+    <path android:fillColor="#B8C0CD" android:pathData="M54,41a13,13 0,1 1,0 26a13,13 0,1 1,0 -26z" />
+    <!-- spokes -->
+    <group android:pivotX="54" android:pivotY="54">
+        <path android:fillColor="#E4E8EF" android:pathData="M52.6,38h2.8v32h-2.8z" />
+    </group>
+    <group android:pivotX="54" android:pivotY="54" android:rotation="60">
+        <path android:fillColor="#E4E8EF" android:pathData="M52.6,38h2.8v32h-2.8z" />
+    </group>
+    <group android:pivotX="54" android:pivotY="54" android:rotation="120">
+        <path android:fillColor="#E4E8EF" android:pathData="M52.6,38h2.8v32h-2.8z" />
+    </group>
+    <!-- hub -->
+    <path android:fillColor="#E8453C" android:pathData="M54,48a6,6 0,1 1,0 12a6,6 0,1 1,0 -12z" />
+    <path android:fillColor="#FFD2CE" android:pathData="M52,51a1.8,1.8 0,1 1,0 3.6a1.8,1.8 0,1 1,0 -3.6z" />
+</vector>

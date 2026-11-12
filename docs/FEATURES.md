@@ -145,6 +145,7 @@ and these keys work by default (remap them in *Options → quality of life → c
 | Shift / Ctrl | Character actions (restored characters, e.g. Helicopter Man's magnet) |
 | Esc / P | Pause |
 | R | Restart |
+| C | Switch camera between your character and the ones with it (Irresponsible Dad's kid, the moped couple's girl, Santa's elves, Irresponsible Mom's kids); a CAM button on touch screens |
 | F11 | Toggle fullscreen |
 
 With a game controller: sticks / d-pad drive and lean, RT / LT accelerate and brake, A is the

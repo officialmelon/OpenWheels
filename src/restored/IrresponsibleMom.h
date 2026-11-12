@@ -32,6 +32,10 @@ public:
         if (_son) _son->timeStepChanged();
     }
 
+    // QOL (PC addition): the kids, camera targets (qol/CameraSwitch).
+    CharacterB2D* cameraDaughter() const { return _daughter; }
+    CharacterB2D* cameraSon() const { return _son; }
+
 private:
     CharacterB2D* _daughter = nullptr;
     CharacterB2D* _son = nullptr;

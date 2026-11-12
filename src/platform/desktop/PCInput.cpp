@@ -6,6 +6,7 @@
 #include "input/ControlBridge.h"
 #include "input/Gamepad.h"  // PAD (PC addition)
 #include "online/vehicles/UserVehicle.h"  // ONLINE (PC addition)
+#include "qol/CameraSwitch.h"  // QOL (PC addition)
 #include "qol/KeyBindings.h"  // QOL (PC addition)
 
 USING_NS_CC;
@@ -75,6 +76,7 @@ void installKeyboardControls() {
     listener->onKeyPressed = [](EventKeyboard::KeyCode key, Event*) {
         pad::noteOtherInput();  // PAD (PC addition): key hints show keys again
         onlineExtraKey(key, true);  // ONLINE (PC addition)
+        if (qol::keyIs(key, qol::KeyAction::Camera)) qol::cycleCameraFocus();  // QOL (PC addition)
         Binding binding;
         if (bindingFor(key, &binding)) controls::press(touchIdFor(key), binding);
     };

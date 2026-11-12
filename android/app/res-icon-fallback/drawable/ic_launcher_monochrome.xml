@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- OpenWheels launcher icon, themed (monochrome) variant: the tyre and the rim as one shape. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#FFFFFF" android:fillType="evenOdd"
+        android:pathData="M54,27a27,27 0,1 1,0 54a27,27 0,1 1,0 -54zM54,36a18,18 0,1 0,0 36a18,18 0,1 0,0 -36z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M52.6,38h2.8v32h-2.8z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M38.8,46.2l2.4,-1.4l16,27.7l-2.4,1.4z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M69.2,46.2l-2.4,-1.4l-16,27.7l2.4,1.4z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M54,48a6,6 0,1 1,0 12a6,6 0,1 1,0 -12z" />
+</vector>

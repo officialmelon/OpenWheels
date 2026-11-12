@@ -28,6 +28,9 @@ public:
             if (elf) elf->timeStepChanged();
     }
 
+    // QOL (PC addition): the elves, camera targets (qol/CameraSwitch).
+    CharacterB2D* cameraElf(int i) const { return _elves[i & 1]; }
+
 private:
     CharacterB2D* _elves[2] = {nullptr, nullptr};
 };

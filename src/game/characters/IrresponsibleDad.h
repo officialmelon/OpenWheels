@@ -40,6 +40,9 @@ public:
     // CharacterB2D::taperBodies() plus a 0.85 taper of the chest.
     void taperBodies() override;                                            // @005cbbc8  vptr+0x190
 
+    // QOL (PC addition): the kid, a camera target (qol/CameraSwitch).
+    CharacterB2D* cameraKid() const { return _kid; }
+
 protected:
     CharacterB2D* _kid = nullptr;   // +0x510  retained (iOS `kid`, a ChildSeatKid)
 };

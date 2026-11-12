@@ -1,13 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Fallback launcher icon (a wheel), used only when the original game's res/ folder is not
-     available at build time; normally the player's own icon is staged into build/ow/res. -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="48dp"
-    android:height="48dp"
-    android:viewportWidth="48"
-    android:viewportHeight="48">
-    <path android:fillColor="#3D8BC7" android:pathData="M4,4h40v40h-40z" />
-    <path android:fillColor="#222222" android:pathData="M24,8a16,16 0,1 1,0 32a16,16 0,1 1,0 -32z" />
-    <path android:fillColor="#B4B4C0" android:pathData="M24,14a10,10 0,1 1,0 20a10,10 0,1 1,0 -20z" />
-    <path android:fillColor="#222222" android:pathData="M24,21a3,3 0,1 1,0 6a3,3 0,1 1,0 -6z" />
-</vector>
+<!-- Launcher icon for Android 5-7 (no adaptive icons): the OpenWheels wheel on the menu blue.
+     Android 8+ uses mipmap-anydpi-v26/ic_launcher.xml. Used only when the original game's res/
+     folder is not available at build time. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/ic_launcher_background" />
+    <item android:drawable="@drawable/ic_launcher_foreground" />
+</layer-list>

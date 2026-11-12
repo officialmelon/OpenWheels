@@ -34,6 +34,9 @@ public:
         if (_girl) _girl->timeStepChanged();
     }
 
+    // QOL (PC addition): the girl, a camera target (qol/CameraSwitch).
+    CharacterB2D* cameraGirl() const { return _girl; }
+
 protected:
     CharacterB2D* _girl = nullptr;  // +0x510  retained (iOS `girl`, a MopedGirl)
 };

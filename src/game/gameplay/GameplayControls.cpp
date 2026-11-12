@@ -8,6 +8,7 @@
 #include "online/FlashRuntime.h"  // ONLINE (PC addition)
 #include "online/vehicles/UserVehicle.h"  // ONLINE (PC addition)
 #include "input/Gamepad.h"  // PAD (PC addition)
+#include "qol/CameraSwitch.h"      // QOL (PC addition)
 #include "qol/KeyBindings.h"       // QOL (PC addition)
 #include "qol/QoL.h"               // QOL (PC addition)
 
@@ -178,6 +179,7 @@ GameplayControls* GameplayControls::createWithControlsType(ControlsType type)
         controls->addControls(type);
     }
     controls->addPauseBtn();
+    controls->onlineAddCameraButton();  // QOL (PC addition)
     return controls;
 }
 
@@ -1119,4 +1121,63 @@ void GameplayControls::onlineAddUserVehicleButtons(const Vec2& grabPos, const Si
         addChild(btn);
         _buttons.push_back(btn);
     }
+}
+
+// QOL (PC addition): the browser game's camera key (C) has no touch button. While the level has more
+// than one character to follow (Irresponsible Dad's kid, the moped couple's girl, Santa's elves,
+// Irresponsible Mom's kids), a "CAM" button next to the pause button switches the camera to the
+// next one. It takes its own touches, so none of the control bits are involved.
+void GameplayControls::onlineAddCameraButton()
+{
+    GameplayBtn* btn = GameplayBtn::createWithSpriteFrameName("controls_gameplay_btn_jet.png", 0, _userScale);
+    if (!btn)
+    {
+        return;
+    }
+    btn->setAdjustedScale(1.0f);
+    const Size size = btn->getContentSize();
+    Label* label = Label::createWithTTF("CAM", "fonts/ClarendonLTStd-Bold.ttf", 56.0f);
+    label->setColor(globals::colors::yellow);
+    label->enableOutline(Color4B(0, 0, 0, 255), 5);
+    label->setPosition(Vec2(size.width * 0.5f, size.height * 0.5f));
+    btn->addChild(label);
+    btn->setVisible(false);
+    btn->setOpacity(204);
+    addChild(btn, 5);
+
+    auto touch = EventListenerTouchOneByOne::create();
+    touch->setSwallowTouches(true);
+    touch->onTouchBegan = [btn](Touch* t, Event*) {
+        if (!btn->isVisible())
+        {
+            return false;
+        }
+        const Vec2 p = btn->getParent()->convertToNodeSpace(t->getLocation());
+        return btn->getBoundingBox().containsPoint(p);
+    };
+    touch->onTouchEnded = [btn](Touch* t, Event*) {
+        const Vec2 p = btn->getParent()->convertToNodeSpace(t->getLocation());
+        if (btn->isVisible() && btn->getBoundingBox().containsPoint(p))
+        {
+            qol::cycleCameraFocus();
+        }
+    };
+    getEventDispatcher()->addEventListenerWithSceneGraphPriority(touch, btn);
+
+    btn->schedule(
+        [this, btn](float) {
+            bool show = _pauseBtn != nullptr && _pauseBtn->isVisible() && _pauseBtn->getEnabled() &&
+                        qol::touchControlsShown() && _mode != ControlsModeReplay && qol::cameraTargetCount() > 1;
+            if (btn->isVisible() != show)
+            {
+                btn->setVisible(show);
+            }
+            if (show && _pauseBtn)
+            {
+                const Size pauseSize = _pauseBtn->getBoundingBox().size;
+                btn->setPosition(_pauseBtn->getPosition() +
+                                 Vec2((pauseSize.width + btn->getBoundingBox().size.width) * 0.5f + _specialButtonSpacing, 0.0f));
+            }
+        },
+        0.2f, "ow_camera_button");
 }
