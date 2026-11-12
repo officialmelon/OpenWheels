@@ -272,6 +272,10 @@ float UserProgress::getPercentageOfLevelsOfChapterCompleted(int chapter, bool us
         ValueMap chapterData = chapters[chapter].asValueMap();
         levelCount = (float)chapterData["levels"].asValueVector().size();
     }
+    if (levelCount <= 0.0f)
+    {
+        return 0.0f;  // chapters without levels ("coming later")
+    }
     return (float)completed / levelCount;
 }
 

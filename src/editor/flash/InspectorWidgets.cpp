@@ -185,6 +185,9 @@ void ValueField::focus()
     if (s_focused && s_focused != this) s_focused->unfocus(true);
     _original = _text;
     attachWithIME();
+    // ANDROID (port): a plain IMEDelegate does not open the soft keyboard (only TextFieldTTF does):
+    // ask for it explicitly. No-op on PC.
+    if (GLView* view = Director::getInstance()->getOpenGLView()) view->setIMEKeyboardState(true);
     _focused = true;
     _replaceAll = true;
     s_focused = this;
@@ -197,6 +200,8 @@ void ValueField::unfocus(bool commit)
     _focused = false;
     if (s_focused == this) s_focused = nullptr;
     detachWithIME();
+    if (!s_focused)
+        if (GLView* view = Director::getInstance()->getOpenGLView()) view->setIMEKeyboardState(false);
     if (!commit) _text = _original;
     refresh();
     if (commit && _text != _original && onCommit)

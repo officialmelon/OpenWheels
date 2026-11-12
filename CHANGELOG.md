@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.4.1
+
+### Fixed
+- **Android: the on-screen keyboard now opens in the level editor** (#16). Tapping a value field in
+  the inspector or the level text box focused it but never raised the soft keyboard (seen on an
+  Honor Pad X8a, Android 16); it is now requested on focus and closed again when the field is left.
+- **Multi-word level searches work** (#15). The online site answers a search such as "Spinning
+  Gears" with nothing; the game now falls back to the longest word and keeps the levels that
+  contain every word, in any order and case.
+
+### Changed
+- **The restored characters' campaign chapters show "COMING LATER"** (Lawnmower Man, Explorer Guy,
+  Santa Claus, Irresponsible Mom, Helicopter Man), like the motorcycle man and lady, instead of
+  their levels. The level files stay in the repository for when they are opened again
+  (`kCampaignComingSoon` in `src/restored/Restored.cpp`).
+
+### Improved
+- Chapters without levels no longer produce an invalid (NaN) completion percentage.
+- Local (fixture) level searches also match every word of the term.
+
 ## v0.4.0
 
 ### New

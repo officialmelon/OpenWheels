@@ -197,12 +197,20 @@ bool LevelTextView::isEditable() const
 
 bool LevelTextView::becomeFirstResponder()
 {
-    return _field && _field->attachWithIME();
+    if (!_field) return false;
+    const bool ok = _field->attachWithIME();
+    // ANDROID (port): make sure the soft keyboard is up (also when the field is already attached
+    // but the keyboard was dismissed). No-op on PC.
+    if (GLView* view = Director::getInstance()->getOpenGLView()) view->setIMEKeyboardState(true);
+    return ok;
 }
 
 bool LevelTextView::resignFirstResponder()
 {
-    return _field && _field->detachWithIME();
+    if (!_field) return false;
+    const bool ok = _field->detachWithIME();
+    if (GLView* view = Director::getInstance()->getOpenGLView()) view->setIMEKeyboardState(false);
+    return ok;
 }
 
 bool LevelTextView::isFirstResponder() const

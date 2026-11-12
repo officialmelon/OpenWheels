@@ -176,6 +176,11 @@ void appendCharacters(ValueVector& characters)
     }
 }
 
+// The restored characters' own campaign levels are not open yet: their chapters stay in the level
+// select and the main menu's portrait row with no levels, which the level select shows as
+// "COMING LATER" (as for the motorcycle man / lady). Set to false to offer the levels again.
+static const bool kCampaignComingSoon = true;
+
 void appendChapters(ValueVector& chapters)
 {
     const std::string manifest = "levels/restored/chapters.plist";
@@ -241,6 +246,10 @@ void appendChapters(ValueVector& chapters)
         if (levels.empty())
         {
             continue;
+        }
+        if (kCampaignComingSoon)
+        {
+            levels.clear();
         }
         chapter["levels"] = Value(levels);
         chapters.push_back(Value(chapter));

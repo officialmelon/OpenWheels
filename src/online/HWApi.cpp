@@ -106,13 +106,33 @@ bool serverError(const std::string& body, std::string* error) {
 
 std::string cacheDir() { return FileUtils::getInstance()->getWritablePath() + "online/"; }
 
+std::string lowered(std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return (char)::tolower(c); });
+    return s;
+}
+
+std::vector<std::string> words(const std::string& term) {
+    std::vector<std::string> out;
+    std::string cur;
+    for (char c : term) {
+        if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+            if (!cur.empty()) out.push_back(cur);
+            cur.clear();
+        } else {
+            cur += c;
+        }
+    }
+    if (!cur.empty()) out.push_back(cur);
+    return out;
+}
+
+// Every word of the search term must appear (any order, any case).
 bool matches(const OnlineLevelInfo& l, const LevelQuery& q) {
     if (q.searchBy == SearchBy::None || q.term.empty()) return true;
-    std::string hay = q.searchBy == SearchBy::Name ? l.name : l.authorName;
-    std::string needle = q.term;
-    std::transform(hay.begin(), hay.end(), hay.begin(), ::tolower);
-    std::transform(needle.begin(), needle.end(), needle.begin(), ::tolower);
-    return hay.find(needle) != std::string::npos;
+    const std::string hay = lowered(q.searchBy == SearchBy::Name ? l.name : l.authorName);
+    for (const std::string& w : words(q.term))
+        if (hay.find(lowered(w)) == std::string::npos) return false;
+    return true;
 }
 
 void sortLevels(std::vector<OnlineLevelInfo>& v, SortBy s) {
@@ -401,11 +421,32 @@ RequestId HWApi::listLevels(const LevelQuery& query, ListCallback callback) {
                      {"sterm", query.term}, {"page", page}, {"sortby", sortName(query.sortBy)},
                      {"uploaded", uploadedName(query.uploaded)}});
     }
-    post("get_level.hw", body, [deliver](bool ok, const std::string& err, const std::string& data) {
+    post("get_level.hw", body, [this, deliver, query, page](bool ok, const std::string& err, const std::string& data) {
         std::vector<OnlineLevelInfo> levels;
         int pg = 1, pp = 0;
         std::string perr = err;
         if (ok) ok = parseLevelList(data, levels, &pg, &pp, &perr);
+        // The site answers multi-word searches ("Spinning Gears") with nothing at all: search for the
+        // longest word instead and keep the levels that contain every word.
+        const std::vector<std::string> ws = words(query.term);
+        if (ok && levels.empty() && ws.size() > 1 && query.searchBy != SearchBy::None) {
+            std::string longest = ws[0];
+            for (const std::string& w : ws)
+                if (w.size() > longest.size()) longest = w;
+            const std::string retry = form({{"action", query.searchBy == SearchBy::Name ? "search_by_name" : "search_by_user"},
+                                            {"sterm", longest}, {"page", page}, {"sortby", sortName(query.sortBy)},
+                                            {"uploaded", uploadedName(query.uploaded)}});
+            post("get_level.hw", retry, [deliver, query](bool ok2, const std::string& err2, const std::string& data2) {
+                std::vector<OnlineLevelInfo> all, hits;
+                int pg2 = 1, pp2 = 0;
+                std::string perr2 = err2;
+                if (ok2) ok2 = parseLevelList(data2, all, &pg2, &pp2, &perr2);
+                for (auto& l : all)
+                    if (matches(l, query)) hits.push_back(l);
+                deliver(ok2, perr2, hits, pg2, pp2);
+            });
+            return;
+        }
         deliver(ok, perr, levels, pg, pp);
     });
     return id;
