@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.3
+
+### Fixed (online levels)
+- **Bad Apple!! 2 and other levels built from chained triggers now run.** The level is a video made
+  of 4,000 pixel shapes driven by 30,000 triggers, and three things broke it:
+  - Trigger-to-trigger links without an action list (`<t i="N"/>`, as written by level scripts)
+    were dropped by the converter, so no chain ever ran; they now activate the target, like the
+    live game.
+  - A repeat interval saved as `NaN` (the video's frame clock) was turned into 0.1 s; Flash
+    reads it as 0 frames, so the trigger fires every frame (30 fps).
+  - A start position of `NaN` (also saved on purpose): Flash freezes the character and shows the
+    stage's top-left corner, where the video is; the camera now does the same, and the frozen
+    character counts as touching every sensor trigger (which is what starts the video).
+
 ## v0.4.2
 
 ### Fixed

@@ -660,6 +660,9 @@ void LevelB2D::addInfo(LevelDataElement* info)
         info->boolAttribute("offline", &offline);
         online::setOfflineLevel(offline);
         online::setFlashLevel(source != nullptr && std::string(source) == "flash", browserVersion);
+        bool nanStart = false;  // ONLINE (PC addition): the browser level's start is NaN
+        info->boolAttribute("ns", &nanStart);
+        online::setFlashNanStart(nanStart);
     }
 
     _forcedChar = false;

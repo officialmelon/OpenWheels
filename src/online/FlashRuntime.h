@@ -96,6 +96,10 @@ void flashPostStep(b2World* world);
 // putting NaNs into Box2D 2.3: those bodies are stopped and deactivated, and flashNanBody tells
 // StageCamera to treat its focus like Flash's NaN one.
 bool flashNanBody(b2Body* body);
+// A browser level whose start position is NaN (info ns="t", set by the converter): Flash builds the
+// character at NaN, so it and its vehicle freeze at once and the camera shows the stage's top-left
+// corner (flashNanBody). Emulated on the first step.
+void setFlashNanStart(bool on);
 
 // --- click triggers (triggered by "mouse click", b = 6) ---------------------------------------
 // Installs the touch/mouse listener for the current gameplay session (idempotent).

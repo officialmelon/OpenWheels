@@ -440,6 +440,21 @@ bool Converter::convertInfo(const XMLElement* info) {
     _info.set("v", formatNumber(_version));
     _info.setNum("x", coord(num(info, "x", 0.0)));
     _info.setNum("y", coord(num(info, "y", 0.0)));
+    // A start position that is not a number (Bad Apple!! 2 saves x="NaN" on purpose): Flash builds
+    // the character at NaN, its bodies freeze and the camera snaps to the stage's top-left corner,
+    // where the author built the whole level. Kept as a flag for LevelB2D / online::flashPostStep.
+    {
+        auto notANumber = [info](const char* key) {
+            const char* text = attr(info, key);
+            if (!text) return false;
+            while (*text == ' ' || *text == '\t' || *text == '\n' || *text == '\r') text++;
+            if (!*text) return false;
+            char* end = nullptr;
+            const double value = strtod(text, &end);
+            return end == text || !std::isfinite(value);
+        };
+        if (notANumber("x") || notANumber("y")) _info.set("ns", "t");
+    }
 
     int character = inum(info, "c", 1);
     bool forced = flag(info, "f", false);
@@ -1416,7 +1431,12 @@ void Converter::parseTriggers(const XMLElement* triggers) {
         if (t.type == 10000) {
             n.setInt("i", inumClamped(e, "i", 0, 0, 9));
         } else if (t.repeat > 2) {
-            n.setNum("i", frames(numClamped(e, "i", 0.0, 0.1, 30.0)));
+            // An interval that is not a number (Bad Apple!! 2's frame clock saves i="NaN"): Flash's
+            // clamp lets NaN through and int(NaN * 30) is 0 frames, so the trigger repeats on every
+            // Flash frame. numClamped would turn it into the 0.1 s minimum.
+            double interval = 0.0;
+            const bool notANumber = attr(e, "i") && *attr(e, "i") && !readNum(e, "i", &interval);
+            n.setNum("i", notANumber ? 0.0 : frames(numClamped(e, "i", 0.0, 0.1, 30.0)));
         }
         t.delay = frames(numClamped(e, "d", 0.0, 0.0, 30.0));
         if (t.type == 2) {
@@ -1828,6 +1848,16 @@ std::vector<Node> Converter::emitTargets(const TriggerRec& trigger, int triggerI
             continue;
         }
         if (actions.empty()) {
+            if (kind == "t" && !target.listFormat) {
+                // A trigger target without any action list (hand-made levels such as Bad Apple!! 2,
+                // a v1.95 video made of 30k chained triggers): the live game activates the target
+                // trigger; reading the missing list as "no action" left every chain dead.
+                Node node(kind);
+                node.setInt("i", index);
+                node.setInt("a", 0);
+                out.push_back(node);
+                continue;
+            }
             if (kind == "t" || kind == "j") continue;
             if (!bodies && kind != "sp") continue;
             Node node(kind);

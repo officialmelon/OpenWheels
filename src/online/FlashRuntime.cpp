@@ -11,6 +11,7 @@
 
 #include "cocos2d.h"
 
+#include "CharacterB2D.h"
 #include "LevelB2D.h"
 #include "Session.h"
 #include "Settings.h"
@@ -25,6 +26,7 @@ namespace {
 bool g_flashLevel = false;
 float g_flashVersion = 0.0f;
 std::set<b2Body*> g_nanBodies;  // bodies poisoned by a NaN-density shape (see flashNanBody)
+bool g_nanStart = false;        // the level starts at NaN (setFlashNanStart)
 
 Session* currentSession() { return Settings::getInstance()->getCurrentSession(); }
 
@@ -135,6 +137,12 @@ void setFlashLevel(bool on, float browserVersion)
     g_flashLevel = on;
     g_flashVersion = on ? browserVersion : 0.0f;
     g_nanBodies.clear();  // a new level: none of its bodies are poisoned yet
+    g_nanStart = false;
+}
+
+void setFlashNanStart(bool on)
+{
+    g_nanStart = on && g_flashLevel;
 }
 
 bool flashNanBody(b2Body* body)
@@ -264,8 +272,43 @@ void flashPreStep(b2World* world)
     }
 }
 
+namespace {
+
+// A NaN start (setFlashNanStart): the character and everything joined to it (its vehicle) freeze.
+void poisonNanStart()
+{
+    if (!g_nanStart) return;
+    Session* session = currentSession();
+    LevelB2D* level = session ? session->getLevel() : nullptr;
+    CharacterB2D* character = level ? level->getCharacter() : nullptr;
+    b2Body* seed = character ? character->getFocus() : nullptr;
+    if (!seed) return;
+    g_nanStart = false;  // once
+    std::vector<b2Body*> stack{seed};
+    while (!stack.empty()) {
+        b2Body* body = stack.back();
+        stack.pop_back();
+        if (body->GetType() != b2_dynamicBody || !g_nanBodies.insert(body).second) continue;
+        body->SetLinearVelocity(b2Vec2_zero);
+        body->SetAngularVelocity(0.0f);
+        body->SetActive(false);
+        for (b2JointEdge* je = body->GetJointList(); je; je = je->next) stack.push_back(je->other);
+    }
+    // Box2D 2.0's broad phase takes a NaN-positioned body for one that overlaps everything, so the
+    // frozen character "enters" every sensor trigger that reacts to it (Bad Apple!! 2 starts its
+    // whole video this way: its only physical trigger is a "by any non-fixed shape" one).
+    for (Trigger* trigger : level->onlineTriggers()) {
+        if (!trigger || trigger->getDisabled()) continue;
+        const int by = trigger->getTriggeredBy();
+        if (by >= TriggerTriggeredByCharacter && by <= TriggerTriggeredByAnyObject) trigger->addTriggeringBody(seed);
+    }
+}
+
+}  // namespace
+
 void flashPostStep(b2World* world)
 {
+    poisonNanStart();
     poisonNanIslands(world);
     // Some browser constructions (e.g. "string": meshing gears pinned by 99999 N m motors) blow
     // up Box2D 2.3's solver where Box2D 2.0 copes; a NaN body then hangs the next steps' TOI
