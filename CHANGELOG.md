@@ -17,6 +17,10 @@
   (`kCampaignComingSoon` in `src/restored/Restored.cpp`).
 
 ### Improved
+- **Online level timing and text:** trigger delays no longer fire one physics step late from float
+  drift (0.5 s delays were summed as 29.99999 steps), text-box fade / slide frames are rounded
+  with a safer margin, and large text (up to 160 pt) is rendered at full size instead of being
+  scaled up from 72 pt (blurry titles).
 - Chapters without levels no longer produce an invalid (NaN) completion percentage.
 - Local (fixture) level searches also match every word of the term.
 

@@ -60,7 +60,7 @@ bool TextBox::init(LevelDataElement* element, b2Body* groupBody, b2Vec2 groupOff
 
     const float ppf = pointsPerFlashPx();
     const float wanted = size * ppf;                  // em size in points
-    const float ttfSize = std::min(wanted, 72.0f);    // keep the glyph atlas small
+    const float ttfSize = std::min(wanted, 160.0f);   // big titles stay sharp; the atlas is still bounded
     const std::string file = fontFile(font);
     if (FileUtils::getInstance()->isFileExist(file)) {
         TTFConfig config(file, ttfSize);
@@ -147,7 +147,7 @@ bool TextBox::triggerRepeatActivation(LevelItem* trigger, int action, std::vecto
     (void)trigger;
     // Flash runs this once per 30 Hz frame with an integer frame counter; we are called every
     // 60 Hz step with seconds. Only act when the Flash frame changes.
-    const int frame = (int)std::floor(time * 30.0f + 1e-3f);
+    const int frame = (int)std::floor(time * 30.0f + 0.05f);
     int& last = _lastFrame[action == 1 ? 1 : 0];
     // Levels <= 1.8 keep TargetActionSpecial's counter at the end (Flash), so a repeated
     // activation arrives on the frame that was already handled: it must finish at once.

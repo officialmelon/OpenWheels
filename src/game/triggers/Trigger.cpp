@@ -972,7 +972,9 @@ void Trigger::onlineActions()
                 continue;  // the list was cleared (trigger disabled) by an earlier entry
             }
             const float elapsed = _delayVector[i];
-            if (elapsed < _delayTime)
+            // Flash counts whole 30 Hz frames; the epsilon keeps float drift in the sum of 1/60 s
+            // steps (e.g. 29.99999 steps for a 0.5 s delay) from firing a step late.
+            if (elapsed < _delayTime - 1e-4f)
             {
                 _delayVector[i] = elapsed + getTimeStep();
             }
