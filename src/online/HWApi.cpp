@@ -24,6 +24,7 @@ const char* const kSite = "https://totaljerkface.com/";
 // browser's) is what the site's bot protection answers with a "Just a moment..." challenge page
 // (HTTP 403), which showed up in the game as "Server returned an error page" (issues #23, #25-#27).
 const char* const kUserAgent = "User-Agent: OpenWheels/1.0 (+https://github.com/officialmelon/OpenWheels)";
+int g_lastStatus = 0;  // HTTP status of the latest response (for error messages)
 const double kMinSpacingSeconds = 1.0;  // one request at a time, at most one per second
 const char* const kKeyPrefix = "eatshit";
 const unsigned char kIV[8] = {'a', 'b', 'c', 'd', '1', '2', '3', '4'};
@@ -103,10 +104,11 @@ bool serverError(const std::string& body, std::string* error) {
         const bool challenge = body.find("Just a moment") != std::string::npos ||
                                body.find("cf-chl") != std::string::npos ||
                                body.find("challenge-platform") != std::string::npos;
+        const std::string status = g_lastStatus > 0 ? " (HTTP " + std::to_string(g_lastStatus) + ")" : std::string();
         if (error)
-            *error = challenge ? "totaljerkface.com's bot protection blocked the request (try again later, or from "
-                                 "another network)"
-                               : "server returned an error page";
+            *error = challenge ? "totaljerkface.com's bot protection blocked the request" + status +
+                                     ". Try again later or from another network."
+                               : "server returned an error page" + status;
         return true;
     }
     return false;
@@ -265,6 +267,7 @@ void HWApi::pump() {
         if (response && response->getResponseHeader())
             r.headers.assign(response->getResponseHeader()->begin(), response->getResponseHeader()->end());
         if (response) r.status = response->getResponseCode();
+        g_lastStatus = r.status;
         if (_headerObserver && !r.headers.empty()) _headerObserver(r.headers);
         r.ok = response && response->isSucceed();
         if (!r.ok) {

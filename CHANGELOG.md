@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.7
+
+### Improved
+- **Online levels / login errors now say what actually happened.** The game reports the HTTP status
+  and tells a blocked request (the site's Cloudflare "Just a moment..." page) apart from a plain
+  network failure, in the level browser, the login screen and the account services, instead of
+  "Server returned an error page" / "System error". If online levels still fail for you, the
+  message now includes the cause (for example `HTTP 403` or the network error text): please report
+  it in an issue.
+
 ## v0.4.6
 
 Ports of the browser game's Shift / Ctrl behaviours for the original characters, checked against

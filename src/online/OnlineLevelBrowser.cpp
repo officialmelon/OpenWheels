@@ -52,7 +52,7 @@ std::string displayName(const OnlineLevelInfo& l) {
 // Readable text for an HWApi error.
 std::string friendlyError(const std::string& error) {
     if (error.find("network error") != std::string::npos)
-        return "Couldn't reach totaljerkface.com.\nCheck your internet connection and try again.";
+        return "Couldn't reach totaljerkface.com.\nCheck your internet connection and try again.\n(" + error + ")";
     if (error.empty()) return "Something went wrong.";
     std::string e = error;
     e[0] = (char)toupper((unsigned char)e[0]);

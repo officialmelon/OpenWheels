@@ -67,14 +67,15 @@ Reply TjfServices::parseReply(const HWApi::RawResponse& r, const std::string& wh
     Reply reply;
     if (!r.ok) {
         reply.reason = "network";
-        reply.message = "Couldn't reach totaljerkface.com. Check your internet connection and try again.";
+        reply.message = "Couldn't reach totaljerkface.com. Check your internet connection and try again. (" + r.error + ")";
         return reply;
     }
     const std::string body = trim(r.body);
     const std::string head8 = body.substr(0, 8);
     if (head8.find("<html") != std::string::npos || head8.find("<!DOC") != std::string::npos) {
         reply.reason = "system_error";
-        reply.message = "There was an unexpected system error.";
+        std::string detail;
+        reply.message = HWApi::isServerError(r.body, &detail) ? detail : std::string("There was an unexpected system error.");
         return reply;
     }
     const size_t colon = body.find(':');

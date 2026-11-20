@@ -259,7 +259,7 @@ void TjfAccount::login(const std::string& email, const std::string& password, bo
     api->request("user.hw", body, false, [this, done](const HWApi::RawResponse& r) {
         if (!r.ok) {
             _busy = false;
-            if (done) done(false, "Couldn't reach totaljerkface.com. Check your internet connection.");
+            if (done) done(false, "Couldn't reach totaljerkface.com. Check your internet connection. (" + r.error + ")");
             return;
         }
         const std::string reply = trim(r.body);
@@ -284,7 +284,13 @@ void TjfAccount::login(const std::string& email, const std::string& password, bo
             message = "Too many failed logins. Please wait " + std::to_string(minutes) +
                       (minutes > 1 ? " minutes." : " minute.");
         } else {
-            message = "Login failed. System error, please try again later.";
+            // An HTML page instead of an answer is usually the site's bot protection: say so, with
+            // the HTTP status, instead of a vague "system error".
+            std::string detail;
+            if (HWApi::isServerError(r.body, &detail))
+                message = "Login failed: " + detail;
+            else
+                message = "Login failed. System error, please try again later.";
         }
         if (done) done(false, message);
     });
