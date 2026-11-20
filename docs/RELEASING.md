@@ -17,7 +17,8 @@ list, and `SHA256SUMS.txt` is attached.
 ## Making a release
 
 1. Add a `## vX.Y.Z` section to `CHANGELOG.md` (and bump `versionCode` / `versionName` in
-   `android/app/build.gradle`), merge to `main`.
+   `android/app/build.gradle` and `OW_APP_VERSION` in `src/qol/AppVersion.h`, which the in-game
+   update check compares with the latest release), merge to `main`.
 2. Either push a tag (`git tag vX.Y.Z && git push origin vX.Y.Z`): the release is published when
    the build finishes; or run **Actions -> Release -> Run workflow** with the tag: the release is
    created as a draft (untick "draft" to publish it directly). Without a tag the workflow only

@@ -13,6 +13,7 @@
 #include "qol/QoLControlsMenu.h"
 #include "qol/QoLPadMenu.h"  // PAD (PC addition)
 #include "qol/QoLWidgets.h"
+#include "qol/UpdateCheck.h"
 #include "online/FlashPhysics.h"
 
 USING_NS_CC;
@@ -83,6 +84,7 @@ std::string QoLMenu::labelFor(int row) const
     case RowChildGore:
         // The sheet is built from the player's browser-game SWF; without it the row says so.
         return std::string("child gore: ") + (qol::childGoreAvailable() ? onOff(qol::childGore()) : "no art");
+    case RowUpdateCheck: return std::string("check for updates: ") + onOff(qol::updateCheckEnabled());
     case RowTextures: return texturesLabel();
     case RowFrameRate: return "frame rate: " + std::to_string(qol::frameRate()) + " fps";
     case RowTouchControls: return std::string("touch controls: ") + qol::touchControlsName(qol::touchControls());
@@ -115,6 +117,7 @@ void QoLMenu::addContent()
     game->addChild(makeRow(RowAnyCharacter));  // user / online levels that force a character
     game->addChild(makeRow(RowBrowserPhysics));  // the next browser level steps at 1/30 (FlashPhysics.h)
     game->addChild(makeRow(RowChildGore));
+    game->addChild(makeRow(RowUpdateCheck));
     game->addChild(makeRow(RowRegrabVehicle));
     if (qol::fullscreenSupported())
     {
@@ -203,6 +206,9 @@ void QoLMenu::rowPressed(Ref* sender)
         break;
     case RowRegrabVehicle:
         qol::setRegrabVehicle(!qol::regrabVehicleSetting());
+        break;
+    case RowUpdateCheck:
+        qol::setUpdateCheckEnabled(!qol::updateCheckEnabled());
         break;
     case RowAnyCharacter:
         qol::setAnyCharacterOnForcedLevels(!qol::anyCharacterOnForcedLevels());

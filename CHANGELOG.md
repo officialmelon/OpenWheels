@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.8
+
+### New
+- **Update check.** On start-up the game asks GitHub (one request to `api.github.com`, nothing about
+  you is sent) for the latest OpenWheels release; if it is newer than the version you run, the
+  main menu offers **Download** (opens the release page) or **Later** (not asked again for that
+  version). Turn it off with **QoL -> check for updates**.
+
 ## v0.4.7
 
 ### Improved

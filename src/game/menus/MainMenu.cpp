@@ -28,6 +28,7 @@
 #include "online/OnlineUi.h"
 #include "net/race/RaceHooks.h"  // NET (PC addition): ghost race
 #include "qol/CharacterChoice.h"  // QOL (PC addition)
+#include "qol/UpdateCheck.h"  // QOL (PC addition): update check
 
 USING_NS_CC;
 
@@ -477,6 +478,9 @@ void MainMenu::showMenu(bool show)
 // @005e8a64
 void MainMenu::logoScaleInComplete()
 {
+    // QOL (PC addition): ask GitHub for a newer release once per launch; offer it when it is in.
+    qol::checkForUpdates();
+    qol::showPendingUpdatePrompt();
     static bool s_betaMessageShown = false;
 
     std::string betaMessageKey = "beta_message_4";
@@ -504,14 +508,14 @@ void MainMenu::logoScaleInComplete()
     {
         // PC addition: a one-time "what's new" toast after an update (the modal alerts above keep
         // priority; this one waits for the next visit to the main menu).
-        const char* const whatsNewKey = "whatsnew_0_4_7";
+        const char* const whatsNewKey = "whatsnew_0_4_8";
         if (!userDefault->getBoolForKey(whatsNewKey))
         {
-            online::ui::showToast("OpenWheels updated to 0.4.7",
-                                  {"Online levels and login now show the real reason when they fail",
+            online::ui::showToast("OpenWheels updated to 0.4.8",
+                                  {"New: the game checks for updates and offers the download (QoL menu: off)",
+                                   "Online levels and login now show the real reason when they fail",
                                    "Shift / Ctrl work for the original characters like the browser game",
-                                   "Pogostick Man poses, Wheelchair jet tilt, moped brake and girl eject",
-                                   "Irresponsible Dad: Ctrl throws off the kid, Shift ejects"},
+                                   "Pogostick Man poses, Wheelchair jet tilt, moped brake and girl eject"},
                                   1.0f);
             userDefault->setBoolForKey(whatsNewKey, true);
             userDefault->flush();
