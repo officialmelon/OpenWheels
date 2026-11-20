@@ -1,12 +1,21 @@
 # Changelog
 
-## v0.4.8
+## v0.5.0
 
 ### New
 - **Update check.** On start-up the game asks GitHub (one request to `api.github.com`, nothing about
   you is sent) for the latest OpenWheels release; if it is newer than the version you run, the
   main menu offers **Download** (opens the release page) or **Later** (not asked again for that
   version). Turn it off with **QoL -> check for updates**.
+
+### Fixed
+- **Online levels, login, replays and account features work again.** The site's Cloudflare WAF now
+  challenges the old `OpenWheels/1.0` User-Agent with an HTTP 403 "Just a moment..." page, which
+  broke every request. Requests now use the official desktop client's browser/Electron
+  User-Agent (including its HappyWheels version token), so level lists, search, featured levels,
+  metadata, downloads, login and replays are served normally again.
+- **Version/build fix:** restored `src/qol/AppVersion.h`, which had been left empty, so the running
+  version is compiled into the game and the update check can compare releases.
 
 ## v0.4.7
 
