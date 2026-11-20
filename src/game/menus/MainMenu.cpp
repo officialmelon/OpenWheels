@@ -504,14 +504,14 @@ void MainMenu::logoScaleInComplete()
     {
         // PC addition: a one-time "what's new" toast after an update (the modal alerts above keep
         // priority; this one waits for the next visit to the main menu).
-        const char* const whatsNewKey = "whatsnew_0_4_4";
+        const char* const whatsNewKey = "whatsnew_0_4_5";
         if (!userDefault->getBoolForKey(whatsNewKey))
         {
-            online::ui::showToast("OpenWheels updated to 0.4.4",
-                                  {"Online levels: clearer errors when the site blocks a request",
+            online::ui::showToast("OpenWheels updated to 0.4.5",
+                                  {"Pogostick Man: Ctrl squats, Shift straightens the legs",
+                                   "Online levels: clearer errors when the site blocks a request",
                                    "Ejected left / right controls no longer mirrored",
-                                   "Irresponsible Dad: Shift / KID button throws off the kid",
-                                   "Menu music stops in every level; accented text boxes"},
+                                   "Irresponsible Dad: Shift / KID button throws off the kid"},
                                   1.0f);
             userDefault->setBoolForKey(whatsNewKey, true);
             userDefault->flush();

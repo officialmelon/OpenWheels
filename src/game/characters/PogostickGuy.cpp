@@ -29,3 +29,12 @@ bool PogostickGuy::init(Vec2 position, std::string name, std::string vehicleName
     }
     return ok;
 }
+
+void PogostickGuy::setState(unsigned char state)
+{
+    CharacterB2D::setState(state & 0x9F);
+    if (PogoStick* pogo = dynamic_cast<PogoStick*>(_vehicle))
+    {
+        pogo->extraControls(state);
+    }
+}

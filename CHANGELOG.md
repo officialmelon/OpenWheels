@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.5
+
+### New
+- **Pogostick Man: Shift and Ctrl poses** (#22), ported from the browser game's `PogoStickMan`
+  class: while riding, **Ctrl squats** (knees bent to 2.5 rad) and **Shift straightens the legs**
+  (0.25 rad); released, the legs return to the normal pogo pose (1.2 rad). Ctrl wins if both are
+  held. Touch screens get **LEGS** and **SQUAT** buttons above the lean buttons.
+
 ## v0.4.4
 
 ### Fixed

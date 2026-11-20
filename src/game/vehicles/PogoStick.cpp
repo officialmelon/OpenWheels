@@ -796,6 +796,46 @@ void PogoStick::extraPose1()
     }
 }
 
+// Flash PogoStickMan.straightLegPose: setJoint(kneeJoint1/2, 0.25, 10). The mobile setJoint
+// targets the other limit, so the angle is negated and the speed cap is 20 (as extraPose1).
+void PogoStick::extraPose2()
+{
+    CharacterB2D* character = _characters[0];
+    if (character->getKneeJoint1()) {
+        character->setJoint(character->getKneeJoint1(), -0.25f, 10.0f, 20.0f);
+    }
+    if (character->getKneeJoint2()) {
+        character->setJoint(character->getKneeJoint2(), -0.25f, 10.0f, 20.0f);
+    }
+}
+
+// Flash PogoStickMan.squatPose: setJoint(kneeJoint1/2, 2.5, 10).
+void PogoStick::extraPose3()
+{
+    CharacterB2D* character = _characters[0];
+    if (character->getKneeJoint1()) {
+        character->setJoint(character->getKneeJoint1(), -2.5f, 10.0f, 20.0f);
+    }
+    if (character->getKneeJoint2()) {
+        character->setJoint(character->getKneeJoint2(), -2.5f, 10.0f, 20.0f);
+    }
+}
+
+// Flash shiftPressedActions / shiftNullActions / ctrlPressedActions / ctrlNullActions while riding.
+void PogoStick::extraControls(unsigned char state)
+{
+    if (_characters.empty() || _frameSmashed) {
+        return;
+    }
+    if (state & 0x40) {
+        setCurrentPose(VehiclePoseExtra3);  // squat (ctrl is handled after shift: it wins)
+    } else if (state & 0x20) {
+        setCurrentPose(VehiclePoseExtra2);  // straight legs (shift)
+    } else if (_currentPose == VehiclePoseExtra2 || _currentPose == VehiclePoseExtra3) {
+        setCurrentPose(VehiclePoseExtra1);  // back to pogoPose (Flash: currentPose = 9)
+    }
+}
+
 // @00607fe0
 void PogoStick::actions()
 {

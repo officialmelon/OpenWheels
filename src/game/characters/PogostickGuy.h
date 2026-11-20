@@ -19,4 +19,7 @@ public:
     // vehicleName, groupIndex, showGore, true), then the vehicle.
     bool init(cocos2d::Vec2 position, std::string name, std::string vehicleName, int groupIndex,
               bool showGore);                                               // @00608570
+
+    // Port of PogoStickMan's shift / ctrl poses (control bits 0x20 / 0x40): see PogoStick::extraControls.
+    void setState(unsigned char state) override;
 };

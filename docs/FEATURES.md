@@ -142,7 +142,7 @@ and these keys work by default (remap them in *Options → quality of life → c
 | Right / D | Lean forward |
 | Space | Special action (jump, jet, brake, fire a vehicle's guns; grab when ejected, grab your vehicle to get back on) |
 | Z | Eject |
-| Shift / Ctrl | Character actions (restored characters, e.g. Helicopter Man's magnet) |
+| Shift / Ctrl | Character actions (restored characters, e.g. Helicopter Man's magnet; Pogostick Man: straight legs / squat; Irresponsible Dad: Shift throws off the kid) |
 | Esc / P | Pause |
 | R | Restart |
 | C | Switch camera between your character and the ones with it (Irresponsible Dad's kid, the moped couple's girl, Santa's elves, Irresponsible Mom's kids); a CAM button on touch screens |

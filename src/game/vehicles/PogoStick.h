@@ -86,6 +86,12 @@ public:
     void frameSmash(float impulse);             // @006078c4
     void nubContactRemove(b2Fixture* fixture, b2Fixture* otherFixture, b2Contact* contact);  // @00607f14
     void extraPose1() override;                 // @00607f50 vptr+0x240
+    // Port of the browser game's PogoStickMan.shiftPressedActions / ctrlPressedActions (riding):
+    // Shift (control bit 0x20) = straightLegPose, Ctrl (0x40) = squatPose; released, the rider
+    // goes back to pogoPose (extraPose1). Ctrl wins when both are held (it is handled last).
+    void extraControls(unsigned char state);
+    void extraPose2() override;                 // Flash straightLegPose: knees 0.25
+    void extraPose3() override;                 // Flash squatPose: knees 2.5
     void actions() override;                    // @00607fe0 vptr+0x30
     void paint() override;                      // @00607ff4 vptr+0x28
     void beginContact(b2Fixture* fixture, b2Fixture* otherFixture, b2Contact* contact) override;  // @00608074 vptr+0x88

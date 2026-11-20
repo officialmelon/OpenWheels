@@ -452,6 +452,35 @@ std::vector<GameplayBtn*> extraControls(int type, bool ejected, float userScale,
             return buttons;
         }
     }
+    // Pogostick Man's Shift / Ctrl poses (straight legs / squat, control bits 0x20 / 0x40).
+    if (type == ControlsTypePogoStick && !ejected)
+    {
+        GameplayBtn* legs = button("controls_gameplay_btn_jump.png", 0x20, userScale);
+        GameplayBtn* squat = button("controls_gameplay_btn_jump.png", 0x40, userScale);
+        if (legs && squat)
+        {
+            const Size size = legs->getContentSize();
+            const float y = leanBackPos.y + leanHeight * 0.5f + spacing + size.height * 0.5f;
+            place(legs, Vec2(leanBackPos.x, y));
+            place(squat, Vec2(leanForwardPos.x, y));
+            if (qol::touchControlsShown())
+            {
+                const char* const names[2] = {"LEGS", "SQUAT"};
+                GameplayBtn* both[2] = {legs, squat};
+                for (int i = 0; i < 2; i++)
+                {
+                    Label* label = Label::createWithTTF(names[i], "fonts/ClarendonLTStd-Bold.ttf", 52.0f);
+                    label->setColor(Color3B(255, 221, 0));
+                    label->enableOutline(Color4B(0, 0, 0, 255), 5);
+                    label->setPosition(Vec2(size.width * 0.5f, size.height * 0.5f));
+                    both[i]->addChild(label);
+                }
+            }
+            buttons.push_back(legs);
+            buttons.push_back(squat);
+        }
+        return buttons;
+    }
     // QOL (PC addition): Irresponsible Dad (original character) can throw only his kid off the
     // bike with Shift (control bit 0x20) or this button, which shows while the kid is on board.
     if (type == ControlsTypeIrresponsibleDad && !ejected)
