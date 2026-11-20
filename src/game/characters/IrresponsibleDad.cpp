@@ -117,18 +117,20 @@ bool IrresponsibleDad::ejectKid()
 
 void IrresponsibleDad::setState(unsigned char state)
 {
-    // Shift (control bit 0x20, the KID button) ejects the kid, once per press.
-    static bool s_shiftHeld = false;
-    const bool shift = (state & 0x20) != 0;
-    if (shift && !s_shiftHeld)
+    // Browser game: Shift = IrresponsibleDad.shiftPressedActions -> eject() (Dad leaves the bike,
+    // like Z), Ctrl = ChildSeatKid.ctrlPressedActions -> eject() (only the kid is thrown off).
+    if (state & 0x20)
+    {
+        state |= 0x80;
+    }
+    if ((state & 0x40) && !_ejected)
     {
         ejectKid();
     }
-    s_shiftHeld = shift;
-    CharacterB2D::setState(state & 0xDF);
+    CharacterB2D::setState(state & 0x9F);
     // A thrown-off kid poses and grabs with the same keys, like Irresponsible Mom's.
     if (_kid != nullptr && _kid->getEjected() && !_kid->getDead())
     {
-        _kid->setState(state & 0xDF);
+        _kid->setState(state & 0x9F);
     }
 }

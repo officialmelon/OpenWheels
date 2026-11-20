@@ -14,6 +14,10 @@
 #include "Settings.h"
 #include "ExplorerGuy.h"
 #include "HelicopterMan.h"
+#include "BusinessGuy.h"
+#include "WheelchairGuy.h"
+#include "MopedCouple.h"
+#include "PogostickGuy.h"
 #include "IrresponsibleDad.h"
 #include "IrresponsibleMom.h"
 #include "LawnMowerMan.h"
@@ -452,62 +456,89 @@ std::vector<GameplayBtn*> extraControls(int type, bool ejected, float userScale,
             return buttons;
         }
     }
-    // Pogostick Man's Shift / Ctrl poses (straight legs / squat, control bits 0x20 / 0x40).
-    if (type == ControlsTypePogoStick && !ejected)
+    // The original characters' Shift / Ctrl actions of the browser game (control bits 0x20 / 0x40):
+    // PogoStickMan, SegwayGuy and WheelChairGuy have poses (or the wheelchair's jet tilt) on them,
+    // the moped couple eject the girl / brake, and Irresponsible Dad's Ctrl throws the kid off.
+    // The keys reach the game through these buttons, like the restored characters'.
     {
-        GameplayBtn* legs = button("controls_gameplay_btn_jump.png", 0x20, userScale);
-        GameplayBtn* squat = button("controls_gameplay_btn_jump.png", 0x40, userScale);
-        if (legs && squat)
+        CharacterB2D* main = mainCharacter();
+        const char* names[2] = {nullptr, nullptr};
+        bool single = false;  // Dad: one button (Ctrl)
+        if (type == ControlsTypePogoStick && main && dynamic_cast<PogostickGuy*>(main))
         {
-            const Size size = legs->getContentSize();
-            const float y = leanBackPos.y + leanHeight * 0.5f + spacing + size.height * 0.5f;
-            place(legs, Vec2(leanBackPos.x, y));
-            place(squat, Vec2(leanForwardPos.x, y));
-            if (qol::touchControlsShown())
+            if (ejected) { names[0] = "FIST L"; names[1] = "FIST R"; }
+            else { names[0] = "LEGS"; names[1] = "SQUAT"; }
+        }
+        else if (type == ControlsTypeBusinessGuy && main && dynamic_cast<BusinessGuy*>(main))
+        {
+            if (ejected) { names[0] = "FIST L"; names[1] = "FIST R"; }
+            else { names[0] = "LEGS"; names[1] = "SQUAT"; }
+        }
+        else if (type == ControlsTypeWheelchairGuy && main && dynamic_cast<WheelchairGuy*>(main))
+        {
+            if (ejected) { names[0] = "WHEEL L"; names[1] = "WHEEL R"; }
+            else { names[0] = "JET CW"; names[1] = "JET CCW"; }
+        }
+        else if (type == ControlsTypeMoped && !ejected && main && dynamic_cast<MopedCouple*>(main))
+        {
+            names[0] = "GIRL";
+            names[1] = "BRAKE";
+        }
+        else if (type == ControlsTypeIrresponsibleDad && !ejected && main && dynamic_cast<IrresponsibleDad*>(main))
+        {
+            names[1] = "KID";
+            single = true;
+        }
+        if (names[0] || names[1])
+        {
+            GameplayBtn* first = names[0] ? button("controls_gameplay_btn_jump.png", 0x20, userScale) : nullptr;
+            GameplayBtn* second = names[1] ? button("controls_gameplay_btn_jump.png", 0x40, userScale) : nullptr;
+            GameplayBtn* any = first ? first : second;
+            if (any)
             {
-                const char* const names[2] = {"LEGS", "SQUAT"};
-                GameplayBtn* both[2] = {legs, squat};
+                const Size size = any->getContentSize();
+                float y, x1, x2;
+                if (!ejected)
+                {
+                    y = leanBackPos.y + leanHeight * 0.5f + spacing + size.height * 0.5f;
+                    x1 = leanBackPos.x;
+                    x2 = single ? leanBackPos.x : leanForwardPos.x;
+                }
+                else
+                {
+                    y = grabPos.y + grabHeight * 0.5f + spacing + size.height * 0.5f;
+                    x1 = grabPos.x;
+                    x2 = grabPos.x - size.width - spacing * 0.72f;
+                }
+                GameplayBtn* both[2] = {first, second};
+                const float xs[2] = {x1, x2};
                 for (int i = 0; i < 2; i++)
                 {
-                    Label* label = Label::createWithTTF(names[i], "fonts/ClarendonLTStd-Bold.ttf", 52.0f);
-                    label->setColor(Color3B(255, 221, 0));
-                    label->enableOutline(Color4B(0, 0, 0, 255), 5);
-                    label->setPosition(Vec2(size.width * 0.5f, size.height * 0.5f));
-                    both[i]->addChild(label);
+                    if (!both[i]) continue;
+                    place(both[i], Vec2(xs[i], y));
+                    if (qol::touchControlsShown())
+                    {
+                        Label* label = Label::createWithTTF(names[i], "fonts/ClarendonLTStd-Bold.ttf", 46.0f);
+                        label->setColor(Color3B(255, 221, 0));
+                        label->enableOutline(Color4B(0, 0, 0, 255), 5);
+                        label->setPosition(Vec2(size.width * 0.5f, size.height * 0.5f));
+                        both[i]->addChild(label);
+                    }
+                    buttons.push_back(both[i]);
+                }
+                if (single && second)
+                {
+                    IrresponsibleDad* dad = dynamic_cast<IrresponsibleDad*>(main);
+                    second->schedule(
+                        [second, dad](float) {
+                            const bool show = dad->kidOnBike();
+                            if (second->isVisible() != show) second->setVisible(show);
+                        },
+                        0.1f, "ow_kid_button");
                 }
             }
-            buttons.push_back(legs);
-            buttons.push_back(squat);
+            return buttons;
         }
-        return buttons;
-    }
-    // QOL (PC addition): Irresponsible Dad (original character) can throw only his kid off the
-    // bike with Shift (control bit 0x20) or this button, which shows while the kid is on board.
-    if (type == ControlsTypeIrresponsibleDad && !ejected)
-    {
-        IrresponsibleDad* dad = dynamic_cast<IrresponsibleDad*>(mainCharacter());
-        GameplayBtn* kid = dad ? button("controls_gameplay_btn_eject.png", 0x20, userScale) : nullptr;
-        if (kid)
-        {
-            const Size size = kid->getContentSize();
-            place(kid, Vec2(leanBackPos.x, leanBackPos.y + leanHeight * 0.5f + spacing + size.height * 0.5f));
-            if (qol::touchControlsShown())
-            {
-                Label* label = Label::createWithTTF("KID", "fonts/ClarendonLTStd-Bold.ttf", 56.0f);
-                label->setColor(Color3B(255, 221, 0));
-                label->enableOutline(Color4B(0, 0, 0, 255), 5);
-                label->setPosition(Vec2(size.width * 0.5f, size.height * 0.5f));
-                kid->addChild(label);
-            }
-            kid->schedule(
-                [kid, dad](float) {
-                    const bool show = dad->kidOnBike();
-                    if (kid->isVisible() != show) kid->setVisible(show);
-                },
-                0.1f, "ow_kid_button");
-            buttons.push_back(kid);
-        }
-        return buttons;
     }
     // Two extra buttons (control bits 0x20 = Flash shift, 0x40 = Flash ctrl).
     const char* frames[2] = {nullptr, nullptr};

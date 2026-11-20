@@ -1071,3 +1071,14 @@ void Moped::qolRemount(CharacterB2D* character)
     });
     qolReplayInjuries(character);
 }
+
+void Moped::brake()
+{
+    if (_backWheelJoint && _frontWheelJoint)
+    {
+        _backWheelJoint->EnableMotor(true);
+        _frontWheelJoint->EnableMotor(true);
+        _backWheelJoint->SetMotorSpeed(0.0f);
+        _frontWheelJoint->SetMotorSpeed(0.0f);
+    }
+}

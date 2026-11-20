@@ -529,3 +529,42 @@ void PersonalTransporter::qolRemount(CharacterB2D* character)
     qolMount(character, [this, character]() { addCharacter(character); });
     qolReplayInjuries(character);
 }
+
+// Flash SegwayGuy.straightLegPose: setJoint(kneeJoint1/2, 0, 10). The mobile setJoint targets the
+// other limit, so the angle is negated and the speed cap is 20 (as PogoStick::extraPose1).
+void PersonalTransporter::extraPose2()
+{
+    CharacterB2D* character = _characters[0];
+    if (character->getKneeJoint1()) {
+        character->setJoint(character->getKneeJoint1(), 0.0f, 10.0f, 20.0f);
+    }
+    if (character->getKneeJoint2()) {
+        character->setJoint(character->getKneeJoint2(), 0.0f, 10.0f, 20.0f);
+    }
+}
+
+// Flash SegwayGuy.squatPose: setJoint(kneeJoint1/2, 1.5, 10).
+void PersonalTransporter::extraPose3()
+{
+    CharacterB2D* character = _characters[0];
+    if (character->getKneeJoint1()) {
+        character->setJoint(character->getKneeJoint1(), -1.5f, 10.0f, 20.0f);
+    }
+    if (character->getKneeJoint2()) {
+        character->setJoint(character->getKneeJoint2(), -1.5f, 10.0f, 20.0f);
+    }
+}
+
+void PersonalTransporter::extraControls(unsigned char state)
+{
+    if (_characters.empty()) {
+        return;
+    }
+    if (state & 0x40) {
+        setCurrentPose(VehiclePoseExtra3);  // squat (ctrl is handled after shift: it wins)
+    } else if (state & 0x20) {
+        setCurrentPose(VehiclePoseExtra2);  // straight legs
+    } else if (_currentPose == VehiclePoseExtra2 || _currentPose == VehiclePoseExtra3) {
+        setCurrentPose(VehiclePoseNone);    // Flash: shiftNull / ctrlNull -> currentPose = 0
+    }
+}

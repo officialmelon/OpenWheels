@@ -22,4 +22,6 @@ public:
 
     // Port of PogoStickMan's shift / ctrl poses (control bits 0x20 / 0x40): see PogoStick::extraControls.
     void setState(unsigned char state) override;
+    // Ejected Shift / Ctrl: fistPoseLeft / fistPoseRight (PogoStickMan poses 7 / 8).
+    CharacterPose ejectedExtraPose(bool ctrl) override { return ctrl ? CharacterPoseFistRight : CharacterPoseFistLeft; }
 };

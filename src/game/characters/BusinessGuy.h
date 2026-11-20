@@ -22,4 +22,9 @@ public:
 
     // CharacterB2D::taperBodies() plus a 0.75 taper of the chest.
     void taperBodies() override;                                            // @00589410  vptr+0x190
+
+    // Port of SegwayGuy.shift / ctrlPressedActions: riding, Shift = straight legs, Ctrl = squat
+    // (see PersonalTransporter::extraControls); ejected, Shift / Ctrl = the fist poses (7 / 8).
+    void setState(unsigned char state) override;
+    CharacterPose ejectedExtraPose(bool ctrl) override { return ctrl ? CharacterPoseFistRight : CharacterPoseFistLeft; }
 };

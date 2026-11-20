@@ -68,6 +68,9 @@ public:
     void leanButtonsNull() override;                                         // @00644250  vptr+0x150
     void special1ButtonPressed() override;                                   // @00644274  vptr+0x158
     void special1ButtonNull() override;                                      // @00644438  vptr+0x160
+    // Flash shiftPressedActions (+1) / ctrlPressedActions (-1): jetAngle += 0.1 * direction per
+    // Flash frame (the mobile angle runs the other way round and steps are scaled to the frame).
+    void turnJet(float direction);
     bool ejectCharacter(CharacterB2D* character) override;                   // @00644754  vptr+0x170
     void lockWheels() override;                                              // @006431ac  vptr+0x180
     void createSprites() override;                                           // @00641e5c  vptr+0x198

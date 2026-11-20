@@ -806,3 +806,11 @@ void Wheelchair::qolRemount(CharacterB2D* character)
     qolMount(character, [this, character]() { addCharacter(character); });
     qolReplayInjuries(character);
 }
+
+void Wheelchair::turnJet(float direction)
+{
+    if (!_chairSmashed)
+    {
+        _jetAngle -= direction * 0.1f * s_timeStepOverFlashTimeStep;
+    }
+}

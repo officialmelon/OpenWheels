@@ -295,7 +295,13 @@ void CharacterB2D::setState(unsigned char state)
             doNothing();
             return;
         }
-        if (state & 0x01) {
+        // PC addition: Shift / Ctrl poses of the ejected ragdoll (Ctrl is handled last: it wins).
+        const CharacterPose extra = (state & 0x40) ? ejectedExtraPose(true)
+                                    : (state & 0x20) ? ejectedExtraPose(false)
+                                                     : CharacterPoseNone;
+        if (extra != CharacterPoseNone) {
+            setCurrentPose(extra);
+        } else if (state & 0x01) {
             setCurrentPose(CharacterPoseSuperman);
         } else if (state & 0x02) {
             setCurrentPose(CharacterPoseTuck);
@@ -717,6 +723,18 @@ void CharacterB2D::checkPose()
             break;
         case CharacterPosePushup:
             pushupPose();
+            break;
+        case CharacterPoseFistLeft:
+            fistPoseLeft();
+            break;
+        case CharacterPoseFistRight:
+            fistPoseRight();
+            break;
+        case CharacterPoseWheelLeft:
+            wheelPoseLeft();
+            break;
+        case CharacterPoseWheelRight:
+            wheelPoseRight();
             break;
         default:
             // ONLINE (PC addition): user-vehicle rider poses 10..12 (Flash checkPose).
@@ -3776,4 +3794,70 @@ void CharacterB2D::qolRemounted()
         }
         Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("characterRemounted");
     }
+}
+
+// ---- Ports of the browser game's ejected Shift / Ctrl poses (PogoStickMan / SegwayGuy fist poses,
+// WheelChairGuy wheel poses). Flash setJoint(j, a, g) -> mobile setJoint(j, -a, g / 2 * k, 20): the
+// mobile joints run the other way round and its base gains are half of Flash's (the same
+// conversion as tuckPose above; k = 2 with the browser physics, which uses Flash's gains).
+namespace {
+void poseJoint(CharacterB2D* c, b2RevoluteJoint* joint, float flashAngle, float flashGain)
+{
+    if (joint) {
+        const float k = online::browserPhysics() ? 2.0f : 1.0f;
+        c->setJoint(joint, -flashAngle, flashGain * 0.5f * k, 20.0f);
+    }
+}
+}  // namespace
+
+void CharacterB2D::fistPoseLeft()
+{
+    poseJoint(this, _neckJoint, 0.5f, 2.0f);
+    poseJoint(this, _hipJoint1, 1.5f, 2.0f);
+    poseJoint(this, _hipJoint2, 3.5f, 2.0f);
+    poseJoint(this, _kneeJoint1, 1.7f, 10.0f);
+    poseJoint(this, _kneeJoint2, 0.0f, 10.0f);
+    poseJoint(this, _shoulderJoint1, 3.0f, 20.0f);
+    poseJoint(this, _shoulderJoint2, 1.0f, 20.0f);
+    poseJoint(this, _elbowJoint1, 1.5f, 15.0f);
+    poseJoint(this, _elbowJoint2, 3.0f, 15.0f);
+}
+
+void CharacterB2D::fistPoseRight()
+{
+    poseJoint(this, _neckJoint, 0.5f, 2.0f);
+    poseJoint(this, _hipJoint1, 3.5f, 2.0f);
+    poseJoint(this, _hipJoint2, 1.5f, 2.0f);
+    poseJoint(this, _kneeJoint1, 0.0f, 10.0f);
+    poseJoint(this, _kneeJoint2, 1.7f, 10.0f);
+    poseJoint(this, _shoulderJoint1, 1.0f, 20.0f);
+    poseJoint(this, _shoulderJoint2, 3.0f, 20.0f);
+    poseJoint(this, _elbowJoint1, 3.0f, 15.0f);
+    poseJoint(this, _elbowJoint2, 1.5f, 15.0f);
+}
+
+void CharacterB2D::wheelPoseLeft()
+{
+    poseJoint(this, _neckJoint, 0.5f, 2.0f);
+    poseJoint(this, _hipJoint1, 3.5f, 2.0f);
+    poseJoint(this, _hipJoint2, 1.5f, 2.0f);
+    poseJoint(this, _kneeJoint1, 0.0f, 10.0f);
+    poseJoint(this, _kneeJoint2, 0.0f, 10.0f);
+    poseJoint(this, _shoulderJoint1, -0.5f, 20.0f);
+    poseJoint(this, _shoulderJoint2, 1.0f, 20.0f);
+    poseJoint(this, _elbowJoint1, 3.0f, 15.0f);
+    poseJoint(this, _elbowJoint2, 3.0f, 15.0f);
+}
+
+void CharacterB2D::wheelPoseRight()
+{
+    poseJoint(this, _neckJoint, 0.5f, 2.0f);
+    poseJoint(this, _hipJoint1, 1.5f, 2.0f);
+    poseJoint(this, _hipJoint2, 3.5f, 2.0f);
+    poseJoint(this, _kneeJoint1, 0.0f, 10.0f);
+    poseJoint(this, _kneeJoint2, 0.0f, 10.0f);
+    poseJoint(this, _shoulderJoint1, 1.0f, 20.0f);
+    poseJoint(this, _shoulderJoint2, -0.5f, 20.0f);
+    poseJoint(this, _elbowJoint1, 3.0f, 15.0f);
+    poseJoint(this, _elbowJoint2, 3.0f, 15.0f);
 }

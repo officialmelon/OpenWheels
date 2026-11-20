@@ -74,6 +74,11 @@ public:
     void leanForwardPose() override;                                        // @006023a8  vptr+0x218
     void leanBackPose() override;                                           // @006023a4  vptr+0x220
     void noLeanBackPose() override;                                         // @006023ac  vptr+0x228
+    // Port of SegwayGuy.shiftPressedActions / ctrlPressedActions (riding): Shift (control bit
+    // 0x20) = straightLegPose (knees 0), Ctrl (0x40) = squatPose (knees 1.5); released, no pose.
+    void extraControls(unsigned char state);
+    void extraPose2() override;
+    void extraPose3() override;
     void checkStateOfCharacter(CharacterB2D* character) override;           // @00601a3c  vptr+0x2a8
     void handleContactResults() override;                                   // @00601be4  vptr+0x2b8
 

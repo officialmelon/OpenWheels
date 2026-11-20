@@ -73,6 +73,11 @@ enum CharacterPose
     CharacterPoseTuck = 2,      // tuckPose()
     CharacterPoseArch = 3,      // archPose()
     CharacterPosePushup = 4,    // pushupPose()
+    // Ports of the browser game's ejected Shift / Ctrl poses (ids are ours, 20+):
+    CharacterPoseFistLeft = 20,   // fistPoseLeft(): Pogostick Man / Segway Guy (Shift)
+    CharacterPoseFistRight = 21,  // fistPoseRight(): Pogostick Man / Segway Guy (Ctrl)
+    CharacterPoseWheelLeft = 22,  // wheelPoseLeft(): Wheelchair Guy (Shift)
+    CharacterPoseWheelRight = 23, // wheelPoseRight(): Wheelchair Guy (Ctrl)
 };
 
 // Priority of a queued voice clip (_nextVocalPriority); checkVocals only interrupts the playing
@@ -117,6 +122,13 @@ public:
     // 0x08 lean back, 0x10 special/grab, 0x80 eject (forwarded to the vehicle while riding; poses
     // and grabbing once ejected).
     virtual void setState(unsigned char state);                             // @0058aa7c  vptr+0x118
+    // PC addition: the pose Shift (ctrl = false) / Ctrl (ctrl = true) take once this character is
+    // ejected (Flash shiftPressedActions / ctrlPressedActions), CharacterPoseNone for none.
+    virtual CharacterPose ejectedExtraPose(bool ctrl) { (void)ctrl; return CharacterPoseNone; }
+    void fistPoseLeft();
+    void fistPoseRight();
+    void wheelPoseLeft();
+    void wheelPoseRight();
     virtual void doNothing();                                               // @0058aa30  vptr+0x120
     virtual void setCurrentPose(CharacterPose pose);                        // @0059e264  vptr+0x128
     virtual void startGrab();                                               // @0059dad4  vptr+0x130

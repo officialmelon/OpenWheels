@@ -22,4 +22,9 @@ public:
 
     // CharacterB2D::taperBodies() plus chest tapers 0.8 (false) and 0.7 (true).
     void taperBodies() override;                                            // @006472d4  vptr+0x190
+
+    // Port of WheelChairGuy.shift / ctrlPressedActions: riding, Shift / Ctrl turn the jet by +/-0.1
+    // rad per Flash frame (Wheelchair::turnJet); ejected, they are the wheel poses.
+    void setState(unsigned char state) override;
+    CharacterPose ejectedExtraPose(bool ctrl) override { return ctrl ? CharacterPoseWheelRight : CharacterPoseWheelLeft; }
 };

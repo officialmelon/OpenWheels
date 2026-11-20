@@ -37,3 +37,15 @@ void BusinessGuy::taperBodies()
     taperBody(_chestBody, 0.75f, true);
     _chestBody->ResetMassData();
 }
+
+void BusinessGuy::setState(unsigned char state)
+{
+    CharacterB2D::setState(_ejected ? state : (state & 0x9F));
+    if (!_ejected)
+    {
+        if (PersonalTransporter* segway = dynamic_cast<PersonalTransporter*>(_vehicle))
+        {
+            segway->extraControls(state);
+        }
+    }
+}

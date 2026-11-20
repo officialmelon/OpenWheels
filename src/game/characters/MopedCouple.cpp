@@ -59,3 +59,24 @@ void MopedCouple::setCurrentPose(CharacterPose pose)
     _girl->setCurrentPose(pose);
     CharacterB2D::setCurrentPose(pose);
 }
+
+void MopedCouple::setState(unsigned char state)
+{
+    CharacterB2D::setState(state & 0x9F);
+    Moped* moped = dynamic_cast<Moped*>(_vehicle);
+    if (!moped)
+    {
+        return;
+    }
+    static bool s_shiftHeld = false;
+    const bool shift = (state & 0x20) != 0;
+    if (shift && !s_shiftHeld && _girl && !_girl->getEjected())
+    {
+        moped->ejectCharacter(_girl);
+    }
+    s_shiftHeld = shift;
+    if ((state & 0x40) && !_ejected)
+    {
+        moped->brake();
+    }
+}

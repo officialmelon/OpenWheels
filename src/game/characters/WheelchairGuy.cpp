@@ -38,3 +38,20 @@ void WheelchairGuy::taperBodies()
     taperBody(_chestBody, 0.7f, true);
     _chestBody->ResetMassData();
 }
+
+void WheelchairGuy::setState(unsigned char state)
+{
+    CharacterB2D::setState(_ejected ? state : (state & 0x9F));
+    if (!_ejected)
+    {
+        if (Wheelchair* chair = dynamic_cast<Wheelchair*>(_vehicle))
+        {
+            // Flash: shift adds 0.1 to jetAngle each frame, ctrl subtracts 0.1 (both: no change).
+            const float turn = ((state & 0x20) ? 1.0f : 0.0f) - ((state & 0x40) ? 1.0f : 0.0f);
+            if (turn != 0.0f)
+            {
+                chair->turnJet(turn);
+            }
+        }
+    }
+}

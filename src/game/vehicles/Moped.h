@@ -85,6 +85,8 @@ public:
     void refilterLegs(unsigned int maskBits);   // @005f2df0
     void ejectAllCharacters() override;         // @005f2f24 vptr+0x178
     bool ejectCharacter(CharacterB2D* character) override;  // @005f2f50 vptr+0x170
+    // Flash MopedGuy.ctrlPressedActions: both wheel motors on at speed 0 (a brake).
+    void brake();
     void special1ButtonPressed() override;      // @005f3120 vptr+0x158  boost on
     void special1ButtonNull() override;         // @005f312c vptr+0x160  boost off
     void leanForwardButtonPressed() override;   // @005f3134 vptr+0x140

@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.4.6
+
+Ports of the browser game's Shift / Ctrl behaviours for the original characters, checked against
+its character classes (control bits 0x20 / 0x40; on touch screens each has a labelled button, and
+the keys work through them):
+
+### New
+- **Wheelchair Guy:** riding, Shift / Ctrl **turn the jet** clockwise / counter-clockwise (0.1 rad
+  per frame, the jet's thrust and sprite follow). Ejected, they are the two **wheel poses**.
+- **Segway Guy:** riding, Shift = straight legs, Ctrl = squat; ejected, the two **fist poses**.
+- **Pogostick Man:** ejected, Shift / Ctrl = the **fist poses** (riding poses came in v0.4.5).
+- **Moped couple:** Shift lets the **girl** go, Ctrl **brakes** (both wheel motors on at speed 0).
+
+### Fixed
+- **Irresponsible Dad:** corrected to the browser's keys: **Ctrl** throws off the kid (was Shift)
+  and **Shift** ejects Dad himself, like Z. The touch button is now KID on the Ctrl bit.
+
 ## v0.4.5
 
 ### New

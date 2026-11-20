@@ -43,7 +43,7 @@ public:
     // QOL (PC addition): the kid, a camera target (qol/CameraSwitch).
     CharacterB2D* cameraKid() const { return _kid; }
     // QOL (PC addition): throws the kid off the bike while Dad keeps riding (the browser game's
-    // Shift key for a rider with a passenger; the KID touch button). false when there is no kid on.
+    // Ctrl key for the kid, ChildSeatKid.ctrlPressedActions; the KID touch button). false when there is no kid on.
     bool ejectKid();
     bool kidOnBike() const;
     void setState(unsigned char state) override;

@@ -28,6 +28,9 @@ public:
     void endGrab() override;                                                // @005f462c  vptr+0x138
     // ONLINE (PC addition): the girl's injury limits follow a time step change too (only the
     // level's own characters get timeStepChanged; browser physics, online/FlashPhysics.h).
+    // Port of MopedCouple.shiftPressedActions (the girl ejects) and MopedGuy.ctrlPressedActions
+    // (brake: both wheel motors on at speed 0).
+    void setState(unsigned char state) override;
     void timeStepChanged() override
     {
         CharacterB2D::timeStepChanged();
