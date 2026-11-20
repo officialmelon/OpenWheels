@@ -8,7 +8,7 @@
 | Android | ubuntu-24.04 (JDK 17, NDK r27) | `OpenWheels-release.apk` | required |
 | Linux | ubuntu-24.04 | `OpenWheels-linux-x86_64.tar.gz` | required |
 | macOS | macos-15-intel (x86_64 prebuilts) | `OpenWheels-macos.zip` (unsigned) | best effort |
-| iOS | macos-14 | `OpenWheels-ios-unsigned.ipa` (sideload) | best effort |
+| iOS | macos-15 | `OpenWheels-ios-unsigned.ipa` (sideload) | best effort |
 
 The release is published when the three required jobs succeed; the macOS and iOS packages are
 attached when theirs do. The notes are the version's section of `CHANGELOG.md` plus a downloads

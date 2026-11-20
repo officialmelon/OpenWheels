@@ -23,7 +23,7 @@ const char* const kSite = "https://totaljerkface.com/";
 // An honest client name: sending a browser's User-Agent from libcurl (whose TLS handshake is not a
 // browser's) is what the site's bot protection answers with a "Just a moment..." challenge page
 // (HTTP 403), which showed up in the game as "Server returned an error page" (issues #23, #25-#27).
-const char* const kUserAgent = "User-Agent: OpenWheels (+https://github.com/officialmelon/OpenWheels)";
+const char* const kUserAgent = "User-Agent: OpenWheels/1.0 (+https://github.com/officialmelon/OpenWheels)";
 const double kMinSpacingSeconds = 1.0;  // one request at a time, at most one per second
 const char* const kKeyPrefix = "eatshit";
 const unsigned char kIV[8] = {'a', 'b', 'c', 'd', '1', '2', '3', '4'};
