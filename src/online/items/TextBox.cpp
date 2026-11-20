@@ -61,7 +61,14 @@ bool TextBox::init(LevelDataElement* element, b2Body* groupBody, b2Vec2 groupOff
     const float ppf = pointsPerFlashPx();
     const float wanted = size * ppf;                  // em size in points
     const float ttfSize = std::min(wanted, 160.0f);   // big titles stay sharp; the atlas is still bounded
-    const std::string file = fontFile(font);
+    // The browser fonts embedded in the SWF only carry basic Latin; accented letters (Turkish ğ ş İ,
+    // ç ö ü, Cyrillic, ...) are drawn with Arial, which the game ships for its UI (issue #18).
+    bool needsFallback = false;
+    for (unsigned char c : caption)
+        if (c >= 0x80) needsFallback = true;
+    const bool boldFont = font == 3 || font == 5;
+    const std::string file = needsFallback ? std::string(boldFont ? "fonts/Arial Bold.ttf" : "fonts/Arial.ttf")
+                                           : fontFile(font);
     if (FileUtils::getInstance()->isFileExist(file)) {
         TTFConfig config(file, ttfSize);
         _label = Label::createWithTTF(config, caption, alignment(align));

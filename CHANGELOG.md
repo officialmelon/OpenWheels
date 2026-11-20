@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.4.4
+
+### Fixed
+- **Online levels failing with "Server returned an error page" / "System error"** (#23, #25, #26,
+  #27). The game sent a browser User-Agent from libcurl, which the site's bot protection (Cloudflare)
+  answers with a 403 "Just a moment..." page. It now identifies itself honestly as OpenWheels, and
+  when the site does block a request the message says so instead of "error page". If your network
+  is still blocked, try another connection; this is the site's decision, not something the game can
+  force.
+- **Crawling / ejected controls mirrored on PC and controllers** (#24): the left key or pad
+  direction now presses the left button of the ejected layout (arch) and the right one the right
+  button (push-up), as in the vehicle layout.
+- **Menu music kept playing over online, editor and nearby levels** (#22); it now stops whenever a
+  level starts.
+- **Accented text boxes** (Turkish ğ ş İ and other non-ASCII letters, #18): browser text boxes
+  whose caption has such letters use Arial, which has them, instead of the embedded Helvetica
+  subset.
+
+### New
+- **Irresponsible Dad: throw only the kid off** (#22): Shift on PC, a **KID** button on touch
+  screens (shown while the kid is on the bike).
+
 ## v0.4.3
 
 ### Fixed (online levels)

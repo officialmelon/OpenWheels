@@ -20,9 +20,10 @@ namespace online {
 namespace {
 
 const char* const kSite = "https://totaljerkface.com/";
-const char* const kUserAgent =
-    "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/128.0 Safari/537.36";
+// An honest client name: sending a browser's User-Agent from libcurl (whose TLS handshake is not a
+// browser's) is what the site's bot protection answers with a "Just a moment..." challenge page
+// (HTTP 403), which showed up in the game as "Server returned an error page" (issues #23, #25-#27).
+const char* const kUserAgent = "User-Agent: OpenWheels (+https://github.com/officialmelon/OpenWheels)";
 const double kMinSpacingSeconds = 1.0;  // one request at a time, at most one per second
 const char* const kKeyPrefix = "eatshit";
 const unsigned char kIV[8] = {'a', 'b', 'c', 'd', '1', '2', '3', '4'};
@@ -98,7 +99,14 @@ bool serverError(const std::string& body, std::string* error) {
         return true;
     }
     if (head.find("<html") != std::string::npos || head.find("<!DOCTYPE") != std::string::npos) {
-        if (error) *error = "server returned an error page";
+        // The site's bot protection (Cloudflare) answers blocked clients with a challenge page.
+        const bool challenge = body.find("Just a moment") != std::string::npos ||
+                               body.find("cf-chl") != std::string::npos ||
+                               body.find("challenge-platform") != std::string::npos;
+        if (error)
+            *error = challenge ? "totaljerkface.com's bot protection blocked the request (try again later, or from "
+                                 "another network)"
+                               : "server returned an error page";
         return true;
     }
     return false;

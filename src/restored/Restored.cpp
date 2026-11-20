@@ -7,11 +7,14 @@
 #include "cocos2d.h"
 
 #include "GameplayBtn.h"
+#include "GameplayControls.h"
+#include "qol/QoL.h"
 #include "LevelB2D.h"
 #include "Session.h"
 #include "Settings.h"
 #include "ExplorerGuy.h"
 #include "HelicopterMan.h"
+#include "IrresponsibleDad.h"
 #include "IrresponsibleMom.h"
 #include "LawnMowerMan.h"
 #include "SantaClaus.h"
@@ -448,6 +451,34 @@ std::vector<GameplayBtn*> extraControls(int type, bool ejected, float userScale,
         {
             return buttons;
         }
+    }
+    // QOL (PC addition): Irresponsible Dad (original character) can throw only his kid off the
+    // bike with Shift (control bit 0x20) or this button, which shows while the kid is on board.
+    if (type == ControlsTypeIrresponsibleDad && !ejected)
+    {
+        IrresponsibleDad* dad = dynamic_cast<IrresponsibleDad*>(mainCharacter());
+        GameplayBtn* kid = dad ? button("controls_gameplay_btn_eject.png", 0x20, userScale) : nullptr;
+        if (kid)
+        {
+            const Size size = kid->getContentSize();
+            place(kid, Vec2(leanBackPos.x, leanBackPos.y + leanHeight * 0.5f + spacing + size.height * 0.5f));
+            if (qol::touchControlsShown())
+            {
+                Label* label = Label::createWithTTF("KID", "fonts/ClarendonLTStd-Bold.ttf", 56.0f);
+                label->setColor(Color3B(255, 221, 0));
+                label->enableOutline(Color4B(0, 0, 0, 255), 5);
+                label->setPosition(Vec2(size.width * 0.5f, size.height * 0.5f));
+                kid->addChild(label);
+            }
+            kid->schedule(
+                [kid, dad](float) {
+                    const bool show = dad->kidOnBike();
+                    if (kid->isVisible() != show) kid->setVisible(show);
+                },
+                0.1f, "ow_kid_button");
+            buttons.push_back(kid);
+        }
+        return buttons;
     }
     // Two extra buttons (control bits 0x20 = Flash shift, 0x40 = Flash ctrl).
     const char* frames[2] = {nullptr, nullptr};

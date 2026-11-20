@@ -309,6 +309,9 @@ bool Gameplay::init(std::string levelXml)
     {
         _levelXml = levelXml;
     }
+    // PC addition: the menu music stops whichever way a level starts (online, editor and nearby
+    // levels did not stop it, so it played over the level; issue #22).
+    Settings::getInstance()->getSoundController()->stopBackgroundMusic();
     addChild(LayerColor::create(Color4B(globals::colors::blue, 255)), -100);
     return result;
 }

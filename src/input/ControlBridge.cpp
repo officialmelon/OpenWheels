@@ -56,6 +56,29 @@ GameplayControls* findControls(Node* root)
 // Buttons of hidden touch controls (GameplayBtn::getKeyOnly) are visible at opacity 0.
 GameplayBtn* findButton(GameplayControls* controls, const Binding& b)
 {
+    // The two lean buttons (bits 0x04 / 0x08) sit on opposite sides, but their sides differ between
+    // the layouts: the vehicle layout has "lean back" (0x08) on the left, the ejected one has the
+    // arch pose (0x04) on the left and the push-up pose (0x08) on the right. A left / right key
+    // (or pad direction) must hit the button on its own side whichever layout is up, so the
+    // crawling poses are not mirrored (issue #24).
+    if (b.target == kStateBit && (b.bit == 0x04 || b.bit == 0x08))
+    {
+        GameplayBtn* lean[2] = {nullptr, nullptr};  // [0] bit 0x04, [1] bit 0x08
+        for (auto child : controls->getChildren())
+        {
+            auto btn = dynamic_cast<GameplayBtn*>(child);
+            if (!btn || !btn->isVisible() || !btn->getEnabled()) continue;
+            if (btn->getStateValue() == 0x04 && !lean[0]) lean[0] = btn;
+            if (btn->getStateValue() == 0x08 && !lean[1]) lean[1] = btn;
+        }
+        if (lean[0] && lean[1])
+        {
+            GameplayBtn* left = lean[0]->getPositionX() <= lean[1]->getPositionX() ? lean[0] : lean[1];
+            GameplayBtn* right = left == lean[0] ? lean[1] : lean[0];
+            // Keys: left arrow = lean back (0x08), right arrow = lean forward (0x04).
+            return b.bit == 0x08 ? left : right;
+        }
+    }
     for (auto child : controls->getChildren())
     {
         auto btn = dynamic_cast<GameplayBtn*>(child);

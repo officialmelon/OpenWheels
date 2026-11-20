@@ -1,6 +1,7 @@
 #include "IrresponsibleDad.h"
 
 #include "RoadBike.h"
+#include "Vehicle.h"
 #include "Session.h"
 #include "Settings.h"
 #include "qol/QoL.h"  // QOL (PC addition)
@@ -97,4 +98,37 @@ void IrresponsibleDad::taperBodies()
     CharacterB2D::taperBodies();
     taperBody(_chestBody, 0.85f, true);
     _chestBody->ResetMassData();
+}
+
+// QOL (PC addition): see IrresponsibleDad.h.
+bool IrresponsibleDad::kidOnBike() const
+{
+    return _kid != nullptr && !_kid->getEjected() && !_kid->getDead();
+}
+
+bool IrresponsibleDad::ejectKid()
+{
+    if (!kidOnBike() || _vehicle == nullptr)
+    {
+        return false;
+    }
+    return _vehicle->ejectCharacter(_kid);
+}
+
+void IrresponsibleDad::setState(unsigned char state)
+{
+    // Shift (control bit 0x20, the KID button) ejects the kid, once per press.
+    static bool s_shiftHeld = false;
+    const bool shift = (state & 0x20) != 0;
+    if (shift && !s_shiftHeld)
+    {
+        ejectKid();
+    }
+    s_shiftHeld = shift;
+    CharacterB2D::setState(state & 0xDF);
+    // A thrown-off kid poses and grabs with the same keys, like Irresponsible Mom's.
+    if (_kid != nullptr && _kid->getEjected() && !_kid->getDead())
+    {
+        _kid->setState(state & 0xDF);
+    }
 }

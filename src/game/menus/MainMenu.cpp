@@ -504,14 +504,14 @@ void MainMenu::logoScaleInComplete()
     {
         // PC addition: a one-time "what's new" toast after an update (the modal alerts above keep
         // priority; this one waits for the next visit to the main menu).
-        const char* const whatsNewKey = "whatsnew_0_4_3";
+        const char* const whatsNewKey = "whatsnew_0_4_4";
         if (!userDefault->getBoolForKey(whatsNewKey))
         {
-            online::ui::showToast("OpenWheels updated to 0.4.3",
-                                  {"Bad Apple!! 2 and other chained-trigger online levels run again",
-                                   "Jets on user-built vehicles push again",
-                                   "Switch camera with C (or the CAM button)",
-                                   "New launcher icon"},
+            online::ui::showToast("OpenWheels updated to 0.4.4",
+                                  {"Online levels: clearer errors when the site blocks a request",
+                                   "Ejected left / right controls no longer mirrored",
+                                   "Irresponsible Dad: Shift / KID button throws off the kid",
+                                   "Menu music stops in every level; accented text boxes"},
                                   1.0f);
             userDefault->setBoolForKey(whatsNewKey, true);
             userDefault->flush();
