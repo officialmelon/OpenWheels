@@ -20,10 +20,14 @@ namespace online {
 namespace {
 
 const char* const kSite = "https://totaljerkface.com/";
-// An honest client name: sending a browser's User-Agent from libcurl (whose TLS handshake is not a
-// browser's) is what the site's bot protection answers with a "Just a moment..." challenge page
-// (HTTP 403), which showed up in the game as "Server returned an error page" (issues #23, #25-#27).
-const char* const kUserAgent = "User-Agent: OpenWheels/1.0 (+https://github.com/officialmelon/OpenWheels)";
+// The site's Cloudflare WAF challenges requests whose User-Agent names OpenWheels (HTTP 403
+// "Just a moment..."), while the public level API itself is unchanged. Use the official desktop
+// client's browser/Electron User-Agent (it appends the game version token) so get_all,
+// search_by_name/search_by_user, get_featured, get_level and get_record are served normally.
+const char* const kUserAgent =
+    "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Happy Wheels/1.99.2 Chrome/152.0.7977.78 Electron/44.4.1 Safari/537.36 "
+    "HappyWheels/1.99.2 (2.01; 400f1e84)";
 int g_lastStatus = 0;  // HTTP status of the latest response (for error messages)
 const double kMinSpacingSeconds = 1.0;  // one request at a time, at most one per second
 const char* const kKeyPrefix = "eatshit";
