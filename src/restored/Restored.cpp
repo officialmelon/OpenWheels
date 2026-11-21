@@ -84,10 +84,13 @@ const std::vector<int>& generatedIds()
 
 bool hasFrame(const std::string& frame)
 {
-    const std::string sheet = "controls/restored_controls.plist";
     SpriteFrameCache* cache = SpriteFrameCache::getInstance();
-    if (!cache->isSpriteFramesWithFileLoaded(sheet) && FileUtils::getInstance()->isFileExist(sheet)) {
-        cache->addSpriteFramesWithFile(sheet);
+    // restored_controls: the restored characters' buttons; ow_controls: OpenWheels' own icons
+    // (tools/assets/ow_button_icons.py) for the Shift / Ctrl / camera buttons.
+    for (const char* sheet : {"controls/restored_controls.plist", "controls/ow_controls.plist"}) {
+        if (!cache->isSpriteFramesWithFileLoaded(sheet) && FileUtils::getInstance()->isFileExist(sheet)) {
+            cache->addSpriteFramesWithFile(sheet);
+        }
     }
     return cache->getSpriteFrameByName(frame) != nullptr;
 }
@@ -463,44 +466,58 @@ std::vector<GameplayBtn*> extraControls(int type, bool ejected, float userScale,
     {
         CharacterB2D* main = mainCharacter();
         const char* names[2] = {nullptr, nullptr};
+        const char* icons[2] = {nullptr, nullptr};  // frames of ow_controls.plist (text label if missing)
         bool single = false;  // Dad: one button (Ctrl)
         unsigned int bitsFirst = 0x20, bitsSecond = 0x40;
         if (type == ControlsTypePogoStick && main && dynamic_cast<PogostickGuy*>(main))
         {
-            if (ejected) { names[0] = "FIST L"; names[1] = "FIST R"; }
+            if (ejected) { names[0] = "FIST L"; names[1] = "FIST R"; icons[0] = "ow_btn_fist_l.png"; icons[1] = "ow_btn_fist_r.png"; }
             else if (qol::pogoJumpCombo() && qol::touchControlsShown())
             {
                 // Touch: hold the button to crouch with that pose, release to jump (space = 0x10 as
                 // well). The Shift / Ctrl keys keep their own buttons when touch controls are hidden.
                 names[0] = "JUMP+LEGS"; names[1] = "JUMP+SQUAT";
                 bitsFirst = 0x30; bitsSecond = 0x50;
+                icons[0] = "ow_btn_jump_legs.png"; icons[1] = "ow_btn_jump_squat.png";
             }
-            else { names[0] = "LEGS"; names[1] = "SQUAT"; }
+            else { names[0] = "LEGS"; names[1] = "SQUAT"; icons[0] = "ow_btn_legs.png"; icons[1] = "ow_btn_squat.png"; }
         }
         else if (type == ControlsTypeBusinessGuy && main && dynamic_cast<BusinessGuy*>(main))
         {
-            if (ejected) { names[0] = "FIST L"; names[1] = "FIST R"; }
-            else { names[0] = "LEGS"; names[1] = "SQUAT"; }
+            if (ejected) { names[0] = "FIST L"; names[1] = "FIST R"; icons[0] = "ow_btn_fist_l.png"; icons[1] = "ow_btn_fist_r.png"; }
+            else { names[0] = "LEGS"; names[1] = "SQUAT"; icons[0] = "ow_btn_legs.png"; icons[1] = "ow_btn_squat.png"; }
         }
         else if (type == ControlsTypeWheelchairGuy && main && dynamic_cast<WheelchairGuy*>(main))
         {
-            if (ejected) { names[0] = "WHEEL L"; names[1] = "WHEEL R"; }
-            else { names[0] = "JET CW"; names[1] = "JET CCW"; }
+            if (ejected) { names[0] = "WHEEL L"; names[1] = "WHEEL R"; icons[0] = "ow_btn_wheel_l.png"; icons[1] = "ow_btn_wheel_r.png"; }
+            else { names[0] = "JET CW"; names[1] = "JET CCW"; icons[0] = "ow_btn_jet_cw.png"; icons[1] = "ow_btn_jet_ccw.png"; }
         }
         else if (type == ControlsTypeMoped && !ejected && main && dynamic_cast<MopedCouple*>(main))
         {
             names[0] = "GIRL";
             names[1] = "BRAKE";
+            icons[0] = "ow_btn_eject_girl.png"; icons[1] = "ow_btn_brake.png";
         }
         else if (type == ControlsTypeIrresponsibleDad && !ejected && main && dynamic_cast<IrresponsibleDad*>(main))
         {
             names[1] = "KID";
+            icons[1] = "ow_btn_eject_kid.png";
             single = true;
         }
         if (names[0] || names[1])
         {
-            GameplayBtn* first = names[0] ? button("controls_gameplay_btn_jump.png", bitsFirst, userScale) : nullptr;
-            GameplayBtn* second = names[1] ? button("controls_gameplay_btn_jump.png", bitsSecond, userScale) : nullptr;
+            bool withIcon[2] = {false, false};
+            auto make = [&](int i, unsigned int bits) -> GameplayBtn* {
+                if (!names[i]) return nullptr;
+                if (icons[i] && hasFrame(icons[i]))
+                {
+                    withIcon[i] = true;
+                    return button(icons[i], bits, userScale);
+                }
+                return button("controls_gameplay_btn_jump.png", bits, userScale);
+            };
+            GameplayBtn* first = make(0, bitsFirst);
+            GameplayBtn* second = make(1, bitsSecond);
             GameplayBtn* any = first ? first : second;
             if (any)
             {
@@ -524,7 +541,7 @@ std::vector<GameplayBtn*> extraControls(int type, bool ejected, float userScale,
                 {
                     if (!both[i]) continue;
                     place(both[i], Vec2(xs[i], y));
-                    if (qol::touchControlsShown())
+                    if (!withIcon[i] && qol::touchControlsShown())
                     {
                         Label* label = Label::createWithTTF(names[i], "fonts/ClarendonLTStd-Bold.ttf", 46.0f);
                         label->setColor(Color3B(255, 221, 0));

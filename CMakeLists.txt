@@ -319,6 +319,13 @@ if(Python3_FOUND)
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/assets/restored_portraits.py
                 --optional --out "$<TARGET_FILE_DIR:${APP_NAME}>/generated/restored"
         COMMENT "Drawing missing restored-character portraits (skipped if none are missing)")
+    # Icons for the Shift / Ctrl / camera touch buttons (legs, squat, fist, wheel, jet tilt, eject
+    # girl / kid, brake, camera): original art in the style of the game's buttons, drawn by
+    # tools/assets/ow_button_icons.py (needs Pillow; without it the buttons keep their text labels).
+    add_custom_command(TARGET ${APP_NAME} POST_BUILD
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/assets/ow_button_icons.py
+                --optional --out "$<TARGET_FILE_DIR:${APP_NAME}>/generated/restored"
+        COMMENT "Drawing the OpenWheels button icons")
 endif()
 
 # RESTORED (PC addition): OpenWheels' own campaign chapters for the restored characters

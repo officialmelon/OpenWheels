@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- **Proper icons on the extra touch buttons.** LEGS, SQUAT, JUMP+LEGS, JUMP+SQUAT, FIST L / R,
+  WHEEL L / R, JET CW / CCW, GIRL, BRAKE, KID and CAM were the generic jump / jet button with yellow
+  text. Each now has its own icon in the style of the game's buttons (same ring, disc, opacity and
+  stick-figure look), drawn by `tools/assets/ow_button_icons.py` into
+  `generated/restored/<tier>/controls/ow_controls.*` (original artwork, generated at build time and in the
+  release workflow). Without the generated sheet the buttons keep their text labels.
+
 ## v0.5.3
 
 ### Fixed

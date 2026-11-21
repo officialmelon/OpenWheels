@@ -1129,7 +1129,16 @@ void GameplayControls::onlineAddUserVehicleButtons(const Vec2& grabPos, const Si
 // next one. It takes its own touches, so none of the control bits are involved.
 void GameplayControls::onlineAddCameraButton()
 {
-    GameplayBtn* btn = GameplayBtn::createWithSpriteFrameName("controls_gameplay_btn_jet.png", 0, _userScale);
+    // OpenWheels' own camera icon (tools/assets/ow_button_icons.py), else the jet button with a label.
+    SpriteFrameCache* frames = SpriteFrameCache::getInstance();
+    const std::string sheet = "controls/ow_controls.plist";
+    if (!frames->isSpriteFramesWithFileLoaded(sheet) && FileUtils::getInstance()->isFileExist(sheet))
+    {
+        frames->addSpriteFramesWithFile(sheet);
+    }
+    const bool hasIcon = frames->getSpriteFrameByName("ow_btn_camera.png") != nullptr;
+    GameplayBtn* btn = GameplayBtn::createWithSpriteFrameName(
+        hasIcon ? "ow_btn_camera.png" : "controls_gameplay_btn_jet.png", 0, _userScale);
     if (!btn)
     {
         return;
@@ -1140,7 +1149,10 @@ void GameplayControls::onlineAddCameraButton()
     label->setColor(globals::colors::yellow);
     label->enableOutline(Color4B(0, 0, 0, 255), 5);
     label->setPosition(Vec2(size.width * 0.5f, size.height * 0.5f));
-    btn->addChild(label);
+    if (!hasIcon)
+    {
+        btn->addChild(label);
+    }
     btn->setVisible(false);
     btn->setOpacity(204);
     addChild(btn, 5);
