@@ -14,6 +14,12 @@ The release is published when the three required jobs succeed; the macOS and iOS
 attached when theirs do. The notes are the version's section of `CHANGELOG.md` plus a downloads
 list, and `SHA256SUMS.txt` is attached.
 
+## Tests
+
+`tests/README.md`: unit tests, a version consistency check and headless smoke tests. The release
+workflow runs the unit tests and the consistency check first and the smoke tests on the packaged
+Linux game; a failure stops the release.
+
 ## Making a release
 
 1. Add a `## vX.Y.Z` section to `CHANGELOG.md` (and bump `versionCode` / `versionName` in

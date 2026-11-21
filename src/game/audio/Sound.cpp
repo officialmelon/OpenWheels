@@ -7,6 +7,9 @@
 #include "Box2D/Box2D.h"
 
 #include <cmath>
+#include <map>
+
+#include "platform/CCFileUtils.h"
 
 using cocos2d::experimental::AudioEngine;
 
@@ -21,6 +24,23 @@ int Sound::playSound(std::string name, float volume, float pitch, float pan, boo
 // @00613c70
 std::string Sound::getFullPath(std::string name, std::string extension)
 {
+#if (CC_TARGET_PLATFORM == CC_PLATFORM_IOS)
+    // iOS cannot decode Ogg Vorbis, so every sound effect was silent on iPhones (the .mp3 music
+    // played). The iOS package carries an AAC copy next to each .ogg (tools/release/add_aac_sounds.sh).
+    if (extension == "ogg")
+    {
+        static std::map<std::string, bool> haveAac;
+        auto it = haveAac.find(name);
+        if (it == haveAac.end())
+        {
+            it = haveAac.emplace(name, cocos2d::FileUtils::getInstance()->isFileExist(name + ".m4a")).first;
+        }
+        if (it->second)
+        {
+            return name + ".m4a";
+        }
+    }
+#endif
     return name + "." + extension;
 }
 

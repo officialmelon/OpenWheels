@@ -6,6 +6,8 @@
 
 #include <string>
 
+#include "qol/VersionCompare.h"  // isNewerVersion
+
 namespace qol {
 
 const char* appVersion();
@@ -18,7 +20,5 @@ void checkForUpdates();
 // the main menu is up; cheap otherwise.
 void showPendingUpdatePrompt();
 
-// "0.4.7" / "v0.4.10" / "0.4.7-beta.3" -> true when `latest` is newer than `current` (testable).
-bool isNewerVersion(const std::string& latest, const std::string& current);
 
 }  // namespace qol

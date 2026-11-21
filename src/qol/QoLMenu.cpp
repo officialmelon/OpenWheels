@@ -84,6 +84,7 @@ std::string QoLMenu::labelFor(int row) const
     case RowChildGore:
         // The sheet is built from the player's browser-game SWF; without it the row says so.
         return std::string("child gore: ") + (qol::childGoreAvailable() ? onOff(qol::childGore()) : "no art");
+    case RowPogoCombo: return std::string("pogo touch buttons: ") + (qol::pogoJumpCombo() ? "jump + pose" : "pose only");
     case RowUpdateCheck: return std::string("check for updates: ") + onOff(qol::updateCheckEnabled());
     case RowTextures: return texturesLabel();
     case RowFrameRate: return "frame rate: " + std::to_string(qol::frameRate()) + " fps";
@@ -118,6 +119,7 @@ void QoLMenu::addContent()
     game->addChild(makeRow(RowBrowserPhysics));  // the next browser level steps at 1/30 (FlashPhysics.h)
     game->addChild(makeRow(RowChildGore));
     game->addChild(makeRow(RowUpdateCheck));
+    game->addChild(makeRow(RowPogoCombo));
     game->addChild(makeRow(RowRegrabVehicle));
     if (qol::fullscreenSupported())
     {
@@ -206,6 +208,9 @@ void QoLMenu::rowPressed(Ref* sender)
         break;
     case RowRegrabVehicle:
         qol::setRegrabVehicle(!qol::regrabVehicleSetting());
+        break;
+    case RowPogoCombo:
+        qol::setPogoJumpCombo(!qol::pogoJumpCombo());
         break;
     case RowUpdateCheck:
         qol::setUpdateCheckEnabled(!qol::updateCheckEnabled());

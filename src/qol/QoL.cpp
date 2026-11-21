@@ -86,6 +86,9 @@ void setShowFps(bool on) {
     applyDisplaySettings();
 }
 
+bool pogoJumpCombo() { return store()->getBoolForKey("qol_pogo_jump_combo", true); }
+void setPogoJumpCombo(bool on) { store()->setBoolForKey("qol_pogo_jump_combo", on); }
+
 bool unlockAllLevels() { return store()->getBoolForKey(kUnlockAll, false); }
 void setUnlockAllLevels(bool on) { store()->setBoolForKey(kUnlockAll, on); }
 

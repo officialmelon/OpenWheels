@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.5.2
+
+### Fixed
+- **"Unreadable level list" in the online browser** (#29, #31, #32). The site now and then sends a
+  level list that is not well-formed XML (a stray Latin-1 byte in a level name, a bare `&`, control
+  characters), and a phone may hand the game a reply still gzipped or with a BOM. The list is now
+  cleaned up before it is read (gzip, BOM, invalid UTF-8, stray characters), repaired when it still
+  does not parse, and as a last resort read level by level, so one bad level no longer blanks the
+  whole list. If a reply is truly unreadable the message now says what arrived (HTTP status, size
+  and its first characters) so it can be diagnosed. Downloaded level records are cleaned the same
+  way.
+- **No sound effects on iPhone** (#33). iOS cannot play Ogg Vorbis, which all sound effects are
+  (only the `.mp3` music played). The iOS build now carries an AAC copy of every sound and uses it.
+
+### New
+- **Pogostick Man on touch screens: jump + pose buttons** (#30). The pose buttons are now
+  **JUMP+LEGS** and **JUMP+SQUAT**: hold one to crouch with that pose, release it to jump. QoL ->
+  *pogo touch buttons* switches back to pose-only buttons.
+- **Tests and CI.** Unit tests for the site protocol (level lists, records, replies, search,
+  versions), a version / changelog consistency check, and headless smoke tests that play synthetic
+  levels in the real game (a level can be won, triggers hide text, click triggers, the Bad Apple!! 2
+  tricks, the online browser, and grabbing a level from a mock site and playing it). They run on every
+  push, and the release workflow runs them before it publishes. See `tests/README.md`.
+
 ## v0.5.1
 
 ### Fixed

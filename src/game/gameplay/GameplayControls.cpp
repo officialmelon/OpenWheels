@@ -690,7 +690,7 @@ int GameplayControls::getState()
     {
         if (btn->getTouch())
         {
-            state += btn->getStateValue();
+            state |= btn->getStateValue();  // (a sum in the original; the bits are disjoint, OR also keeps a button held twice harmless)
         }
     }
     return state;

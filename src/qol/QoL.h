@@ -97,6 +97,10 @@ TouchControls touchControls();
 void setTouchControls(TouchControls mode);
 const char* touchControlsName(TouchControls mode);
 bool touchControlsShown();  // resolved for this build
+// Pogostick Man on touch screens: the LEGS / SQUAT buttons also hold the jump (space), so releasing
+// them makes the pogo jump with that pose (default on; off = pose only, like the Shift / Ctrl keys).
+bool pogoJumpCombo();
+void setPogoJumpCombo(bool on);
 // PAD (PC addition): controller rumble (input/Haptics.h): off, low, medium or high (default).
 enum class RumbleLevel { Off = 0, Low = 1, Medium = 2, High = 3 };
 RumbleLevel rumbleLevel();

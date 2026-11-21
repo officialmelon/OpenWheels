@@ -508,13 +508,14 @@ void MainMenu::logoScaleInComplete()
     {
         // PC addition: a one-time "what's new" toast after an update (the modal alerts above keep
         // priority; this one waits for the next visit to the main menu).
-        const char* const whatsNewKey = "whatsnew_0_5_1";
+        const char* const whatsNewKey = "whatsnew_0_5_2";
         if (!userDefault->getBoolForKey(whatsNewKey))
         {
-            online::ui::showToast("OpenWheels updated to 0.5.1",
-                                  {"Online levels, login and replays work on phones again",
-                                   "Android and iOS now send a mobile browser User-Agent",
-                                   "The game checks for updates and offers the download (QoL menu: off)"},
+            online::ui::showToast("OpenWheels updated to 0.5.2",
+                                  {"Online level list no longer says \"unreadable\" when the site sends a bad level",
+                                   "iPhone: sound effects work again",
+                                   "Pogostick Man touch buttons: hold to crouch, release to jump",
+                                   "New tests and CI so updates stop breaking things"},
                                   1.0f);
             userDefault->setBoolForKey(whatsNewKey, true);
             userDefault->flush();

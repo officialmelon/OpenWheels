@@ -51,6 +51,22 @@ env:
   ENGINE_CACHE_VERSION: 1
 
 jobs:
+  tests:
+    name: Unit tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq g++ zlib1g-dev libssl-dev python3
+      - name: Unit tests (site protocol, level lists, records, versions)
+        run: tests/run_unit.sh
+      - name: Version / changelog consistency
+        run: |
+          TAG="${{ github.event_name == 'push' && github.ref_name || inputs.tag }}"
+          python3 tests/check_release_consistency.py ${TAG}
+
   game-data:
     name: Game data
     runs-on: ubuntu-24.04
@@ -87,6 +103,10 @@ jobs:
         run: |
           python3 -m pip install --quiet numpy pillow
           python3 tools/assets/restored_portraits.py --optional --out game-data/generated/restored
+      - name: AAC copies of the sounds (iOS cannot play Ogg Vorbis)
+        run: |
+          sudo apt-get install -y -qq ffmpeg
+          tools/release/add_aac_sounds.sh game-data/assets
       - uses: actions/upload-artifact@v4
         with:
           name: game-data
@@ -95,7 +115,7 @@ jobs:
 
   linux:
     name: Linux
-    needs: game-data
+    needs: [game-data, tests]
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
@@ -123,6 +143,14 @@ jobs:
         run: |
           tools/package_linux.sh --no-build --build-dir build-release --out dist \
             --assets game-data/assets --ios game-data/ios --data game-data
+      - name: Smoke tests (the packaged game, headless)
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq xvfb xdotool imagemagick python3-pil python3-numpy python3-pycryptodome libgl1-mesa-dri
+          rm -rf smoke-game && mkdir smoke-game
+          tar -xzf dist/OpenWheels-linux-x86_64.tar.gz -C smoke-game
+          exe="$(find smoke-game -maxdepth 2 -name OpenWheels -type f | head -1)"
+          python3 tests/smoke/run_smoke.py --exe "${exe}" --retries 1
       - uses: actions/upload-artifact@v4
         with:
           name: OpenWheels-linux
@@ -130,7 +158,7 @@ jobs:
 
   windows:
     name: Windows
-    needs: game-data
+    needs: [game-data, tests]
     runs-on: windows-2022
     timeout-minutes: 150
     steps:
@@ -161,7 +189,7 @@ jobs:
 
   android:
     name: Android
-    needs: game-data
+    needs: [game-data, tests]
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     steps:
@@ -259,7 +287,7 @@ jobs:
 
   macos:
     name: macOS (best effort)
-    needs: game-data
+    needs: [game-data, tests]
     # The v3-deps-158 macOS prebuilts are x86_64 only: build on an Intel runner.
     runs-on: macos-15-intel
     timeout-minutes: 120
@@ -299,7 +327,7 @@ jobs:
 
   ios:
     name: iOS (best effort)
-    needs: game-data
+    needs: [game-data, tests]
     runs-on: macos-15
     timeout-minutes: 120
     continue-on-error: true

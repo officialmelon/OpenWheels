@@ -464,9 +464,17 @@ std::vector<GameplayBtn*> extraControls(int type, bool ejected, float userScale,
         CharacterB2D* main = mainCharacter();
         const char* names[2] = {nullptr, nullptr};
         bool single = false;  // Dad: one button (Ctrl)
+        unsigned int bitsFirst = 0x20, bitsSecond = 0x40;
         if (type == ControlsTypePogoStick && main && dynamic_cast<PogostickGuy*>(main))
         {
             if (ejected) { names[0] = "FIST L"; names[1] = "FIST R"; }
+            else if (qol::pogoJumpCombo() && qol::touchControlsShown())
+            {
+                // Touch: hold the button to crouch with that pose, release to jump (space = 0x10 as
+                // well). The Shift / Ctrl keys keep their own buttons when touch controls are hidden.
+                names[0] = "JUMP+LEGS"; names[1] = "JUMP+SQUAT";
+                bitsFirst = 0x30; bitsSecond = 0x50;
+            }
             else { names[0] = "LEGS"; names[1] = "SQUAT"; }
         }
         else if (type == ControlsTypeBusinessGuy && main && dynamic_cast<BusinessGuy*>(main))
@@ -491,8 +499,8 @@ std::vector<GameplayBtn*> extraControls(int type, bool ejected, float userScale,
         }
         if (names[0] || names[1])
         {
-            GameplayBtn* first = names[0] ? button("controls_gameplay_btn_jump.png", 0x20, userScale) : nullptr;
-            GameplayBtn* second = names[1] ? button("controls_gameplay_btn_jump.png", 0x40, userScale) : nullptr;
+            GameplayBtn* first = names[0] ? button("controls_gameplay_btn_jump.png", bitsFirst, userScale) : nullptr;
+            GameplayBtn* second = names[1] ? button("controls_gameplay_btn_jump.png", bitsSecond, userScale) : nullptr;
             GameplayBtn* any = first ? first : second;
             if (any)
             {

@@ -36,6 +36,7 @@ private:
         RowRegrabVehicle,  // QoL.h regrabVehicle
         RowController,     // PAD (PC addition): qol/QoLPadMenu.h
         RowUpdateCheck,    // qol/UpdateCheck.h
+        RowPogoCombo,      // QoL.h pogoJumpCombo
     };
     std::string labelFor(int row) const;
     void rowPressed(cocos2d::Ref* sender);

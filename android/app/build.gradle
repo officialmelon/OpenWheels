@@ -101,8 +101,8 @@ android {
         // NDK r27's floor; the original 1.1.3 needed API 23.
         minSdk = 21
         targetSdk = 35
-        versionCode = betaBuild ? 23 : 22
-        versionName = betaBuild ? (owProp('OW_BETA_VERSION') ?: '0.5.1-beta') : '0.5.1'
+        versionCode = betaBuild ? 25 : 24
+        versionName = betaBuild ? (owProp('OW_BETA_VERSION') ?: '0.5.2-beta') : '0.5.2'
 
         ndk {
             abiFilters.addAll(owProp('OW_ABIS').split(':').collect { it.trim() }.findAll { it })

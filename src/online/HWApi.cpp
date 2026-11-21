@@ -7,12 +7,9 @@
 #include <ctime>
 #include <random>
 
-#include <openssl/blowfish.h>
-#include <zlib.h>
-
 #include "cocos2d.h"
 #include "network/HttpClient.h"
-#include "tinyxml2/tinyxml2.h"
+#include "online/Protocol.h"
 
 USING_NS_CC;
 
@@ -41,8 +38,6 @@ const char* const kUserAgent =
 #endif
 int g_lastStatus = 0;  // HTTP status of the latest response (for error messages)
 const double kMinSpacingSeconds = 1.0;  // one request at a time, at most one per second
-const char* const kKeyPrefix = "eatshit";
-const unsigned char kIV[8] = {'a', 'b', 'c', 'd', '1', '2', '3', '4'};
 
 double now() {
     using namespace std::chrono;
@@ -107,57 +102,17 @@ std::string ipTracking(bool countPlay) {
     return s;
 }
 
-// "failure:<reason>" or an HTML error page instead of data.
+// "failure:<reason>" or an HTML error page instead of data (online/Protocol.cpp).
 bool serverError(const std::string& body, std::string* error) {
-    const std::string head = body.substr(0, 64);
-    if (head.find("failure") != std::string::npos) {
-        if (error) *error = "server: " + body.substr(0, 80);
-        return true;
-    }
-    if (head.find("<html") != std::string::npos || head.find("<!DOCTYPE") != std::string::npos) {
-        // The site's bot protection (Cloudflare) answers blocked clients with a challenge page.
-        const bool challenge = body.find("Just a moment") != std::string::npos ||
-                               body.find("cf-chl") != std::string::npos ||
-                               body.find("challenge-platform") != std::string::npos;
-        const std::string status = g_lastStatus > 0 ? " (HTTP " + std::to_string(g_lastStatus) + ")" : std::string();
-        if (error)
-            *error = challenge ? "totaljerkface.com's bot protection blocked the request" + status +
-                                     ". Try again later or from another network."
-                               : "server returned an error page" + status;
-        return true;
-    }
-    return false;
+    return proto::classifyReply(body, g_lastStatus, error);
 }
 
 std::string cacheDir() { return FileUtils::getInstance()->getWritablePath() + "online/"; }
 
-std::string lowered(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return (char)::tolower(c); });
-    return s;
-}
-
-std::vector<std::string> words(const std::string& term) {
-    std::vector<std::string> out;
-    std::string cur;
-    for (char c : term) {
-        if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
-            if (!cur.empty()) out.push_back(cur);
-            cur.clear();
-        } else {
-            cur += c;
-        }
-    }
-    if (!cur.empty()) out.push_back(cur);
-    return out;
-}
-
 // Every word of the search term must appear (any order, any case).
 bool matches(const OnlineLevelInfo& l, const LevelQuery& q) {
     if (q.searchBy == SearchBy::None || q.term.empty()) return true;
-    const std::string hay = lowered(q.searchBy == SearchBy::Name ? l.name : l.authorName);
-    for (const std::string& w : words(q.term))
-        if (hay.find(lowered(w)) == std::string::npos) return false;
-    return true;
+    return proto::termMatches(q.searchBy == SearchBy::Name ? l.name : l.authorName, q.term);
 }
 
 void sortLevels(std::vector<OnlineLevelInfo>& v, SortBy s) {
@@ -321,103 +276,11 @@ void HWApi::pump() {
 
 bool HWApi::parseLevelList(const std::string& body, std::vector<OnlineLevelInfo>& levels, int* page,
                            int* perPage, std::string* error) {
-    levels.clear();
-    if (serverError(body, error)) return false;
-    // ONLINE (PC addition): the site answers some searches (several words) with an empty body.
-    if (body.find_first_not_of(" \t\r\n") == std::string::npos) {
-        if (page) *page = 1;
-        if (perPage) *perPage = 0;
-        return true;
-    }
-    tinyxml2::XMLDocument doc;
-    if (doc.Parse(body.c_str()) != tinyxml2::XML_SUCCESS) {
-        if (error) *error = "unreadable level list";
-        return false;
-    }
-    tinyxml2::XMLElement* lvs = doc.FirstChildElement("lvs");
-    if (!lvs) {
-        if (error) *error = "unreadable level list";
-        return false;
-    }
-    if (page) {
-        *page = 1;
-        lvs->QueryIntAttribute("pg", page);
-    }
-    if (perPage) {
-        *perPage = 0;
-        lvs->QueryIntAttribute("pp", perPage);
-    }
-    for (tinyxml2::XMLElement* lv = lvs->FirstChildElement("lv"); lv; lv = lv->NextSiblingElement("lv")) {
-        OnlineLevelInfo l;
-        lv->QueryIntAttribute("id", &l.id);
-        lv->QueryIntAttribute("ui", &l.authorId);
-        lv->QueryFloatAttribute("rg", &l.rating);
-        lv->QueryIntAttribute("vs", &l.votes);
-        lv->QueryIntAttribute("ps", &l.plays);
-        lv->QueryIntAttribute("pc", &l.character);
-        if (const char* s = lv->Attribute("ln")) l.name = s;
-        if (const char* s = lv->Attribute("un")) l.authorName = s;
-        if (const char* s = lv->Attribute("dp")) l.published = s;
-        if (tinyxml2::XMLElement* uc = lv->FirstChildElement("uc"))
-            if (const char* s = uc->GetText()) l.comment = s;
-        if (l.id) levels.push_back(l);
-    }
-    return true;
+    return proto::parseLevelList(body, g_lastStatus, levels, page, perPage, error);
 }
 
 bool HWApi::decryptRecord(const std::string& record, int authorId, std::string& xml, std::string* error) {
-    std::string err;
-    if (serverError(record, &err)) {
-        if (error) *error = err;
-        return false;
-    }
-    if (record.empty() || record.size() % 8 != 0) {
-        if (error) *error = "level data is damaged";
-        return false;
-    }
-    const std::string key = kKeyPrefix + std::to_string(authorId);
-    BF_KEY bfKey;
-    BF_set_key(&bfKey, (int)key.size(), reinterpret_cast<const unsigned char*>(key.data()));
-    std::vector<unsigned char> plain(record.size());
-    unsigned char iv[8];
-    std::memcpy(iv, kIV, 8);
-    BF_cbc_encrypt(reinterpret_cast<const unsigned char*>(record.data()), plain.data(), (long)record.size(), &bfKey,
-                   iv, BF_DECRYPT);
-    const unsigned pad = plain.back();
-    if (pad < 1 || pad > 8) {
-        if (error) *error = "level data could not be decrypted";
-        return false;
-    }
-    for (size_t i = plain.size() - pad; i < plain.size(); ++i) {
-        if (plain[i] != pad) {
-            if (error) *error = "level data could not be decrypted";
-            return false;
-        }
-    }
-    plain.resize(plain.size() - pad);
-
-    z_stream zs;
-    std::memset(&zs, 0, sizeof zs);
-    if (inflateInit(&zs) != Z_OK) return false;
-    zs.next_in = plain.data();
-    zs.avail_in = (uInt)plain.size();
-    std::string out;
-    char buf[65536];
-    int rc;
-    do {
-        zs.next_out = reinterpret_cast<Bytef*>(buf);
-        zs.avail_out = sizeof buf;
-        rc = inflate(&zs, Z_NO_FLUSH);
-        if (rc != Z_OK && rc != Z_STREAM_END) break;
-        out.append(buf, sizeof buf - zs.avail_out);
-    } while (rc != Z_STREAM_END);
-    inflateEnd(&zs);
-    if (rc != Z_STREAM_END) {
-        if (error) *error = "level data could not be unpacked";
-        return false;
-    }
-    xml.swap(out);
-    return true;
+    return proto::decryptRecord(record, authorId, xml, error);
 }
 
 RequestId HWApi::listLevels(const LevelQuery& query, ListCallback callback) {
@@ -467,7 +330,7 @@ RequestId HWApi::listLevels(const LevelQuery& query, ListCallback callback) {
         if (ok) ok = parseLevelList(data, levels, &pg, &pp, &perr);
         // The site answers multi-word searches ("Spinning Gears") with nothing at all: search for the
         // longest word instead and keep the levels that contain every word.
-        const std::vector<std::string> ws = words(query.term);
+        const std::vector<std::string> ws = proto::splitWords(query.term);
         if (ok && levels.empty() && ws.size() > 1 && query.searchBy != SearchBy::None) {
             std::string longest = ws[0];
             for (const std::string& w : ws)
