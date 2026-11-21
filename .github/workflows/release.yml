@@ -148,7 +148,8 @@ jobs:
       - name: Smoke tests (the packaged game, headless)
         run: |
           set -euo pipefail
-          sudo apt-get install -y -qq xvfb xdotool imagemagick python3-pil python3-numpy python3-pycryptodome libgl1-mesa-dri
+          sudo apt-get install -y -qq xvfb xdotool imagemagick python3-pil python3-numpy libgl1-mesa-dri
+          python3 -m pip install --quiet pycryptodome
           rm -rf smoke-game && mkdir smoke-game
           tar -xzf dist/OpenWheels-linux-x86_64.tar.gz -C smoke-game
           exe="$(find smoke-game -maxdepth 2 -name OpenWheels -type f | head -1)"

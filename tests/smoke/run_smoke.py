@@ -148,9 +148,9 @@ def t_chain_video(g: Game):
 
 
 def t_online_menu(g: Game):
-    time.sleep(12)
+    time.sleep(18)  # slow CI runners need a while to show the menu
     g.key("mousemove", "295", "630", "click", "1")  # the globe button of the main menu
-    time.sleep(8)
+    time.sleep(12)
     img = g.shot("online")
     # The online browser has a search field (a white pill) at the top; offline it shows an error,
     # online the list. Either way the game must still be running and drawn.
@@ -212,14 +212,19 @@ def main():
     for name in wanted:
         fn, level = TESTS[name]
         msg = "not run"
+        skipped = False
         for attempt in range(a.retries + 1):
             mock = None
             extra, env_extra = (), None
             if name == "online_pipeline":
                 repo = Path(__file__).resolve().parents[2]
                 samples = work / "samples"
-                subprocess.run([sys.executable, str(repo / "tools/online/make_dont_move_sample.py"), str(samples)],
-                               check=True, capture_output=True)
+                prep = subprocess.run([sys.executable, str(repo / "tools/online/make_dont_move_sample.py"), str(samples)],
+                                      capture_output=True, text=True)
+                if prep.returncode != 0:  # (usually pycryptodome missing)
+                    msg = "could not prepare the mock site: " + (prep.stderr.strip().splitlines() or ["?"])[-1]
+                    skipped = True
+                    break
                 mock = subprocess.Popen([sys.executable, str(repo / "tools/online/mock_tjf.py"), "--port", "8766",
                                          "--samples", str(samples)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 time.sleep(2)
@@ -241,6 +246,9 @@ def main():
             if attempt < a.retries:
                 print(f"  (retry {name}: {msg})")
         print(f"[{'FAIL' if msg else ' ok '}] {name}" + (f": {msg}" if msg else ""))
+        if skipped:  # nothing ran (the mock site could not be prepared)
+            failed.append(name)
+            continue
         if msg:
             failed.append(name)
             tail = game.log.read_text(errors="replace").splitlines()[-8:]
