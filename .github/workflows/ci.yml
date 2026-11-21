@@ -28,9 +28,11 @@ jobs:
       - name: Install
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq g++ zlib1g-dev libssl-dev python3
+          sudo apt-get install -y -qq g++ zlib1g-dev libssl-dev python3 ffmpeg
       - name: Unit tests (site protocol, level lists, records, versions)
         run: tests/run_unit.sh
+      - name: iOS sound conversion script
+        run: tests/test_aac_script.sh
       - name: Version / changelog consistency
         run: python3 tests/check_release_consistency.py
       - name: Python tools compile

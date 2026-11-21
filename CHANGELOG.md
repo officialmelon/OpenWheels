@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.5.3
+
+### Fixed
+- **iPhone still had no sound effects after v0.5.2** (#38). The script that makes the AAC copies of
+  the sounds (iOS cannot play Ogg Vorbis) converted only the first file: `ffmpeg` read the list of
+  files from the same input as the loop and swallowed it, so the iOS package held 1 `.m4a` for 402
+  `.ogg`. Fixed (`ffmpeg -nostdin`); the script now fails unless every `.ogg` has an `.m4a`, the
+  generated (restored-character and browser) sounds are converted too, the release workflow checks
+  the finished iOS package has an `.m4a` for every `.ogg`, and a test (`tests/test_aac_script.sh`)
+  covers the script.
+
 ## v0.5.2
 
 ### Fixed
