@@ -11,7 +11,7 @@
   levels where the on-screen controls cover touches meant for the game. The choice is kept.
 
 ### Fixed
-- **"Import levels" found no files on phones** : the importer only read the app's own private
+- **"Import levels" found no files on phones**: the importer only read the app's own private
   folder, which a phone's owner cannot reach (and not Downloads). On Android the button now opens
   the system file picker (pick any number of `.xml` / `.txt` levels, from Downloads or anywhere); on
   desktops the import folder and the Downloads folder are both read. File extensions in capitals
