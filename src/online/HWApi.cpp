@@ -21,13 +21,24 @@ namespace {
 
 const char* const kSite = "https://totaljerkface.com/";
 // The site's Cloudflare WAF challenges requests whose User-Agent names OpenWheels (HTTP 403
-// "Just a moment..."), while the public level API itself is unchanged. Use the official desktop
-// client's browser/Electron User-Agent (it appends the game version token) so get_all,
+// "Just a moment..."), while the public level API itself is unchanged. Use the browser/Electron
+// User-Agent of the official client on that platform and the same headers as its XHR, so get_all,
 // search_by_name/search_by_user, get_featured, get_level and get_record are served normally.
+#if (CC_TARGET_PLATFORM == CC_PLATFORM_ANDROID)
+const char* const kUserAgent =
+    "User-Agent: Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/152.0.0.0 Mobile Safari/537.36 HappyWheels/1.99.2 (2.01; 400f1e84)";
+#elif (CC_TARGET_PLATFORM == CC_PLATFORM_IOS)
+const char* const kUserAgent =
+    "User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 "
+    "(KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1 "
+    "HappyWheels/1.99.2 (2.01; 400f1e84)";
+#else
 const char* const kUserAgent =
     "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
     "Happy Wheels/1.99.2 Chrome/152.0.7977.78 Electron/44.4.1 Safari/537.36 "
     "HappyWheels/1.99.2 (2.01; 400f1e84)";
+#endif
 int g_lastStatus = 0;  // HTTP status of the latest response (for error messages)
 const double kMinSpacingSeconds = 1.0;  // one request at a time, at most one per second
 const char* const kKeyPrefix = "eatshit";
@@ -251,7 +262,20 @@ void HWApi::pump() {
     const std::string site = siteUrl();
     request->setUrl(site + p->endpoint);
     request->setRequestType(p->get ? network::HttpRequest::Type::GET : network::HttpRequest::Type::POST);
-    std::vector<std::string> headers = {kUserAgent, std::string("Referer: ") + site + "happy_wheels.tjf"};
+    const std::string origin = site.substr(0, site.size() - 1);  // siteUrl() always ends with '/'
+    std::vector<std::string> headers = {kUserAgent,
+                                        std::string("Referer: ") + site + "happy_wheels.tjf",
+                                        "Accept: */*",
+                                        "Accept-Language: en-US,en;q=0.9",
+                                        "Origin: " + origin,
+                                        "Sec-Fetch-Site: same-origin",
+                                        "Sec-Fetch-Mode: cors",
+                                        "Sec-Fetch-Dest: empty"};
+#if (CC_TARGET_PLATFORM == CC_PLATFORM_ANDROID)
+    // cocos2d-x's Android HttpURLConnection defaults to "Accept-Encoding: identity"; advertise
+    // the browser encodings its Java response reader can decode.
+    headers.push_back("Accept-Encoding: gzip, deflate");
+#endif
     if (!p->get) headers.push_back("Content-Type: application/x-www-form-urlencoded");
     if (_cookieProvider) {
         const std::string cookie = _cookieProvider();

@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.5.1
+
+### Fixed
+- **Online levels, login and replays on phones.** Cloudflare challenged the Windows desktop
+  User-Agent used by v0.5.0 with an HTTP 403 "Just a moment..." page on Android, even though the
+  same UA works on PC; the Android HTTP stack and the desktop UA did not match. Android now sends a
+  mobile Chrome User-Agent and the browser's `Accept` / `Accept-Language` / `Origin` /
+  `Sec-Fetch-*` headers (and gzip/deflate instead of `identity`); iOS uses a mobile Safari
+  User-Agent. Verified on an Android 14 emulator: the old desktop UA got
+  `cf-mitigated: challenge`, the mobile UA got HTTP 200 XML.
+
 ## v0.5.0
 
 ### New
