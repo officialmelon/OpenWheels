@@ -104,7 +104,9 @@ jobs:
           python3 -m pip install --quiet numpy pillow
           python3 tools/assets/restored_portraits.py --optional --out game-data/generated/restored
       - name: AAC copies of the sounds (iOS cannot play Ogg Vorbis)
+        continue-on-error: true   # only the iOS build uses them: never block the other platforms
         run: |
+          sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
           tools/release/add_aac_sounds.sh game-data/assets
       - uses: actions/upload-artifact@v4
