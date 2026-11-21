@@ -1,6 +1,22 @@
 # Changelog
 
-## Unreleased
+## v0.5.5
+
+### Added
+- **Accessibility page** (Options > Quality of Life > accessibility): a **colour filter** over the whole
+  screen (red-blind, green-blind and blue-blind corrections, and high contrast), **touch button
+  opacity**, **reduce screen shake**, the touch-controls switch, and **haptics** (controller rumble
+  strength and the phone's vibration) in one place.
+- **Show / hide the touch buttons from the pause menu**, with its own pictogram and caption, for
+  levels where the on-screen controls cover touches meant for the game. The choice is kept.
+
+### Fixed
+- **"Import levels" found no files on phones** : the importer only read the app's own private
+  folder, which a phone's owner cannot reach (and not Downloads). On Android the button now opens
+  the system file picker (pick any number of `.xml` / `.txt` levels, from Downloads or anywhere); on
+  desktops the import folder and the Downloads folder are both read. File extensions in capitals
+  (`.XML`) count, a level already imported is not added twice, and the error says where to put the
+  files and why a file was refused.
 
 ### Changed
 - **Proper icons on the extra touch buttons.** LEGS, SQUAT, JUMP+LEGS, JUMP+SQUAT, FIST L / R,

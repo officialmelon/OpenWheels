@@ -8,6 +8,8 @@
 #include "tinyxml2/tinyxml2.h"
 
 #include <algorithm>
+#include <cctype>
+#include <cstdlib>
 #include <ctime>
 #include <set>
 
@@ -37,11 +39,29 @@ std::string stem(const std::string& fileName)
     return dot == std::string::npos ? fileName : fileName.substr(0, dot);
 }
 
-// [[name componentsSeparatedByString:@"."] lastObject]
+// [[name componentsSeparatedByString:@"."] lastObject]; lower-cased (port: "Level.XML" counts)
 std::string lastDotComponent(const std::string& fileName)
 {
     size_t dot = fileName.find_last_of('.');
-    return dot == std::string::npos ? fileName : fileName.substr(dot + 1);
+    std::string ext = dot == std::string::npos ? fileName : fileName.substr(dot + 1);
+    for (char& c : ext)
+    {
+        c = (char)std::tolower((unsigned char)c);
+    }
+    return ext;
+}
+
+// Port addition: where a desktop user's saved levels usually are (the browser's Downloads folder).
+std::string downloadsFolder()
+{
+#if (CC_TARGET_PLATFORM == CC_PLATFORM_WIN32)
+    const char* home = std::getenv("USERPROFILE");
+#elif (CC_TARGET_PLATFORM == CC_PLATFORM_LINUX || CC_TARGET_PLATFORM == CC_PLATFORM_MAC)
+    const char* home = std::getenv("HOME");
+#else
+    const char* home = nullptr;
+#endif
+    return home && *home ? std::string(home) + "/Downloads/" : std::string();
 }
 
 bool writeFileAtomically(const std::string& contents, const std::string& path)
@@ -581,47 +601,73 @@ void LevelStore::postNotification(const char* name)
 // ---- import -----------------------------------------------------------------------------------
 
 // @ios 100101d70  -[LevelDataInitializer importLevelsFromFileSharingWithManagedObjectContext:]
+// Port: the import folder, and on desktops the Downloads folder too (only files that really are
+// levels are taken, and a level already imported is not imported twice).
 std::string LevelStore::importLevelsFromFileSharing()
 {
     FileUtils* fu = FileUtils::getInstance();
     std::string documents = inboxPath();
     fu->createDirectory(documents);
-    std::vector<std::string> files;
-    for (const std::string& path : fu->listFiles(documents))
+    std::vector<std::string> folders = {documents};
+    const std::string downloads = downloadsFolder();
+    if (!downloads.empty() && fu->isDirectoryExist(downloads))
     {
-        if (!path.empty() && (path.back() == '/' || path.back() == '\\'))
+        folders.push_back(downloads);
+    }
+    std::vector<std::pair<std::string, std::string>> files;  // (name, full path)
+    for (const std::string& folder : folders)
+    {
+        for (const std::string& path : fu->listFiles(folder))
         {
-            continue;
-        }
-        std::string name = baseName(path);
-        std::string extension = lastDotComponent(name);
-        if (extension == "txt" || extension == "xml")
-        {
-            files.push_back(name);
+            if (!path.empty() && (path.back() == '/' || path.back() == '\\'))
+            {
+                continue;
+            }
+            std::string name = baseName(path);
+            std::string extension = lastDotComponent(name);
+            if (extension == "txt" || extension == "xml")
+            {
+                files.push_back({name, path});
+            }
         }
     }
     if (files.empty())
     {
-        return "No .xml or .txt files found";
+        std::string where = documents;
+        return "No .xml or .txt files found. Put the level files in " + where +
+               (downloads.empty() ? "" : " (or your Downloads folder)");
     }
     std::sort(files.begin(), files.end());  // contentsOfDirectoryAtPath: order (port: by name)
 
     ChapterMO* chapter = chapterWithIndex(LevelStoreChapterUser);  // "chapterIndex == 5000"
     int lastId = lastIdIn(chapter->levels());
     int imported = 0;
-    for (const std::string& name : files)
+    int unusable = 0;
+    std::set<std::string> have;  // contents of the levels already in the chapter
+    for (LevelMO* existing : chapter->levels())
     {
-        std::string path = documents + name;
+        have.insert(existing->data());
+    }
+    for (const auto& file : files)
+    {
+        const std::string& name = file.first;
+        const std::string& path = file.second;
         if (!fu->isFileExist(path))
         {
             return "The file " + name + " couldn't be opened.";
         }
         std::string contents = fu->getStringFromFile(path);
+        if (have.count(contents))
+        {
+            continue;  // already imported
+        }
+        have.insert(contents);
         // Port addition: iOS imported any text; skip what the game could not load.
         std::string error;
         if (!isValidLevelXML(contents, &error))
         {
             CCLOG("LevelStore: not importing %s (%s)", name.c_str(), error.c_str());
+            unusable++;
             continue;
         }
         imported++;
@@ -636,6 +682,12 @@ std::string LevelStore::importLevelsFromFileSharing()
         level->setForce_character(false);
         level->setPlayable_character(1);
         chapter->addLevelsObject(level);
+    }
+    if (imported == 0)
+    {
+        return unusable > 0 ? "None of the " + std::to_string(unusable) +
+                                  " files is a Happy Wheels level the game can load."
+                            : "Those levels are already imported.";
     }
     std::string error;
     if (!save(&error))

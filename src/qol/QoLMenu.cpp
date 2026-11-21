@@ -10,6 +10,7 @@
 #include "Settings.h"
 #include "qol/QoL.h"
 #include "qol/CharacterChoice.h"
+#include "qol/QoLAccessibilityMenu.h"
 #include "qol/QoLControlsMenu.h"
 #include "qol/QoLPadMenu.h"  // PAD (PC addition)
 #include "qol/QoLWidgets.h"
@@ -81,6 +82,7 @@ std::string QoLMenu::labelFor(int row) const
     case RowUnlockLevels: return std::string("unlock all levels: ") + onOff(qol::unlockAllLevels());
     case RowControls: return "keyboard controls";
     case RowController: return "controller";
+    case RowAccessibility: return "accessibility";
     case RowChildGore:
         // The sheet is built from the player's browser-game SWF; without it the row says so.
         return std::string("child gore: ") + (qol::childGoreAvailable() ? onOff(qol::childGore()) : "no art");
@@ -99,7 +101,7 @@ std::string QoLMenu::labelFor(int row) const
 OptionsMenuItem* QoLMenu::makeRow(int row)
 {
     return OptionsMenuItem::create(labelFor(row), row, CC_CALLBACK_1(QoLMenu::rowPressed, this),
-                                   row == RowControls || row == RowController ? OptionsMenuItemAppearanceBlue
+                                   row == RowControls || row == RowController || row == RowAccessibility ? OptionsMenuItemAppearanceBlue
                                                                               : OptionsMenuItemAppearanceDefault);
 }
 
@@ -130,6 +132,7 @@ void QoLMenu::addContent()
     {
         game->addChild(makeRow(RowControls));  // the keyboard bridge is desktop-only
     }
+    game->addChild(makeRow(RowAccessibility));  // colour filter, touch buttons, shake, haptics
     game->addChild(makeRow(RowController));  // PAD (PC addition): every platform
     const float padding = 35.0f;
     visuals->alignItemsVerticallyWithPadding(padding);
@@ -239,6 +242,12 @@ void QoLMenu::rowPressed(Ref* sender)
         // Pushed, so the back button returns here.
         Director::getInstance()->pushScene(
             TransitionFade::create(globals::ui::menuFadeTime, QoLControlsMenu::createScene(), Color3B(0, 0, 0)));
+        return;
+    }
+    case RowAccessibility:
+    {
+        Director::getInstance()->pushScene(
+            TransitionFade::create(globals::ui::menuFadeTime, QoLAccessibilityMenu::createScene(), Color3B(0, 0, 0)));
         return;
     }
     case RowController:

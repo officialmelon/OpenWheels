@@ -96,7 +96,10 @@ behaviour:
 - **Keyboard controls** (PC): remap every keyboard action
 - **Controller**: remap every controller action, rumble strength, tilt steering and phone
   vibration
-- **Touch controls**: hidden by default on PC, where the keyboard drives and key hints replace
+- **Accessibility**: a screen-wide colour filter (red / green / blue-blind corrections, high
+  contrast), touch button opacity, reduce screen shake, and haptics (controller rumble, phone
+  vibration)
+- **Touch controls** (also in the pause menu: "hide / show touch UI"): hidden by default on PC, where the keyboard drives and key hints replace
   the tutorial arrows; shown on phones and tablets unless a controller is connected
 - **Re-grab vehicle:** after ejecting, grab your own vehicle and you climb back on and ride again
   (all 11 characters)

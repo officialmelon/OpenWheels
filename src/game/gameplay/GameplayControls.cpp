@@ -557,6 +557,22 @@ void GameplayControls::addControls(ControlsType type)
     updateUpperUIToAccommodateBanner();  // inlined in the original
 }
 
+// QOL (PC addition): the pause menu's "show / hide touch UI" switches the on-screen buttons without
+// laying the controls out again: hidden buttons stay (the keyboard / controller bridge presses
+// them) but are not drawn and ignore real touches, and their text labels go with them.
+void GameplayControls::refreshTouchControls()
+{
+    const bool shown = qol::touchControlsShown();
+    for (GameplayBtn* btn : _buttons)
+    {
+        btn->setKeyOnly(!shown);
+        for (Node* child : btn->getChildren())
+        {
+            child->setVisible(shown);
+        }
+    }
+}
+
 // @005b738c
 void GameplayControls::addPauseBtn()
 {

@@ -383,6 +383,55 @@ def write_sheet(out_dir, images):
     return png
 
 
+# ---- pause-menu icons (white glyph on the transparent, untrimmed button frame) ------------------
+
+PAUSE_TIERS = {"large": 256, "medium": 128, "small": 96, "tiny": 64}
+
+
+def pause_touch_icon(c, slashed):
+    """A phone with a finger tap; slashed = 'hide the touch controls'."""
+    c.rrect((0.30, 0.16), (0.70, 0.84), 0.07)                  # phone body
+    c.rrect((0.345, 0.225), (0.655, 0.70), 0.03, fill=0)       # screen (cut out)
+    c.circle((0.5, 0.775), 0.036, 0)                           # home button (cut out)
+    c.circle((0.5, 0.46), 0.052)                               # the touch point
+    c.arc((0.5, 0.46), 0.115, 0, 360, width=0.026)             # ripple
+    if slashed:
+        c.line((0.18, 0.88), (0.82, 0.12), 0.085)
+        # a gap beside the slash so it reads over the phone
+        c.line((0.215, 0.88), (0.855, 0.12), 0.0)
+
+
+def render_pause(slashed, size):
+    big = Canvas((size, size))
+    pause_touch_icon(big, slashed)
+    mask = big.mask.resize((size, size), Image.LANCZOS)
+    out = Image.new("RGBA", (size, size), (255, 255, 255, 0))
+    out.putalpha(mask)
+    return out
+
+
+def write_pause(out_dir):
+    for tier, size in PAUSE_TIERS.items():
+        images = {"ow_pause_icon_touch_hide.png": render_pause(True, size),
+                  "ow_pause_icon_touch_show.png": render_pause(False, size)}
+        d = os.path.join(out_dir, tier, "menus", "pause")
+        os.makedirs(d, exist_ok=True)
+        sheet = Image.new("RGBA", (size * 2 + 2, size), (0, 0, 0, 0))
+        frames = {}
+        for i, (name, img) in enumerate(images.items()):
+            x = i * (size + 2)
+            sheet.paste(img, (x, 0))
+            frames[name] = {"aliases": [], "spriteOffset": "{0,0}", "spriteSize": "{%d,%d}" % (size, size),
+                            "spriteSourceSize": "{%d,%d}" % (size, size),
+                            "textureRect": "{{%d,0},{%d,%d}}" % (x, size, size), "textureRotated": False}
+        sheet.save(os.path.join(d, "ow_pause.png"), optimize=True)
+        meta = {"format": 3, "pixelFormat": "RGBA8888", "premultiplyAlpha": False,
+                "realTextureFileName": "ow_pause.png", "textureFileName": "ow_pause.png",
+                "size": "{%d,%d}" % sheet.size, "smartupdate": "$OpenWheels ow_button_icons.py$"}
+        with open(os.path.join(d, "ow_pause.plist"), "wb") as f:
+            plistlib.dump({"frames": frames, "metadata": meta}, f)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--out", required=True, help="e.g. <exe dir>/generated/restored")
@@ -392,9 +441,15 @@ def main():
     for tier, size in TIERS.items():
         images = {name: render(fn, size) for name, fn in ICONS.items()}
         write_sheet(os.path.join(a.out, tier, "controls"), images)
+    write_pause(a.out)
     print(f"ow_button_icons: {len(ICONS)} icons x {len(TIERS)} tiers -> {a.out}")
     if a.preview:
         big = {name: render(fn, TIERS["large"]) for name, fn in ICONS.items()}
+        for slashed in (True, False):  # the pause-menu icon on a pause-menu button colour
+            btn = Image.new("RGBA", TIERS["large"], (0, 0, 0, 0))
+            ImageDraw.Draw(btn).ellipse((36, 34, 292, 290), fill=(61, 134, 201, 255))
+            btn.alpha_composite(render_pause(slashed, 256), (36, 34))
+            big["pause%d" % slashed] = btn
         cols = 5
         w, h = TIERS["large"]
         rows = (len(big) + cols - 1) // cols

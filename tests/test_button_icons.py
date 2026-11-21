@@ -24,4 +24,9 @@ with tempfile.TemporaryDirectory() as out:
             alpha = sheet.crop((x, y, x + fw, y + fh)).getchannel("A")
             glyph = sum(1 for v in list(alpha.crop((fw // 4, fh // 4, 3 * fw // 4, 3 * fh // 4)).tobytes()) if v > 0)
             assert glyph > 0.4 * (fw // 2) * (fh // 2), f"{tier}/{name} looks empty"
+    for tier, size in {"large": 256, "medium": 128, "small": 96, "tiny": 64}.items():
+        d = os.path.join(out, tier, "menus", "pause")
+        plist = plistlib.load(open(os.path.join(d, "ow_pause.plist"), "rb"))
+        assert set(plist["frames"]) == {"ow_pause_icon_touch_hide.png", "ow_pause_icon_touch_show.png"}, plist["frames"].keys()
+        assert Image.open(os.path.join(d, "ow_pause.png")).size[1] == size
 print("button icons ok:", len(wanted), "frames x", len(sizes), "tiers")

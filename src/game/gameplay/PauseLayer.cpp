@@ -1,5 +1,6 @@
 #include "PauseLayer.h"
 
+#include <algorithm>
 #include <new>
 
 #include "AdController.h"
@@ -13,6 +14,10 @@
 #include "Settings.h"
 #include "Tracker.h"
 #include "qol/CharacterChoice.h"  // QOL (PC addition)
+#include "qol/QoL.h"
+
+// QOL (PC addition): menu tag of the "touch UI" button (GameplayMenuAction values stop at 7).
+static const int kPauseActionTouchUI = 8;
 
 USING_NS_CC;
 
@@ -80,19 +85,39 @@ void PauseLayer::addMenu()
     MenuItemImage* optionsBtn = btnWithIcon("menu_pause_icon_options.png", PauseLayerColorPink,
                                             GameplayMenuActionOptions);
 
-    Menu* menu;
-    if (adsRemoved)
+    // QOL (PC addition): hide / show the on-screen controls (they can cover touches meant for the
+    // level). Own pictogram (tools/assets/ow_button_icons.py); without it the button is left out.
+    MenuItemImage* touchBtn = nullptr;
+    if (!cache->isSpriteFramesWithFileLoaded("menus/pause/ow_pause.plist") &&
+        FileUtils::getInstance()->isFileExist("menus/pause/ow_pause.plist"))
     {
-        menu = Menu::create(resumeBtn, exitBtn, resetBtn, characterBtn, replayBtn, optionsBtn,
-                            nullptr);
+        cache->addSpriteFramesWithFile("menus/pause/ow_pause.plist");
     }
-    else
+    if (cache->getSpriteFrameByName("ow_pause_icon_touch_hide.png"))
     {
-        menu = Menu::create(resumeBtn, exitBtn, resetBtn, characterBtn, replayBtn, adsBtn,
-                            optionsBtn, nullptr);
+        touchBtn = btnWithIcon("ow_pause_icon_touch_hide.png", PauseLayerColorBlue, kPauseActionTouchUI);
+        _touchIcon = dynamic_cast<Sprite*>(touchBtn->getChildren().back());
     }
+
+    Menu* menu = Menu::create();
+    menu->addChild(resumeBtn);
+    menu->addChild(exitBtn);
+    menu->addChild(resetBtn);
+    menu->addChild(characterBtn);
+    menu->addChild(replayBtn);
+    if (adsBtn) menu->addChild(adsBtn);
+    if (touchBtn) menu->addChild(touchBtn);
+    menu->addChild(optionsBtn);
     menu->setContentSize(getContentSize());
-    menu->alignItemsHorizontallyWithPadding(btnWidth * 0.5f);
+    // QOL (PC addition): one button more than the original's six or seven: tighten the gaps to fit.
+    float padding = btnWidth * 0.5f;
+    const float count = (float)menu->getChildrenCount();
+    if (count > 1.0f)
+    {
+        const float room = Director::getInstance()->getVisibleSize().width - 60.0f;
+        padding = std::max(btnWidth * 0.1f, std::min(padding, (room - count * btnWidth) / (count - 1.0f)));
+    }
+    menu->alignItemsHorizontallyWithPadding(padding);
     addChild(menu);
 
     Color4B blue(61, 134, 201, 255);
@@ -112,6 +137,22 @@ void PauseLayer::addMenu()
         createLabel(adsBtn, "REMOVE\nADS", pink)->Node::visit();
     }
     createLabel(optionsBtn, "OPTIONS", pink)->Node::visit();
+    if (touchBtn)
+    {
+        _touchLabel = createLabel(touchBtn, "HIDE\nTOUCH UI", blue);
+        _touchLabel->Node::visit();
+        refreshTouchButton();
+    }
+}
+
+// QOL (PC addition): the button offers the opposite of what the touch controls are doing now.
+void PauseLayer::refreshTouchButton()
+{
+    if (!_touchIcon || !_touchLabel) return;
+    const bool shown = qol::touchControlsShown();
+    _touchIcon->setSpriteFrame(SpriteFrameCache::getInstance()->getSpriteFrameByName(
+        shown ? "ow_pause_icon_touch_hide.png" : "ow_pause_icon_touch_show.png"));
+    _touchLabel->setString(shown ? "HIDE\nTOUCH UI" : "SHOW\nTOUCH UI");
 }
 
 // @005fecb0
@@ -206,6 +247,13 @@ void PauseLayer::btnPressed(Ref* sender)
         {
             getEventDispatcher()->dispatchCustomEvent("gameplayMenuAction", &action);
         }
+    }
+    else if (action == kPauseActionTouchUI)
+    {
+        // Fixed show / hide (not "auto"): what the player picked here stays until changed.
+        qol::setTouchControls(qol::touchControlsShown() ? qol::TouchControls::Hide : qol::TouchControls::Show);
+        UserDefault::getInstance()->flush();
+        refreshTouchButton();  // applied to the buttons when the game resumes
     }
     else if (action == GameplayMenuActionOptions)
     {

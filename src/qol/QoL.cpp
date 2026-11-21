@@ -29,6 +29,9 @@ const char* const kRegrabVehicle = "qol_regrab_vehicle";
 const char* const kRumble = "qol_pad_rumble";
 const char* const kTiltSteering = "qol_tilt_steering";
 const char* const kPhoneVibration = "qol_phone_vibration";
+const char* const kColorFilter = "qol_color_filter";
+const char* const kTouchOpacity = "qol_touch_button_opacity";
+const char* const kReduceShake = "qol_reduce_shake";
 
 bool g_keyboardTouch = false;
 bool g_regrabSuspended = false;
@@ -36,6 +39,9 @@ int g_regrab = -1;  // cached: UserDefault reads its file on every get on deskto
 int g_rumble = -1;  // cached (read on every rumble)
 int g_tilt = -1;    // cached (read every frame)
 int g_phoneVibration = -1;
+int g_colorFilter = -1;      // cached (read every frame)
+float g_touchOpacity = -1.0f;
+int g_reduceShake = -1;
 
 std::function<void(bool)>& fullscreenHandler() {
     static std::function<void(bool)> handler;
@@ -204,6 +210,43 @@ bool touchControlsShown() {
             if (desktopBuild()) return false;
             return !openwheels::pad::anyConnected();
     }
+}
+
+ColorFilter colorFilter() {
+    if (g_colorFilter < 0) g_colorFilter = std::max(0, std::min(4, store()->getIntegerForKey(kColorFilter, 0)));
+    return (ColorFilter)g_colorFilter;
+}
+void setColorFilter(ColorFilter filter) {
+    g_colorFilter = (int)filter;
+    store()->setIntegerForKey(kColorFilter, g_colorFilter);
+}
+const char* colorFilterName(ColorFilter filter) {
+    switch (filter) {
+        case ColorFilter::Protanopia: return "red-blind (protanopia)";
+        case ColorFilter::Deuteranopia: return "green-blind (deuteranopia)";
+        case ColorFilter::Tritanopia: return "blue-blind (tritanopia)";
+        case ColorFilter::HighContrast: return "high contrast";
+        default: return "off";
+    }
+}
+
+float touchButtonOpacity() {
+    if (g_touchOpacity < 0.0f)
+        g_touchOpacity = std::max(0.3f, std::min(1.0f, store()->getFloatForKey(kTouchOpacity, 0.4f)));
+    return g_touchOpacity;
+}
+void setTouchButtonOpacity(float opacity) {
+    g_touchOpacity = std::max(0.3f, std::min(1.0f, opacity));
+    store()->setFloatForKey(kTouchOpacity, g_touchOpacity);
+}
+
+bool reduceShake() {
+    if (g_reduceShake < 0) g_reduceShake = store()->getBoolForKey(kReduceShake, false) ? 1 : 0;
+    return g_reduceShake == 1;
+}
+void setReduceShake(bool on) {
+    g_reduceShake = on ? 1 : 0;
+    store()->setBoolForKey(kReduceShake, on);
 }
 
 RumbleLevel rumbleLevel() {

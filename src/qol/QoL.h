@@ -97,6 +97,20 @@ TouchControls touchControls();
 void setTouchControls(TouchControls mode);
 const char* touchControlsName(TouchControls mode);
 bool touchControlsShown();  // resolved for this build
+// ACCESSIBILITY (PC addition): qol/QoLAccessibilityMenu.h.
+// Colour filter over the whole screen (qol/ColorFilter.cpp): the three kinds of colour-blindness
+// get a correction that moves the colours they cannot tell apart onto ones they can, and "high
+// contrast" strengthens the picture's contrast and colours.
+enum class ColorFilter { Off = 0, Protanopia = 1, Deuteranopia = 2, Tritanopia = 3, HighContrast = 4 };
+ColorFilter colorFilter();
+void setColorFilter(ColorFilter filter);
+const char* colorFilterName(ColorFilter filter);
+// How solid the on-screen touch buttons are when not pressed: 0.3 .. 1 (the original's 0.4).
+float touchButtonOpacity();
+void setTouchButtonOpacity(float opacity);
+// No camera shake (explosions, big crashes): for motion sensitivity.
+bool reduceShake();
+void setReduceShake(bool on);
 // Pogostick Man on touch screens: the LEGS / SQUAT buttons also hold the jump (space), so releasing
 // them makes the pogo jump with that pose (default on; off = pose only, like the Shift / Ctrl keys).
 bool pogoJumpCombo();

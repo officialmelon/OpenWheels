@@ -552,6 +552,7 @@ void Gameplay::unpauseGameplay()
         settings->getAdController()->removeBannerAd();
     }
     _controls->setHidden(false);
+    _controls->refreshTouchControls();  // QOL: the pause menu may have shown / hidden them
     _timer->setHidden(false);
     removeChild(_pauseLayer, true);
     _pauseLayer = nullptr;

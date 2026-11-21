@@ -9,6 +9,7 @@
 // id too (Settings::setSelectedCharacterId). So the value goes to Settings::setSelectedCharacterId
 // unchanged.
 #include "LevelSession.h"
+#include "platform/common/FilePicker.h"
 #include "FlashLevelIO.h"  // EDITOR (browser features, PC addition)
 
 #include "CharacterSelectLayer.h"
@@ -357,6 +358,40 @@ void LevelSession::playImportedLevel(const ValueMap& levelDict)
 
 // @ios 10008b83c
 void LevelSession::importLevelsFromFileSharingWithAlert()
+{
+    // Port: on Android the import folder is private to the app, so the system file picker copies
+    // the chosen level files into it first (a phone's owner has no other way to reach it).
+    if (openwheels::filepicker::available())
+    {
+        LevelStore* store = LevelStore::getInstance();
+        store->deleteImportedLevelFiles();  // leftovers of an earlier import
+        openwheels::filepicker::pickLevelFiles(store->inboxPath(), [this](int copied, int skipped) {
+            if (copied < 0)
+            {
+                levelui::showAlert(-1, "Error", "Level were not imported. Error: the file picker could not be opened.",
+                                   "DAMMIT.", "", nullptr);
+            }
+            else if (copied == 0 && skipped == 0)
+            {
+                return;  // cancelled
+            }
+            else if (copied == 0)
+            {
+                levelui::showAlert(-1, "Error",
+                                   "Level were not imported. Error: none of the chosen files is a .xml or .txt level.",
+                                   "DAMMIT.", "", nullptr);
+            }
+            else
+            {
+                importFolderWithAlert();
+            }
+        });
+        return;
+    }
+    importFolderWithAlert();
+}
+
+void LevelSession::importFolderWithAlert()
 {
     std::string error = LevelStore::getInstance()->importLevelsFromFileSharing();
     if (error.empty())

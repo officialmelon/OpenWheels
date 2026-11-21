@@ -101,6 +101,7 @@ public:
     // "Success" / long message / "Keep them" / "DELETE THEM" (index 1 -> deleteImportedLevelFiles),
     // or "Error" / "Level were not imported. Error: %@" / "DAMMIT.".
     void importLevelsFromFileSharingWithAlert();
+    void importFolderWithAlert();  // port: imports what is in the import folder, then the result alert
     // CFBundleVersion of iOS 1.2.7, written as "buildVersion" by ShareAction.
     static const char* const kBuildVersion;   // "0.9080"
 

@@ -51,5 +51,10 @@ public:
     void onStoreResponse(IAPStoreAction action, std::string productId) override;  // @005ff9e4  vptr+0x648; thunk @005ff9ec
 
 protected:
+    // QOL (PC addition): "show / hide touch UI" button (icon and caption follow the setting).
+    cocos2d::Sprite* _touchIcon = nullptr;
+    cocos2d::Label* _touchLabel = nullptr;
+    void refreshTouchButton();
+
     bool _waitingForStoreResponse;  // +0x328  set when "remove ads" is pressed; never read
 };

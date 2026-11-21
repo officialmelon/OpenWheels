@@ -1,10 +1,14 @@
 #include "GameplayBtn.h"
 
+#include <cmath>
+
+#include "qol/QoL.h"
+
 USING_NS_CC;
 
 // @005b41bc
 GameplayBtn::GameplayBtn()
-    : _unpressedOpacity(102),
+    : _unpressedOpacity((int)std::lround(qol::touchButtonOpacity() * 255.0f)),  // 102 = the original; ACCESSIBILITY (PC addition)
       _unpressedScale(0.86f)
 {
     _stateValue = 0;

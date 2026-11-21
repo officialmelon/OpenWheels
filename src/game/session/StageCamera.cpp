@@ -1,4 +1,5 @@
 #include "StageCamera.h"
+#include "qol/QoL.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -450,7 +451,10 @@ void StageCamera::center()
         const float randomX = CCRANDOM_MINUS1_1();
         const float randomY = CCRANDOM_MINUS1_1();
         // Separate statement: the offset is not contracted into the add (fmul + fadd, no fma).
-        const Vec2 shake(randomX * _halfShakeRange * _shakeAmount, randomY * _halfShakeRange * _shakeAmount);
+        // ACCESSIBILITY (PC addition): "reduce shake" keeps the camera still.
+        const float shakeScale = qol::reduceShake() ? 0.0f : 1.0f;
+        const Vec2 shake(randomX * _halfShakeRange * _shakeAmount * shakeScale,
+                         randomY * _halfShakeRange * _shakeAmount * shakeScale);
         _containerObj->setPosition(position + shake);
         _shakeAmount = fmaxf(_shakeAmount - 0.016666668f, 0.0f);
     }

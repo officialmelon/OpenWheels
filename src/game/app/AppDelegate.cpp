@@ -4,6 +4,7 @@
 #include "PrivacyPolicyScene.h"
 #include "Settings.h"
 #include "qol/QoL.h"  // QOL (PC addition)
+#include "qol/ColorFilter.h"
 #include "input/Gamepad.h"  // PAD (PC addition)
 #include "restored/Restored.h"  // RESTORED (PC addition)
 #include "net/NetLevels.h"  // NET (PC addition)
@@ -47,6 +48,7 @@ bool AppDelegate::applicationDidFinishLaunching()
 
     director->setAnimationInterval(1.0f / 60);
     qol::installFrameRate(qol::frameRate());  // QOL (PC addition): 30 / 60 FPS (60 by default)
+    qol::installColorFilter();   // ACCESSIBILITY (PC addition): colour-blind / high-contrast filter
     openwheels::pad::install();  // PAD (PC addition): game controllers, haptics, tilt (src/input/)
 
     glview->setDesignResolutionSize(designResolutionSize.width, designResolutionSize.height,

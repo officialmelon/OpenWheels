@@ -22,7 +22,16 @@
 //     tilt steering go through GameInput.
 package org.openwheels.game;
 
+import android.app.Activity;
+import android.content.ClipData;
 import android.content.Context;
+import android.content.Intent;
+import android.database.Cursor;
+import android.net.Uri;
+import android.provider.OpenableColumns;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import android.graphics.Color;
 import android.net.wifi.WifiManager;
 import android.os.Build;
@@ -138,6 +147,110 @@ public class AppActivity extends Cocos2dxActivity {
     protected void onPause() {
         if (mGameInput != null) mGameInput.onPause();
         super.onPause();
+    }
+
+    // EDITOR: "import levels". The importer reads a private folder a phone's owner cannot reach, so
+    // the system file picker (any number of .xml / .txt files, e.g. from Downloads) copies the
+    // chosen files into it (destDir); nativeLevelsPicked then runs the import (GL thread).
+    private static final int REQUEST_PICK_LEVELS = 4711;
+    private static String sPickDestDir;
+    private static native void nativeLevelsPicked(int copied, int skipped);
+
+    public static void pickLevelFiles(final String destDir) {
+        final Context context = getContext();
+        if (!(context instanceof Activity)) {
+            nativeLevelsPicked(-1, 0);
+            return;
+        }
+        sPickDestDir = destDir;
+        ((Activity) context).runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                    intent.addCategory(Intent.CATEGORY_OPENABLE);
+                    intent.setType("*/*");
+                    intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                    ((Activity) context).startActivityForResult(intent, REQUEST_PICK_LEVELS);
+                } catch (RuntimeException e) {
+                    nativeLevelsPicked(-1, 0);
+                }
+            }
+        });
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, final Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_PICK_LEVELS) return;
+        if (resultCode != Activity.RESULT_OK || data == null) {
+            runOnGLThread(new Runnable() {
+                @Override
+                public void run() {
+                    nativeLevelsPicked(0, 0);  // cancelled
+                }
+            });
+            return;
+        }
+        final String destDir = sPickDestDir;
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                int copied = 0, skipped = 0;
+                java.util.ArrayList<Uri> uris = new java.util.ArrayList<Uri>();
+                if (data.getData() != null) uris.add(data.getData());
+                ClipData clip = data.getClipData();
+                if (clip != null) {
+                    for (int i = 0; i < clip.getItemCount(); i++) uris.add(clip.getItemAt(i).getUri());
+                }
+                new File(destDir).mkdirs();
+                java.util.HashSet<String> used = new java.util.HashSet<String>();
+                for (Uri uri : uris) {
+                    String name = null;
+                    Cursor cursor = null;
+                    try {
+                        cursor = getContentResolver().query(uri, null, null, null, null);
+                        if (cursor != null && cursor.moveToFirst()) {
+                            int column = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                            if (column >= 0) name = cursor.getString(column);
+                        }
+                    } catch (RuntimeException e) {
+                        // fall back to the last path segment
+                    } finally {
+                        if (cursor != null) cursor.close();
+                    }
+                    if (name == null) name = uri.getLastPathSegment();
+                    if (name == null) { skipped++; continue; }
+                    name = name.replaceAll("[\\\\/:*?\"<>|]", "_");
+                    String lower = name.toLowerCase(java.util.Locale.ROOT);
+                    if (!lower.endsWith(".xml") && !lower.endsWith(".txt")) { skipped++; continue; }
+                    String unique = name;
+                    for (int n = 2; !used.add(unique); n++) unique = n + "_" + name;
+                    InputStream in = null;
+                    FileOutputStream out = null;
+                    try {
+                        in = getContentResolver().openInputStream(uri);
+                        out = new FileOutputStream(new File(destDir, unique));
+                        byte[] buffer = new byte[16384];
+                        int read;
+                        while (in != null && (read = in.read(buffer)) > 0) out.write(buffer, 0, read);
+                        copied++;
+                    } catch (Exception e) {
+                        skipped++;
+                    } finally {
+                        try { if (in != null) in.close(); } catch (Exception e) { /* ignore */ }
+                        try { if (out != null) out.close(); } catch (Exception e) { /* ignore */ }
+                    }
+                }
+                final int c = copied, k = skipped;
+                runOnGLThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        nativeLevelsPicked(c, k);
+                    }
+                });
+            }
+        }).start();
     }
 
     // PAD (PC addition): native entry points (src/platform/android/AndroidGamepad.cpp, GL thread).
