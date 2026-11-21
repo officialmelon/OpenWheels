@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.5.6
+
+### Fixed
+- **Cloudflare challenges during a session now retry with a fresh User-Agent.** If a request gets
+  the 403 "Just a moment..." challenge (the UA picked at launch is on the deny list, or Cloudflare
+  starts challenging mid-session), `HWApi` rotates to a new random browser UA and retries up to two
+  times before reporting the error. This targets the "works for a couple of games, then bot
+  protection" pattern. A network that challenges every non-browser TLS stack can still fail; that
+  needs a browser network stack or a site allowlist.
+
 ## v0.5.5
 
 ### Added

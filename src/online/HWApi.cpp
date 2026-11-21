@@ -58,10 +58,12 @@ std::string makeUserAgent() {
 #endif
 }
 
-const std::string& userAgentHeader() {
-    static const std::string header = "User-Agent: " + makeUserAgent();
+std::string& userAgentHeader() {
+    static std::string header = "User-Agent: " + makeUserAgent();
     return header;
 }
+
+void rotateUserAgent() { userAgentHeader() = "User-Agent: " + makeUserAgent(); }
 
 int g_lastStatus = 0;  // HTTP status of the latest response (for error messages)
 const double kMinSpacingSeconds = 1.0;  // one request at a time, at most one per second
@@ -162,6 +164,7 @@ struct HWApi::Pending {
     // ONLINE (PC addition): raw requests (account / replay modules)
     bool get = false;
     RawCallback raw;
+    int retries = 0;  // 403 challenge retries, each with a fresh User-Agent
 };
 
 // ONLINE (PC addition)
@@ -265,9 +268,7 @@ void HWApi::pump() {
     }
     request->setHeaders(headers);
     if (!p->get) request->setRequestData(p->body.data(), p->body.size());
-    // The body may hold a password (login): don't keep it around longer than the request.
-    std::fill(p->body.begin(), p->body.end(), '\0');
-    p->body.clear();
+    // Keep the body for a possible 403 challenge retry; it is wiped when the request finishes.
     request->setResponseCallback([this, p](network::HttpClient*, network::HttpResponse* response) {
         _busy = false;
         _lastRequestTime = now();
@@ -287,11 +288,28 @@ void HWApi::pump() {
             else if (response)
                 r.error += " (HTTP " + std::to_string(response->getResponseCode()) + ")";
         }
+        // Cloudflare started challenging a previously good UA mid-session (or the random UA
+        // picked at launch is on its deny list). Rotate and retry a couple of times before
+        // giving up; the body is still intact for the retry.
+        const bool challenge =
+            r.status == 403 && (r.body.find("Just a moment") != std::string::npos ||
+                                r.body.find("cf-chl") != std::string::npos ||
+                                r.body.find("challenge-platform") != std::string::npos);
+        if (challenge && p->retries < 2) {
+            ++p->retries;
+            rotateUserAgent();
+            _queue.insert(_queue.begin(), p);
+            pump();
+            return;
+        }
         if (p->raw) {
             p->raw(r);
         } else {
             p->done(r.ok, r.error, r.body);
         }
+        // The body may hold a password (login): wipe it once the request (and any retries) finish.
+        std::fill(p->body.begin(), p->body.end(), '\0');
+        p->body.clear();
         delete p;
         pump();
     });
