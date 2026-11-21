@@ -23,7 +23,13 @@ import os
 import plistlib
 import sys
 
-from PIL import Image, ImageDraw
+try:
+    from PIL import Image, ImageDraw
+except ImportError:  # build hooks pass --optional: without Pillow the buttons keep their text labels
+    if "--optional" in sys.argv:
+        print("ow_button_icons: skipped (the Python package Pillow is required); the buttons keep their text labels")
+        sys.exit(0)
+    raise
 
 # Frame size of a gameplay button per asset tier (controls_gameplay_btn_jump.png of the game).
 TIERS = {"large": (328, 325), "medium": (165, 163), "small": (124, 122), "tiny": (83, 81)}
