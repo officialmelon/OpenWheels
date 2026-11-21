@@ -10,6 +10,15 @@
   `generated/restored/<tier>/controls/ow_controls.*` (original artwork, generated at build time and in the
   release workflow). Without the generated sheet the buttons keep their text labels.
 
+## v0.5.4
+
+### Fixed
+- **Cloudflare started blocking the fixed User-Agent strings again** (the UAs shipped in v0.5.0
+  through v0.5.3) with a 403 "Just a moment..." page. The client now builds a plausible browser
+  User-Agent once per launch from a wide pool of devices, Android/iOS versions and
+  Chrome/Safari versions, and no longer appends the HappyWheels token. Verified with curl: the
+  shipped UAs got `cf-mitigated: challenge`, while randomized mobile and desktop UAs got HTTP 200.
+
 ## v0.5.3
 
 ### Fixed
