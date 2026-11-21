@@ -17,25 +17,52 @@ namespace online {
 namespace {
 
 const char* const kSite = "https://totaljerkface.com/";
-// The site's Cloudflare WAF challenges requests whose User-Agent names OpenWheels (HTTP 403
-// "Just a moment..."), while the public level API itself is unchanged. Use the browser/Electron
-// User-Agent of the official client on that platform and the same headers as its XHR, so get_all,
-// search_by_name/search_by_user, get_featured, get_level and get_record are served normally.
+// Cloudflare keeps adding the exact User-Agent strings this client has shipped to its blocklist
+// (OpenWheels/1.0, then the fixed official-client UAs), which produced a 403 "Just a moment..."
+// page even though the API is unchanged. Build a plausible browser User-Agent from a wide pool
+// once per launch instead, so we never reuse a known-blocked string.
+const char* pick(const std::vector<const char*>& values, std::mt19937& rng) {
+    std::uniform_int_distribution<size_t> dist(0, values.size() - 1);
+    return values[dist(rng)];
+}
+
+std::string makeUserAgent() {
+    std::random_device rd;
+    std::mt19937 rng(rd() ^ static_cast<unsigned>(std::chrono::system_clock::now().time_since_epoch().count()));
 #if (CC_TARGET_PLATFORM == CC_PLATFORM_ANDROID)
-const char* const kUserAgent =
-    "User-Agent: Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/152.0.0.0 Mobile Safari/537.36 HappyWheels/1.99.2 (2.01; 400f1e84)";
+    static const std::vector<const char*> devices = {
+        "Pixel 6", "Pixel 6 Pro", "Pixel 7", "Pixel 7 Pro", "Pixel 8", "Pixel 8 Pro", "Pixel 9",
+        "SM-S901B", "SM-S911B", "SM-S921B", "SM-A536B", "SM-A546B", "moto g(60)",
+        "moto g power (2023)", "CPH2451", "LE2123", "2201117TG", "V2207", "RMX3363"};
+    static const std::vector<const char*> androidVersions = {"11", "12", "13", "14", "15", "16"};
+    static const std::vector<const char*> chromeVersions = {"149", "150", "151", "152", "153", "154"};
+    return "Mozilla/5.0 (Linux; Android " + std::string(pick(androidVersions, rng)) + "; " +
+           pick(devices, rng) + ") AppleWebKit/537.36 (KHTML, like Gecko) Chrome/" +
+           pick(chromeVersions, rng) + ".0.0.0 Mobile Safari/537.36";
 #elif (CC_TARGET_PLATFORM == CC_PLATFORM_IOS)
-const char* const kUserAgent =
-    "User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 "
-    "(KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1 "
-    "HappyWheels/1.99.2 (2.01; 400f1e84)";
+    static const std::vector<const char*> iosVersions = {"17_6", "18_0", "18_1", "18_2"};
+    static const std::vector<const char*> safariVersions = {"17.6", "18.0", "18.1", "18.2"};
+    const size_t i = std::uniform_int_distribution<size_t>(0, iosVersions.size() - 1)(rng);
+    const bool ipad = (rng() & 1) != 0;
+    return std::string("Mozilla/5.0 (") + (ipad ? "iPad; CPU OS " : "iPhone; CPU iPhone OS ") +
+           iosVersions[i] + " like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/" +
+           safariVersions[i] + " Mobile/15E148 Safari/604.1";
 #else
-const char* const kUserAgent =
-    "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Happy Wheels/1.99.2 Chrome/152.0.7977.78 Electron/44.4.1 Safari/537.36 "
-    "HappyWheels/1.99.2 (2.01; 400f1e84)";
+    static const std::vector<const char*> platforms = {"Windows NT 10.0; Win64; x64",
+                                                       "Macintosh; Intel Mac OS X 10_15_7",
+                                                       "X11; Linux x86_64"};
+    static const std::vector<const char*> chromeVersions = {"149", "150", "151", "152", "153", "154"};
+    return "Mozilla/5.0 (" + std::string(pick(platforms, rng)) +
+           ") AppleWebKit/537.36 (KHTML, like Gecko) Chrome/" + pick(chromeVersions, rng) +
+           ".0.0.0 Safari/537.36";
 #endif
+}
+
+const std::string& userAgentHeader() {
+    static const std::string header = "User-Agent: " + makeUserAgent();
+    return header;
+}
+
 int g_lastStatus = 0;  // HTTP status of the latest response (for error messages)
 const double kMinSpacingSeconds = 1.0;  // one request at a time, at most one per second
 
@@ -218,7 +245,7 @@ void HWApi::pump() {
     request->setUrl(site + p->endpoint);
     request->setRequestType(p->get ? network::HttpRequest::Type::GET : network::HttpRequest::Type::POST);
     const std::string origin = site.substr(0, site.size() - 1);  // siteUrl() always ends with '/'
-    std::vector<std::string> headers = {kUserAgent,
+    std::vector<std::string> headers = {userAgentHeader(),
                                         std::string("Referer: ") + site + "happy_wheels.tjf",
                                         "Accept: */*",
                                         "Accept-Language: en-US,en;q=0.9",
