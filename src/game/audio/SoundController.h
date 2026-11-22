@@ -80,8 +80,8 @@ private:
     std::vector<Sound*> _sounds;            // +0x00 owned (deleted when finished)
     cocos2d::Vec2 _position;                // +0x18 listener position (metres), see update()
     bool _paused;                           // +0x20
-    float _areaSoundPitch;                  // +0x24 iOS: _masterPitch (property areaSoundPitch)
-    SoundList* _soundList;                  // +0x28 owned
+    float _areaSoundPitch{};                  // +0x24 iOS: _masterPitch (property areaSoundPitch)
+    SoundList* _soundList{};                  // +0x28 owned
 
     static float _themeMusicSoundLimiter;   // @00abb644 (.data) = 0.7f, music volume factor
     static float _masterVolume;             // @00ac65a4

@@ -31,9 +31,9 @@ public:
     void btnPressed(cocos2d::Ref* sender);  // @006419b4
 
 protected:
-    cocos2d::Menu* _menu;       // +0x320  invisible until introComplete()
-    float _time;                // +0x328
-    int _placement;             // +0x32c  1..4 -> "your best time!", "your 2nd best time!",
+    cocos2d::Menu* _menu{};       // +0x320  invisible until introComplete()
+    float _time{};                // +0x328
+    int _placement{};             // +0x32c  1..4 -> "your best time!", "your 2nd best time!",
                                 //         "your 3rd best time!", "your worst time!" (table @0041e52c)
     // Height is subtracted from the panel's vertical placement (room for a banner ad); always
     // Size::ZERO in 1.1.3. RE-TODO(@00640c08): name guessed from the use.

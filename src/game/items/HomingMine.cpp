@@ -37,11 +37,21 @@ HomingMine::HomingMine()
       _rangeSensor(nullptr),
       _inContact(false),
       _hoverLoop(nullptr),
-      _beepLoop(nullptr)
+      _beepLoop(nullptr),
+      // PC addition: the original left these uninitialised and relied on the heap being zeroed.
+      // Where it is not (iOS), paint() scaled the four thruster sprites by a garbage impulse
+      // before the first update: huge shapes, flickering colours.
+      _explosionDistance(0.0f),
+      _lightColor(HomingMineLightColorGreen),
+      _pathClear(false),
+      _countingDown(false),
+      _skipAFrame(false),
+      _counter(0.0f),
+      _retargetCount(0.0f),
+      _seekSpeed(1.0f),
+      _totalImpulseVector(0.0f, 0.0f),
+      _mineBodyMassInv(0.0f)
 {
-    // _explosionDistance, _lightColor, _pathClear, _countingDown, _skipAFrame, _counter,
-    // _retargetCount, _seekSpeed, _totalImpulseVector and _mineBodyMassInv are left
-    // uninitialised, as in the original (the factory does not zero-fill either).
 }
 
 // @005c3094 (D1), @005c30d0 (D0)

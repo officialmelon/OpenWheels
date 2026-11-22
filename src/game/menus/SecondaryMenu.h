@@ -42,8 +42,8 @@ public:
     virtual void backBtnPressed();  // @0060f168  vptr+0x650
 
 protected:
-    bool _popSceneOnExit;           // +0x31d  not initialised by the ctor (subclasses come zero-filled)
-    cocos2d::Label* _headerLabel;   // +0x320  not initialised by the ctor
+    bool _popSceneOnExit{};           // +0x31d  not initialised by the ctor (subclasses come zero-filled)
+    cocos2d::Label* _headerLabel{};   // +0x320  not initialised by the ctor
     std::string _title;             // +0x328  set by the subclass before SecondaryMenu::init()
     float _contentTop;              // +0x340  = header bottom - _headerBottomMargin; written, never read (ctor: 0)
     int _headerFontSize;            // +0x344  120

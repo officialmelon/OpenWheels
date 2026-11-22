@@ -161,8 +161,8 @@ protected:
     // HWGameplayControls ivars that sit between pause/reset/timerBg positions there.
     cocos2d::Vec2 _cameraBtnPos;       // +0x370
     cocos2d::Vec2 _meterPos;           // +0x378
-    float _originalMeterY;             // +0x380  _meterBar texture rect y (x if rotated)
-    float _originalMeterHeight;        // +0x384  _meterBar texture rect height
+    float _originalMeterY{};             // +0x380  _meterBar texture rect y (x if rotated)
+    float _originalMeterHeight{};        // +0x384  _meterBar texture rect height
     cocos2d::Vec2 _forwardPos;         // +0x388
     cocos2d::Vec2 _backwardPos;        // +0x390
     cocos2d::Vec2 _leanForwardPos;     // +0x398
@@ -176,17 +176,17 @@ protected:
     cocos2d::EventListenerTouchOneByOne* _touchListener;  // +0x3e8  retained
     cocos2d::EventListenerCustom* _characterEjectedListener;  // +0x3f0  retained
     cocos2d::EventListenerCustom* _characterDeadListener;     // +0x3f8  retained
-    cocos2d::EventListenerCustom* _bannerShownListener;       // +0x400  retained
-    cocos2d::EventListenerCustom* _bannerRemovedListener;     // +0x408  retained
+    cocos2d::EventListenerCustom* _bannerShownListener{};       // +0x400  retained
+    cocos2d::EventListenerCustom* _bannerRemovedListener{};     // +0x408  retained
     // Layout metrics (init), all multiplied by _userScale; names are ours.
-    float _dpadArmLength;              // +0x410  225: superman/tuck/arch/pushup offset from the d-pad centre
-    float _dpadCenterX;                // +0x414  (_notchOffset + 450): ejected d-pad centre x from the left edge
-    float _dpadCenterY;                // +0x418  450: ejected d-pad centre y from the bottom edge
-    float _bottomMargin;               // +0x41c  100
-    float _sideMargin;                 // +0x420  (_notchOffset + 60)
-    float _topMargin;                  // +0x424  60
-    float _buttonSpacing;              // +0x428  90: gap between move buttons / lean buttons
-    float _specialButtonSpacing;       // +0x42c  125: gap below the special button
+    float _dpadArmLength{};              // +0x410  225: superman/tuck/arch/pushup offset from the d-pad centre
+    float _dpadCenterX{};                // +0x414  (_notchOffset + 450): ejected d-pad centre x from the left edge
+    float _dpadCenterY{};                // +0x418  450: ejected d-pad centre y from the bottom edge
+    float _bottomMargin{};               // +0x41c  100
+    float _sideMargin{};                 // +0x420  (_notchOffset + 60)
+    float _topMargin{};                  // +0x424  60
+    float _buttonSpacing{};              // +0x428  90: gap between move buttons / lean buttons
+    float _specialButtonSpacing{};       // +0x42c  125: gap below the special button
     bool _drawBounds;                  // +0x430  false; true would draw every hit area (red DrawNode, z 9999)
     cocos2d::LayerColor* _replayIndicator;  // +0x438  "REPLAY MODE" overlay while a touch is down (mode 2)
     cocos2d::Touch* _replayIndicatorTouch;  // +0x440

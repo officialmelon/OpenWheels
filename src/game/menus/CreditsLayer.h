@@ -23,5 +23,5 @@ public:
     void onEnterTransitionDidFinish() override;             // @005a86a8  vptr+0x328
 
 protected:
-    bool _showEnding;   // +0x31d  not initialised by the ctor; set in init()
+    bool _showEnding{};   // +0x31d  not initialised by the ctor; set in init()
 };

@@ -142,9 +142,9 @@ protected:
     bool _gameplayStarted;                 // +0x330  set by beginGameplayFollowingInterstitial (guard)
     bool _exitTransitionStarted;           // +0x331  set by onExitTransitionDidStart
     bool _characterDead;                   // +0x332  set by handleDead; blocks new highlights
-    cocos2d::Node* _internalAdNode;        // +0x338  internal "want more HW" ad container (z 10000000)
-    cocos2d::Label* _internalAdLabel;      // +0x340  "continue in N" countdown
-    int _internalAdCountdown;              // +0x348  internalAdDisplayTime, -1 per second
+    cocos2d::Node* _internalAdNode{};        // +0x338  internal "want more HW" ad container (z 10000000)
+    cocos2d::Label* _internalAdLabel{};      // +0x340  "continue in N" countdown
+    int _internalAdCountdown{};              // +0x348  internalAdDisplayTime, -1 per second
     bool _paused;                          // +0x350  (iOS paused)
     PauseLayer* _pauseLayer;               // +0x358
     GameplayControls* _controls;           // +0x360
@@ -166,9 +166,9 @@ protected:
     void* _unk0x3b8;                       // +0x3b8
     cocos2d::EventListenerCustom* _gameplayControlsActionListener;  // +0x3c0  retained
     cocos2d::EventListenerCustom* _levelCompletedListener;          // +0x3c8  retained
-    cocos2d::EventListenerCustom* _characterDyingListener;          // +0x3d0  retained, not zeroed by the ctor
-    cocos2d::EventListenerCustom* _characterDeadListener;           // +0x3d8  retained, not zeroed by the ctor
-    cocos2d::EventListenerCustom* _characterEjectedListener;        // +0x3e0  retained, not zeroed by the ctor
+    cocos2d::EventListenerCustom* _characterDyingListener{};          // +0x3d0  retained, not zeroed by the ctor
+    cocos2d::EventListenerCustom* _characterDeadListener{};           // +0x3d8  retained, not zeroed by the ctor
+    cocos2d::EventListenerCustom* _characterEjectedListener{};        // +0x3e0  retained, not zeroed by the ctor
     void* _unk0x3e8;                       // +0x3e8  zeroed by the ctor, never used
     DebugLayer* _debugLayer;               // +0x3f0  zeroed by the ctor and by a failed Layer::init
     // RE-TODO(@005b900c): +0x3f8..+0x430 are never used. The ctor zeroes all of them except +0x428
@@ -180,17 +180,17 @@ protected:
     void* _unk0x410;                       // +0x410
     void* _unk0x418;                       // +0x418
     void* _unk0x420;                       // +0x420
-    void* _unk0x428;                       // +0x428  not zeroed by the ctor
+    void* _unk0x428{};                       // +0x428  not zeroed by the ctor
     void* _unk0x430;                       // +0x430
     DyingVignette* _dyingVignette;         // +0x438
-    LevelB2D* _level;                      // +0x440  Session::getLevel(), set in beginGameplayFollowingInterstitial
+    LevelB2D* _level{};                      // +0x440  Session::getLevel(), set in beginGameplayFollowingInterstitial
     bool _characterDroppedOffscreen;       // +0x448  (iOS name) also blocks update()'s character feed
     cocos2d::EventListenerCustom* _systemTriggerListener;           // +0x450  retained
     cocos2d::Node* _highlightNode;         // +0x458  HighlightSprite container
-    void* _unk0x460;                       // +0x460  only cleared by the dtor
-    HWWindow* _pleaseTurnOnDataWindow;     // +0x468  Settings::createWindow with this (+0x328) as delegate
-    cocos2d::MenuItemImage* _internalAdBtn;  // +0x470  "window_btn_close.png" close button
-    cocos2d::Menu* _internalAdMenu;        // +0x478
+    void* _unk0x460{};                       // +0x460  only cleared by the dtor
+    HWWindow* _pleaseTurnOnDataWindow{};     // +0x468  Settings::createWindow with this (+0x328) as delegate
+    cocos2d::MenuItemImage* _internalAdBtn{};  // +0x470  "window_btn_close.png" close button
+    cocos2d::Menu* _internalAdMenu{};        // +0x478
     // Parent of showContinueButton...'s menu; never created in 1.1.3 (only read/cleared).
-    cocos2d::Node* _continueBtnParent;     // +0x480
+    cocos2d::Node* _continueBtnParent{};     // +0x480
 };

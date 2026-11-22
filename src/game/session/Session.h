@@ -142,11 +142,11 @@ protected:
     cocos2d::Node* _vehicleForeground;            // +0x390 z 12
     cocos2d::Node* _levelItemsNode;               // +0x398 z 2
     cocos2d::Node* _labelAtlasNode;               // +0x3a0 z 3
-    TerrainNode* _terrainNode;                    // +0x3a8 z 13
+    TerrainNode* _terrainNode{};                    // +0x3a8 z 13
     LevelItemsDrawNode* _backgroundDrawNode;      // +0x3b0 z 4
     LevelItemsDrawNode* _midgroundDrawNode;       // +0x3b8 z 9
-    FFDrawNode* _shapesNode;                      // +0x3c0 z 1
-    FFDrawNode* _foregroundShapesNode;            // +0x3c8 z 14
+    FFDrawNode* _shapesNode{};                      // +0x3c0 z 1
+    FFDrawNode* _foregroundShapesNode{};            // +0x3c8 z 14
     SoundController* _soundController;            // +0x3d0
     EmitterNode* _particlesForeground;            // +0x3d8 z 15 (null if particles_disabled)
     EmitterNode* _particlesMidground;             // +0x3e0 z 10
@@ -154,5 +154,5 @@ protected:
     BackgroundLayer* _backgroundLayer;            // +0x3f0
     GameplayControls* _controls;                  // +0x3f8
     cocos2d::DrawNode* _drawNode;                 // +0x400 DrawNode(2.0) at z 1000
-    void* _unk0x408;                              // +0x408 RE-TODO: sizeof is 0x410, never accessed
+    void* _unk0x408{};                              // +0x408 RE-TODO: sizeof is 0x410, never accessed
 };

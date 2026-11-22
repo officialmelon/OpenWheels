@@ -120,7 +120,7 @@ protected:
     cocos2d::Size _windowSize;                          // +0x348
     cocos2d::LayerColor* _bgLayer;                      // +0x350  black, faded to 210
     cocos2d::Size _windowSizeRatio;                     // +0x358  initial frame size as a fraction of visibleSize
-    cocos2d::EventListenerTouchOneByOne* _touchListener;  // +0x360  swallows all touches; retained.
+    cocos2d::EventListenerTouchOneByOne* _touchListener{};  // +0x360  swallows all touches; retained.
                                                           // Not initialised by the ctor.
     int _headerFontSize;                                // +0x368  120
     int _textFontSize;                                  // +0x36c  80

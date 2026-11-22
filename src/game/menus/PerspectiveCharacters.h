@@ -63,5 +63,5 @@ protected:
     float _spaceZ;                                     // +0x34c  2790; depth step between portraits
     CharacterSprite* _foremostSprite;                  // +0x350  portrait at _index
     // RE-TODO(@00602484): 8 bytes at +0x358 are never accessed; kept so arm64 sizeof stays 0x360.
-    uint8_t _unk358[8];                                // +0x358
+    uint8_t _unk358[8]{};                                // +0x358
 };

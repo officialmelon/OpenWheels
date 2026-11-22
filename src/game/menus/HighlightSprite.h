@@ -26,9 +26,9 @@ public:
     void fadeOutComplete();                            // @00649364  removeFromParent()
 
 protected:
-    float _yRange;                                     // +0x2f8  150; initial arrow y
-    cocos2d::Sprite* _sprite;                          // +0x300  the arrow
+    float _yRange{};                                     // +0x2f8  150; initial arrow y
+    cocos2d::Sprite* _sprite{};                          // +0x300  the arrow
     // iOS: id<HighlightSpriteDelegate> _delegate. Never accessed by the Android port (no
     // HighlightSpriteDelegate type exists in it); kept so arm64 sizeof stays 0x310.
-    void* _delegate;                                   // +0x308
+    void* _delegate{};                                   // +0x308
 };

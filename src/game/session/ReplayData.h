@@ -26,7 +26,7 @@ protected:
     // Names from the iOS original's ReplayData ivars.
     long _byteIndex;                    // +0x0000 index of the last entry written (-1 when empty)
     int _replayIndex;                   // +0x0008 index of the last entry read (-1)
-    unsigned char _byteArray[18000];    // +0x000c addEntry stops at _byteIndex == 18000, so the
+    unsigned char _byteArray[18000]{};    // +0x000c addEntry stops at _byteIndex == 18000, so the
                                         //         18001st entry lands on _completed (sic)
-    bool _completed;                    // +0x465c (cleared together with _byteArray by reset())
+    bool _completed{};                    // +0x465c (cleared together with _byteArray by reset())
 };

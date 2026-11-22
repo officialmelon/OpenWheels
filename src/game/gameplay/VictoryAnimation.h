@@ -25,7 +25,7 @@ public:
     void createAnimation();         // @00640204
 
 protected:
-    float _time;                       // +0x2f8  completion time in seconds; not set by the ctor
+    float _time{};                       // +0x2f8  completion time in seconds; not set by the ctor
     float _bgWidth;                    // +0x2fc  width of VictoryMenu's panel (decoration x offsets)
     std::string _placementString;      // +0x300  "" when the run did not place
     cocos2d::Label* _placementLabel;   // +0x318  "fonts/ClarendonLTStd-Bold.ttf" 73, yellow

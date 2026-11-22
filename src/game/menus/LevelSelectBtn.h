@@ -44,5 +44,5 @@ protected:
     bool _isLevelSlot;                                 // +0x309  true; false for an empty outline slot
     cocos2d::Touch* _touch;                            // +0x310  nullptr
     // RE-TODO(@005df8b0): 8 bytes at +0x318 are never accessed; kept so arm64 sizeof stays 0x320.
-    uint8_t _unk318[8];                                // +0x318
+    uint8_t _unk318[8]{};                                // +0x318
 };

@@ -161,20 +161,20 @@ public:
     std::string _cachedAlertMessage;             // +0x020
     std::string _cachedAlertConfirmLabel;        // +0x038
     std::string _cachedAlertCancelLabel;         // +0x050
-    bool _cachedAlertAnimated;                   // +0x068
+    bool _cachedAlertAnimated{};                   // +0x068
 
 private:
     // RE-TODO: 8 bytes at +0x070 are never initialised or accessed in 1.1.3 (layout placeholder so
     // _selectedChapter stays at +0x078).
-    void* _unk0x70;                              // +0x070
+    void* _unk0x70{};                              // +0x070
     int _selectedChapter;                        // +0x078 (UserDefault "selected_chapter")
     int _selectedLevel;                          // +0x07c (-1 at startup)
     std::string _levelXMLData;                   // +0x080 contents of the selected level's XML file
     bool _forceCharacter;                        // +0x098
-    int _dpi;                                    // +0x09c Device::getDPI()
-    float _screenWidthInches;                    // +0x0a0 winSizeInPixels.width / dpi
-    float _screenHeightInches;                   // +0x0a4 winSizeInPixels.height / dpi
-    float _screenDiagonalInches;                 // +0x0a8 (int)(sqrt(w*w + h*h) * 100) / 100
+    int _dpi{};                                    // +0x09c Device::getDPI()
+    float _screenWidthInches{};                    // +0x0a0 winSizeInPixels.width / dpi
+    float _screenHeightInches{};                   // +0x0a4 winSizeInPixels.height / dpi
+    float _screenDiagonalInches{};                 // +0x0a8 (int)(sqrt(w*w + h*h) * 100) / 100
     Session* _currentSession;                    // +0x0b0
     SoundController* _soundController;           // +0x0b8
     AdController* _adController;                 // +0x0c0
@@ -182,9 +182,9 @@ private:
     cocos2d::ValueVector _charactersData;        // +0x0f0 Characters.plist
     cocos2d::ValueMap _selectedCharacterData;    // +0x108
     // RE-TODO: one byte at +0x130 is never initialised or accessed (layout placeholder).
-    bool _unk0x130;                              // +0x130
+    bool _unk0x130{};                              // +0x130
     bool _advancedFromLastLevel;                 // +0x131
-    bool _levelWasCompleted;                     // +0x132
+    bool _levelWasCompleted{};                     // +0x132
     UserProgress* _userProgress;                 // +0x138
     Tracker* _tracker;                           // +0x140
     IAPController* _iapController;               // +0x148

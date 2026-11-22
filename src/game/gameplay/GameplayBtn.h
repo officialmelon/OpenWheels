@@ -61,7 +61,7 @@ public:
     bool getKeyOnly();
 
 protected:
-    float _userScale;              // +0x530  GameplayControls::_userScale ("controls_user_scale"); not set by the ctor
+    float _userScale{};              // +0x530  GameplayControls::_userScale ("controls_user_scale"); not set by the ctor
     bool _enabled;                 // +0x534  true
     float _adjustedScale;          // +0x538  1.0f
     unsigned int _stateValue;      // +0x53c  0; control bit(s) this button contributes (GameplayControls.h)

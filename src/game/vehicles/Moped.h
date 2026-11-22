@@ -105,49 +105,49 @@ public:
     void debugFunction(int value) override;     // @005f3e1c vptr+0xf8  (empty)
 
 protected:
-    CharacterB2D* _driver;                  // +0x1b8  Android-only (iOS: Vehicle::characters[0])
-    CharacterB2D* _passenger;               // +0x1c0  Android-only (iOS: additionalCharacter)
-    b2Fixture* _forkFixture;                // +0x1c8
-    b2Fixture* _tankFixture;                // +0x1d0
-    b2Fixture* _engineFixture;              // +0x1d8
-    b2Fixture* _middleFixture;              // +0x1e0
-    b2Fixture* _rearFixture;                // +0x1e8
-    b2Fixture* _seatFixture;                // +0x1f0
-    b2Body* _frameBody;                     // +0x1f8
-    cocos2d::Sprite* _backWheelSprite;      // +0x200
-    cocos2d::Sprite* _frontWheelSprite;     // +0x208
-    cocos2d::Sprite* _frontSpokesSprite;    // +0x210
-    cocos2d::Sprite* _backSpokesSprite;     // +0x218
-    b2RevoluteJoint* _backWheelJoint;       // +0x220
-    b2RevoluteJoint* _frontWheelJoint;      // +0x228
+    CharacterB2D* _driver{};                  // +0x1b8  Android-only (iOS: Vehicle::characters[0])
+    CharacterB2D* _passenger{};               // +0x1c0  Android-only (iOS: additionalCharacter)
+    b2Fixture* _forkFixture{};                // +0x1c8
+    b2Fixture* _tankFixture{};                // +0x1d0
+    b2Fixture* _engineFixture{};              // +0x1d8
+    b2Fixture* _middleFixture{};              // +0x1e0
+    b2Fixture* _rearFixture{};                // +0x1e8
+    b2Fixture* _seatFixture{};                // +0x1f0
+    b2Body* _frameBody{};                     // +0x1f8
+    cocos2d::Sprite* _backWheelSprite{};      // +0x200
+    cocos2d::Sprite* _frontWheelSprite{};     // +0x208
+    cocos2d::Sprite* _frontSpokesSprite{};    // +0x210
+    cocos2d::Sprite* _backSpokesSprite{};     // +0x218
+    b2RevoluteJoint* _backWheelJoint{};       // +0x220
+    b2RevoluteJoint* _frontWheelJoint{};      // +0x228
     // +0x230..+0x268: never touched by the Android code; names/types from the iOS ivar list
     // (same count and position).
-    b2RevoluteJoint* _framePelvis;          // +0x230  unused
-    LevelItem* _additionalCharacter;        // +0x238  unused
-    b2RevoluteJoint* _vehicleHand3;         // +0x240  unused
-    b2RevoluteJoint* _vehicleHand4;         // +0x248  unused
-    b2RevoluteJoint* _vehicleLowerLeg3;     // +0x250  unused
-    b2RevoluteJoint* _vehicleLowerLeg4;     // +0x258  unused
-    b2RevoluteJoint* _vehiclePelvis2;       // +0x260  unused
-    unsigned int _previousMaskBits;         // +0x268  driver's leg maskBits before attaching
-    unsigned int _leg1Contacts;             // +0x26c  passenger leg 1 contacts with the seat
-    unsigned int _leg2Contacts;             // +0x270
+    b2RevoluteJoint* _framePelvis{};          // +0x230  unused
+    LevelItem* _additionalCharacter{};        // +0x238  unused
+    b2RevoluteJoint* _vehicleHand3{};         // +0x240  unused
+    b2RevoluteJoint* _vehicleHand4{};         // +0x248  unused
+    b2RevoluteJoint* _vehicleLowerLeg3{};     // +0x250  unused
+    b2RevoluteJoint* _vehicleLowerLeg4{};     // +0x258  unused
+    b2RevoluteJoint* _vehiclePelvis2{};       // +0x260  unused
+    unsigned int _previousMaskBits{};         // +0x268  driver's leg maskBits before attaching
+    unsigned int _leg1Contacts{};             // +0x26c  passenger leg 1 contacts with the seat
+    unsigned int _leg2Contacts{};             // +0x270
     float _wheelSmashLimit;                 // +0x274  ctor: 200
     float _frameSmashLimit;                 // +0x278  ctor: 200
-    bool _passengerEjected;                 // +0x27c  init: false
-    cocos2d::Sprite* _meterSprite;          // +0x280  unused
-    cocos2d::Sprite* _meterBG;              // +0x288  unused
-    cocos2d::Sprite* _frameSprite;          // +0x290  iOS Vehicle::frameSprite; frame body user data
-    bool _accelerating;                     // +0x298  unused
-    bool _boosting;                         // +0x299  init: false
-    float _boostVal;                        // +0x29c  init: 0
-    unsigned int _boostMax;                 // +0x2a0  init: 50
-    unsigned int _boostStepUp;              // +0x2a4  init: 1
-    unsigned int _boostImpulse;             // +0x2a8  init: 2
-    float _boostStepDown;                   // +0x2ac  init: 0.25
-    Sound* _engineSound;                    // +0x2b0  init: null
-    float _defaultPitch;                    // +0x2b8  init: 1
-    float _targetPitch;                     // +0x2bc
+    bool _passengerEjected{};                 // +0x27c  init: false
+    cocos2d::Sprite* _meterSprite{};          // +0x280  unused
+    cocos2d::Sprite* _meterBG{};              // +0x288  unused
+    cocos2d::Sprite* _frameSprite{};          // +0x290  iOS Vehicle::frameSprite; frame body user data
+    bool _accelerating{};                     // +0x298  unused
+    bool _boosting{};                         // +0x299  init: false
+    float _boostVal{};                        // +0x29c  init: 0
+    unsigned int _boostMax{};                 // +0x2a0  init: 50
+    unsigned int _boostStepUp{};              // +0x2a4  init: 1
+    unsigned int _boostImpulse{};             // +0x2a8  init: 2
+    float _boostStepDown{};                   // +0x2ac  init: 0.25
+    Sound* _engineSound{};                    // +0x2b0  init: null
+    float _defaultPitch{};                    // +0x2b8  init: 1
+    float _targetPitch{};                     // +0x2bc
     float _impulseMagnitudeMax;             // +0x2c0  ctor: 0.75 (iOS Vehicle ivar)
     float _impulseOffset;                   // +0x2c4  ctor: 1
     float _maxSpinAV;                       // +0x2c8  ctor: 5

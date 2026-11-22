@@ -73,8 +73,8 @@ protected:
     float _unk328;                                     // +0x328
     float _unk32c;                                     // +0x32c
     float _defaultGruntDuration;                       // +0x330  2.0; used while AudioEngine reports -1
-    float _gruntDuration;                              // +0x334  not initialised by the constructor
-    float _gruntTimeRemaining;                         // +0x338  not initialised by the constructor
+    float _gruntDuration{};                              // +0x334  not initialised by the constructor
+    float _gruntTimeRemaining{};                         // +0x338  not initialised by the constructor
     cocos2d::Sprite* _body;                            // +0x340  "mascot_body.png"
     cocos2d::Sprite* _face;                            // +0x348  default / anguish / dead
     cocos2d::Sprite* _armLeft;                         // +0x350  "mascot_arm_left.png"
@@ -90,5 +90,5 @@ protected:
     HWWindow* _adFailedWindow;                         // +0x398  "Failure" alert
     RewardedVideoStatus _rewardedVideoStatus;          // +0x3a0  not initialised by the constructor
     // RE-TODO(@005ea924): 12 bytes at +0x3a4 are never accessed; kept so arm64 sizeof stays 0x3b0.
-    uint8_t _unk3a4[12];                               // +0x3a4
+    uint8_t _unk3a4[12]{};                               // +0x3a4
 };

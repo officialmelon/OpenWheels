@@ -21,5 +21,5 @@ public:
     void update(float dt) override;             // @0064c9b8  vptr+0x3d8
 
 protected:
-    int _frameCount;    // +0x320  not initialised by the ctor; reset in init()
+    int _frameCount{};    // +0x320  not initialised by the ctor; reset in init()
 };

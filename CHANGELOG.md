@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.5.8
+
+### Fixed
+- **Objects jittering, flickering or changing shape, huge stray shapes, wrong colours** (#43, #22, iPhone
+  reports; may also have hit other devices). The game read memory it had never set: the homing mine's
+  thruster sprites were scaled by a garbage number on their first frames, a group's art transform
+  was garbage until its first update, and dozens of other fields of the camera, particle emitters,
+  triggers, menus, windows and gameplay controls started with whatever the memory held. A phone that
+  hands out zeroed memory (the original game's Android build) never showed it; one that hands out
+  used memory (iPhone) did, in random places each time. Everything is now initialised, and a
+  valgrind run of two official levels reports no more uninitialised reads.
+
 ## v0.5.7
 
 ### Added

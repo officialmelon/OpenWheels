@@ -51,7 +51,7 @@ protected:
     // one (python tools/re/ios_ivars.py CharacterSelectLayer); the rest are Android additions.
     cocos2d::Sprite* _spotlight1;                      // +0x320  "spotlight.png", left
     cocos2d::Sprite* _spotlight2;                      // +0x328  "spotlight.png", right
-    cocos2d::Sprite* _glowFrame;                       // +0x330  "charSel_frame_highlight.png"; not initialised by the constructor
+    cocos2d::Sprite* _glowFrame{};                       // +0x330  "charSel_frame_highlight.png"; not initialised by the constructor
     float _scaleInc1;                                  // +0x338  0     (sin phase, +0.01 per frame)
     float _rotInc1;                                    // +0x33c  0     (sin phase, +0.02 per frame)
     float _scaleInc2;                                  // +0x340  3.14  (cos phase, -0.012 per frame)
@@ -59,12 +59,12 @@ protected:
     // RE-TODO(@005a2328): 4 bytes zeroed by the constructor, never used (iOS has a float
     // defaultSpotlightScale next to the phases).
     int _unk348;                                       // +0x348
-    cocos2d::Menu* _vehicleMenu;                       // +0x350  character buttons; not initialised by the constructor
+    cocos2d::Menu* _vehicleMenu{};                       // +0x350  character buttons; not initialised by the constructor
     cocos2d::MenuItem* _lastBtn;                       // +0x358  selected character button
     int _currentID;                                    // +0x360  -1; selected character index
     std::string _selectedCharacterName;                // +0x368  tracker label ("name" of the character data)
     bool _confirmed;                                   // +0x380  set by handleConfirmButtonReleased
     bool _characterBtnPressedThisFrame;                // +0x381  cleared at the end of update()
     // RE-TODO(@005a2424): 14 bytes at +0x382 are never accessed; kept so arm64 sizeof stays 0x390.
-    uint8_t _unk382[14];                               // +0x382
+    uint8_t _unk382[14]{};                               // +0x382
 };

@@ -215,7 +215,7 @@ private:
     bool _clockwise;                                                // +0x21d  info "cw": negate y
     bool _levelComplete;                                            // +0x21e
     float _frameActionTimer;                                        // +0x220
-    bool _forcedChar;                                               // +0x224  info "f"
+    bool _forcedChar{};                                               // +0x224  info "f"
     // ONLINE (PC addition): true while update() runs the single actions of a browser level.
     bool _onlineRunningSingleActions = false;
 

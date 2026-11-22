@@ -50,14 +50,14 @@ public:
     void executeCallback();
 
 protected:
-    int _unk0x5f8;                         // +0x5f8 RE-TODO: never accessed
+    int _unk0x5f8{};                         // +0x5f8 RE-TODO: never accessed
     ParticleColorSet _colors;              // +0x5fc setColorArray / addParticle
     EmitterDelegate* _emitterDelegate;     // +0x650
     bool _gameplayPause;                   // +0x658
     float _ptmRatio;                       // +0x65c
     cocos2d::Vec2 _gravity;                // +0x660 stored by init(..), unused by Emitter::update
-    int _maxParticles;                     // +0x668 particle budget (Session::canAddEmitter)
+    int _maxParticles{};                     // +0x668 particle budget (Session::canAddEmitter)
     std::function<void()> _callback;       // +0x670
-    void* _unk0x6a0;                       // +0x6a0 RE-TODO: never accessed
-    StageCamera* _stageCamera;             // +0x6a8 (iOS name)
+    void* _unk0x6a0{};                       // +0x6a0 RE-TODO: never accessed
+    StageCamera* _stageCamera{};             // +0x6a8 (iOS name)
 };

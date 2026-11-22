@@ -105,8 +105,8 @@ protected:
     bool _unk369;                                      // +0x369
     LevelSelectMenu* _chapterMenu;                     // +0x370  created on first showLevelSelectMenu(true, ...)
     // RE-TODO(@005e767c): 16 bytes at +0x378 are never accessed and not initialised.
-    uint8_t _unk378[16];                               // +0x378
+    uint8_t _unk378[16]{};                               // +0x378
     // Gates the beta "Oh hi, Mark." alert in logoScaleInComplete(). Cleared by init(), never set.
     // (iOS ends with a BOOL _showMenu at the same relative place; the meaning differs.)
-    bool _showBetaMessage;                             // +0x388
+    bool _showBetaMessage{};                             // +0x388
 };

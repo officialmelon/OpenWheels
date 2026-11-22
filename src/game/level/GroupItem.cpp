@@ -14,8 +14,17 @@ USING_NS_CC;
 
 // @005bec34
 GroupItem::GroupItem()
-    : _body(nullptr)
+    : _immovable(false)
+    , _opacity(1.0f)
+    , _body(nullptr)
+    , _index(-1)
+    , _transform(AffineTransformIdentity)
+    , _ptmRatio(1.0f)
+    , _rotation(0.0f)
 {
+    // PC addition: the original left these uninitialised. A heap that is not zeroed (iOS) handed
+    // the FFDrawNode a garbage art transform until the first update(): shapes flashed to random
+    // places and sizes.
 }
 
 // @005bec58 (D2), @005becf0 (D0)
@@ -39,6 +48,7 @@ bool GroupItem::init(b2Body* body, float ptmRatio)
     _body = body;
     _ptmRatio = ptmRatio;
     _shapeItems.clear();
+    updateTransform();  // PC addition: a valid art transform from the start
     return true;
 }
 

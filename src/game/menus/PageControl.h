@@ -50,5 +50,5 @@ protected:
     PageControlDelegate* _delegate;                    // +0x328
     cocos2d::EventListenerTouchOneByOne* _touchListener;  // +0x330  retained while registered
     // RE-TODO(@005fd524): 8 bytes at +0x338 are never accessed; kept so arm64 sizeof stays 0x340.
-    uint8_t _unk338[8];                                // +0x338
+    uint8_t _unk338[8]{};                                // +0x338
 };

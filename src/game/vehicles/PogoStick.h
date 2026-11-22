@@ -120,7 +120,7 @@ protected:
     b2RevoluteJointDef _frameHand2JointDef; // +0x240
     b2RevoluteJointDef _frameFoot1JointDef; // +0x290
     b2RevoluteJointDef _frameFoot2JointDef; // +0x2e0
-    b2Body* _frameBody;                     // +0x330  (iOS Vehicle ivar)
+    b2Body* _frameBody{};                     // +0x330  (iOS Vehicle ivar)
     b2Body* _rodBody;                       // +0x338
     b2Fixture* _frameShape;                 // +0x340
     b2Fixture* _rodShape;                   // +0x348

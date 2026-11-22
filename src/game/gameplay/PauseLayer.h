@@ -56,5 +56,5 @@ protected:
     cocos2d::Label* _touchLabel = nullptr;
     void refreshTouchButton();
 
-    bool _waitingForStoreResponse;  // +0x328  set when "remove ads" is pressed; never read
+    bool _waitingForStoreResponse{};  // +0x328  set when "remove ads" is pressed; never read
 };

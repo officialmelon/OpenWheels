@@ -148,26 +148,26 @@ protected:
     b2Body* _triggeringBody;                         // +0x098 body currently inside
     b2Fixture* _sensor;                              // +0x0a0 box sensor on the level body
     std::string _soundEffect;                        // +0x0a8 assigned "" in init, else unused
-    int _soundId;                                    // +0x0c0 "s" (SoundController index), -1
+    int _soundId{};                                    // +0x0c0 "s" (SoundController index), -1
     std::vector<TargetActionBase*> _targets;         // +0x0c8 retained
     std::map<b2Body*, unsigned int> _activationDictionary;  // +0x0e0 body -> 1 (triggeredBy 4)
     std::vector<float> _delayVector;                 // +0x0f8 pending delayed activations
-    int _systemTriggerId;                            // +0x110 "i" for TriggerTypeSystem, -1
-    float _xMeters;                                  // +0x114 "x"
-    float _yMeters;                                  // +0x118 "y"
-    float _volume;                                   // +0x11c "v"
-    float _panning;                                  // +0x120 "p"
-    float _delayTime;                                // +0x124 "d"
-    int _type;                                       // +0x128 "t" TriggerType
-    int _counter;                                    // +0x12c
-    int _triggeredBy;                                // +0x130 "b" TriggerTriggeredBy
-    int _triggeringCount;                            // +0x134 contacts of _triggeringBody
-    int _repeatType;                                 // +0x138 "r" TriggerRepeatType
-    float _repeatFrames;                             // +0x13c "i" (seconds between repeats)
-    float _repeatCount;                              // +0x140 time since the last repeat
-    int _soundLocation;                              // +0x144 "l": 1 global, else positional
-    bool _disabled;                                  // +0x148 "sd" (set by LevelB2D)
-    bool _activationDictionaryNulled;                // +0x149 one-shot trigger already fired
+    int _systemTriggerId{};                            // +0x110 "i" for TriggerTypeSystem, -1
+    float _xMeters{};                                  // +0x114 "x"
+    float _yMeters{};                                  // +0x118 "y"
+    float _volume{};                                   // +0x11c "v"
+    float _panning{};                                  // +0x120 "p"
+    float _delayTime{};                                // +0x124 "d"
+    int _type{};                                       // +0x128 "t" TriggerType
+    int _counter{};                                    // +0x12c
+    int _triggeredBy{};                                // +0x130 "b" TriggerTriggeredBy
+    int _triggeringCount{};                            // +0x134 contacts of _triggeringBody
+    int _repeatType{};                                 // +0x138 "r" TriggerRepeatType
+    float _repeatFrames{};                             // +0x13c "i" (seconds between repeats)
+    float _repeatCount{};                              // +0x140 time since the last repeat
+    int _soundLocation{};                              // +0x144 "l": 1 global, else positional
+    bool _disabled{};                                  // +0x148 "sd" (set by LevelB2D)
+    bool _activationDictionaryNulled{};                // +0x149 one-shot trigger already fired
     // ONLINE (PC addition): click-trigger state (see onlineMouseClick).
     bool _onlineClickSpent = false;                  // "once" click trigger: button removed
     bool _onlineClickHover = false;                  // "continuously": runs until the pointer leaves

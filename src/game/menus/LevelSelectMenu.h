@@ -85,7 +85,7 @@ protected:
     // _chapterLevelBtns and _levelBtns are Android additions.
     HWWindow* _levelUnavailableWindow;                 // +0x308  "This level doesn't exist. Yet."
     HWWindow* _levelLockedWindow;                      // +0x310  "This level is locked."
-    HWWindow* _levelsUnlockedWindow;                   // +0x318  "Hooray!"; not initialised by the constructor
+    HWWindow* _levelsUnlockedWindow{};                   // +0x318  "Hooray!"; not initialised by the constructor
     MainMenu* _mainMenu;                               // +0x320
     cocos2d::ClippingNode* _clippingNode;              // +0x328  stencil = visible rect
     cocos2d::Node* _namesHolder;                       // +0x330  chapter titles; scrolls at 1.5x
@@ -101,10 +101,10 @@ protected:
     float _targetX;                                    // +0x360
     unsigned int _menuIndex;                           // +0x364
     bool _menuSliding;                                 // +0x368  |target - _buttonsSBN x| >= 10; write-only
-    bool _checkUnlockedLevelsOnEnterTransition;        // +0x369
+    bool _checkUnlockedLevelsOnEnterTransition{};        // +0x369
     float _index;                                      // +0x36c  scroll position, in chapters
     float _prevIndex;                                  // +0x370  _index at touch start
-    int _lockedLevelChapter;                           // +0x374  chapter offered by the "Go to levels" button
+    int _lockedLevelChapter{};                           // +0x374  chapter offered by the "Go to levels" button
     // RE-TODO(@005dff3c): only constructed and freed; element type unknown (trivially destructible).
     // Probably the iOS NSMutableArray _unlockedLevels.
     std::vector<cocos2d::Node*> _unlockedLevels;       // +0x378
@@ -126,5 +126,5 @@ protected:
     bool _showOffscreenElementsOnEnter;                // +0x422  only set (setShowOffscreenElementsOnEnter)
     unsigned int _shakeDuration;                       // +0x424  frames left of the stamp shake (45)
     // RE-TODO(@005e000c): 8 bytes at +0x428 are never accessed; kept so arm64 sizeof stays 0x430.
-    uint8_t _unk428[8];                                // +0x428
+    uint8_t _unk428[8]{};                                // +0x428
 };
