@@ -832,7 +832,8 @@ void CharacterB2D::checkJoints()
     while (index < _jointsToCheck.size()) {
         b2Joint* joint = _jointsToCheck[index];
         float force = joint->GetReactionForce(getTimeStepInverse()).Length();
-        if (force > _jointLimits[joint]) {
+        // QOL (PC addition): "character toughness" scales the force a joint withstands.
+        if (force > _jointLimits[joint] * qol::toughnessScale()) {
             breakJoint(joint, force);
         } else if ((joint->GetAnchorB() - joint->GetAnchorA()).LengthSquared() > 0.5f) {
             breakJoint(joint, 1000.0f);

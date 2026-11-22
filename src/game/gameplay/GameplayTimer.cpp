@@ -5,6 +5,7 @@
 #include "Patch.h"
 #include "Session.h"
 #include "Settings.h"
+#include "qol/QoL.h"
 
 USING_NS_CC;
 
@@ -97,6 +98,7 @@ void GameplayTimer::setBackgroundSprite(Sprite* sprite)
 {
     _backgroundSprite = sprite;
     alignText();
+    setHidden(false);  // QOL (PC addition): applies "hide timer"
 }
 
 // @005bdd54
@@ -140,5 +142,11 @@ bool GameplayTimer::update()
 // @005bde84
 void GameplayTimer::setHidden(bool hidden)
 {
-    _label->setVisible(!hidden);
+    // QOL (PC addition): "hide timer" keeps the label and its pill hidden (the time still runs).
+    const bool hideAlways = qol::hideTimer();
+    _label->setVisible(!hidden && !hideAlways);
+    if (hideAlways && _backgroundSprite)
+    {
+        _backgroundSprite->setVisible(false);
+    }
 }

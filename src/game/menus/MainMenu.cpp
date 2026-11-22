@@ -508,13 +508,13 @@ void MainMenu::logoScaleInComplete()
     {
         // PC addition: a one-time "what's new" toast after an update (the modal alerts above keep
         // priority; this one waits for the next visit to the main menu).
-        const char* const whatsNewKey = "whatsnew_0_5_6";
+        const char* const whatsNewKey = "whatsnew_0_5_7";
         if (!userDefault->getBoolForKey(whatsNewKey))
         {
-            online::ui::showToast("OpenWheels updated to 0.5.6",
-                                  {"Online levels: a Cloudflare challenge now retries with a fresh browser User-Agent",
-                                   "Accessibility page: colour-blind filters, touch button opacity, haptics",
-                                   "Android: import levels with the system file picker"},
+            online::ui::showToast("OpenWheels updated to 0.5.7",
+                                  {"Accessibility: hide the timer, make the characters tougher",
+                                   "Accessibility: colour-blind filters, touch button opacity, haptics",
+                                   "Pause menu: show or hide the touch buttons"},
                                   1.0f);
             userDefault->setBoolForKey(whatsNewKey, true);
             userDefault->flush();

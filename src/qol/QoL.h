@@ -108,6 +108,18 @@ const char* colorFilterName(ColorFilter filter);
 // How solid the on-screen touch buttons are when not pressed: 0.3 .. 1 (the original's 0.4).
 float touchButtonOpacity();
 void setTouchButtonOpacity(float opacity);
+// Hide the level timer (the pill at the top of the screen). The time still runs (victory screen,
+// replays); it is just not drawn.
+bool hideTimer();
+void setHideTimer(bool on);
+// How hard it is to break the characters' bones: normal (the mobile game), tough (1.6x the force),
+// tougher (3x) and unbreakable (joints only come apart when pulled away from each other). Replays
+// recorded with another setting can play out differently.
+enum class Toughness { Normal = 0, Tough = 1, Tougher = 2, Unbreakable = 3 };
+Toughness characterToughness();
+void setCharacterToughness(Toughness toughness);
+const char* toughnessName(Toughness toughness);
+float toughnessScale();  // multiplier of the joints' break force
 // No camera shake (explosions, big crashes): for motion sensitivity.
 bool reduceShake();
 void setReduceShake(bool on);

@@ -23,6 +23,8 @@ private:
         RowColorFilter = 300,
         RowTouchControls,
         RowReduceShake,
+        RowHideTimer,
+        RowToughness,
         RowRumble,
         RowPhoneVibration,
     };

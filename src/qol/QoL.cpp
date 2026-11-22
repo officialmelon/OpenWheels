@@ -32,6 +32,8 @@ const char* const kPhoneVibration = "qol_phone_vibration";
 const char* const kColorFilter = "qol_color_filter";
 const char* const kTouchOpacity = "qol_touch_button_opacity";
 const char* const kReduceShake = "qol_reduce_shake";
+const char* const kHideTimer = "qol_hide_timer";
+const char* const kToughness = "qol_character_toughness";
 
 bool g_keyboardTouch = false;
 bool g_regrabSuspended = false;
@@ -42,6 +44,8 @@ int g_phoneVibration = -1;
 int g_colorFilter = -1;      // cached (read every frame)
 float g_touchOpacity = -1.0f;
 int g_reduceShake = -1;
+int g_hideTimer = -1;
+int g_toughness = -1;  // cached (read every physics step)
 
 std::function<void(bool)>& fullscreenHandler() {
     static std::function<void(bool)> handler;
@@ -238,6 +242,40 @@ float touchButtonOpacity() {
 void setTouchButtonOpacity(float opacity) {
     g_touchOpacity = std::max(0.3f, std::min(1.0f, opacity));
     store()->setFloatForKey(kTouchOpacity, g_touchOpacity);
+}
+
+bool hideTimer() {
+    if (g_hideTimer < 0) g_hideTimer = store()->getBoolForKey(kHideTimer, false) ? 1 : 0;
+    return g_hideTimer == 1;
+}
+void setHideTimer(bool on) {
+    g_hideTimer = on ? 1 : 0;
+    store()->setBoolForKey(kHideTimer, on);
+}
+
+Toughness characterToughness() {
+    if (g_toughness < 0) g_toughness = std::max(0, std::min(3, store()->getIntegerForKey(kToughness, 0)));
+    return (Toughness)g_toughness;
+}
+void setCharacterToughness(Toughness toughness) {
+    g_toughness = (int)toughness;
+    store()->setIntegerForKey(kToughness, g_toughness);
+}
+const char* toughnessName(Toughness toughness) {
+    switch (toughness) {
+        case Toughness::Tough: return "tough";
+        case Toughness::Tougher: return "tougher";
+        case Toughness::Unbreakable: return "unbreakable";
+        default: return "normal";
+    }
+}
+float toughnessScale() {
+    switch (characterToughness()) {
+        case Toughness::Tough: return 1.6f;
+        case Toughness::Tougher: return 3.0f;
+        case Toughness::Unbreakable: return 1.0e9f;
+        default: return 1.0f;
+    }
 }
 
 bool reduceShake() {

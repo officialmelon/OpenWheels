@@ -39,6 +39,8 @@ std::string QoLAccessibilityMenu::labelFor(int row) const
     case RowColorFilter: return std::string("colour filter: ") + qol::colorFilterName(qol::colorFilter());
     case RowTouchControls: return std::string("touch controls: ") + qol::touchControlsName(qol::touchControls());
     case RowReduceShake: return std::string("reduce screen shake: ") + onOff(qol::reduceShake());
+    case RowHideTimer: return std::string("timer: ") + (qol::hideTimer() ? "hidden" : "shown");
+    case RowToughness: return std::string("character toughness: ") + qol::toughnessName(qol::characterToughness());
     case RowRumble: return std::string("controller rumble: ") + qol::rumbleLevelName(qol::rumbleLevel());
     case RowPhoneVibration: return std::string("phone vibration: ") + onOff(qol::phoneVibration());
     default: return std::string();
@@ -61,6 +63,8 @@ void QoLAccessibilityMenu::addContent()
     menu->addChild(QoLSliderItem::create([](float v) { return "touch button opacity: " + percent(v); },
                                          qol::touchButtonOpacity, qol::setTouchButtonOpacity));
     menu->addChild(makeRow(RowReduceShake));
+    menu->addChild(makeRow(RowHideTimer));
+    menu->addChild(makeRow(RowToughness));
     menu->addChild(makeRow(RowRumble));
     if (qol::phoneVibrationSupported())
     {
@@ -95,6 +99,12 @@ void QoLAccessibilityMenu::rowPressed(Ref* sender)
         break;
     case RowReduceShake:
         qol::setReduceShake(!qol::reduceShake());
+        break;
+    case RowHideTimer:
+        qol::setHideTimer(!qol::hideTimer());
+        break;
+    case RowToughness:
+        qol::setCharacterToughness((qol::Toughness)(((int)qol::characterToughness() + 1) % 4));
         break;
     case RowRumble:
         qol::setRumbleLevel((qol::RumbleLevel)(((int)qol::rumbleLevel() + 1) % 4));

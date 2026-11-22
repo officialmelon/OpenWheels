@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.5.7
+
+### Added
+- **Hide the timer** (Options > Quality of Life > accessibility > timer) (#45). The time still runs for the
+  victory screen and replays; only the pill at the top is not drawn.
+- **Character toughness** (same page) (#43): normal, tough (1.6x the force to break a joint), tougher
+  (3x) or unbreakable, for the feet and arms that snap on every pogo or Segway landing. The browser and
+  Steam games are tougher than the mobile one. A replay recorded with another setting can play out
+  differently.
+
 ## v0.5.6
 
 ### Fixed
